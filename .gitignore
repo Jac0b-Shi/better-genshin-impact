@@ -47,3 +47,4 @@ __pycache__/
 # Local native build artifacts
 /artifacts/
 /.build/
+.DS_Store
