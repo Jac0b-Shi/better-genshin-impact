@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Helpers;
+using BetterGenshinImpact.Platform.Abstractions;
 using OpenCvSharp;
 using System.Drawing;
-using Vanara.PInvoke;
 using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.GameTask.AutoPick.Assets;
@@ -19,7 +19,7 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
     public RecognitionObject LRo;
 
 
-    public User32.VK PickVk = User32.VK.VK_F;
+    public BgiKey PickVk = BgiKey.F;
     public RecognitionObject PickRo;
     public RecognitionObject ChatPickRo;
 
@@ -73,8 +73,10 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
             try
             {
                 PickRo = LoadCustomPickKey(keyName);
-                PickVk = User32Helper.ToVk(keyName);
+                PickVk = BgiKeyMapper.ToKey(keyName);
+#if BGI_FULL_WINDOWS
                 TaskContext.Instance().Config.KeyBindingsConfig.PickUpOrInteract = (Core.Config.KeyId)(int)PickVk;
+#endif
                 ChatPickRo = LoadCustomChatPickKey(keyName);
             }
             catch (Exception e)

@@ -42,4 +42,5 @@ __pycache__/
 !.trae/skills/**
 
 # Claude
-.claude/*
+.claude/*artifacts/
+.build/

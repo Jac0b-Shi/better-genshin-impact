@@ -1,13 +1,15 @@
-﻿using BetterGenshinImpact.GameTask.Model.Area.Converter;
+using BetterGenshinImpact.GameTask.Model.Area.Converter;
 using BetterGenshinImpact.View.Drawable;
+#if BGI_FULL_WINDOWS
 using Fischless.WindowsInput;
+using Vanara.PInvoke;
+#endif
 using OpenCvSharp;
 using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using BetterGenshinImpact.GameTask.Common;
-using Vanara.PInvoke;
 
 namespace BetterGenshinImpact.GameTask.Model.Area;
 
@@ -56,7 +58,8 @@ public class Region : IDisposable
     {
     }
 
-    public Region(int x, int y, int width, int height, Region? owner = null, INodeConverter? converter = null, DrawContent? drawContent = null)
+    public Region(int x, int y, int width, int height, Region? owner = null, INodeConverter? converter = null,
+        DrawContent? drawContent = null)
     {
         X = x;
         Y = y;
@@ -79,15 +82,16 @@ public class Region : IDisposable
     public INodeConverter? PrevConverter { get; }
 
     /// <summary>
-    /// 绘图上下文
+    /// 绘图上下文 (Windows/WPF overlay only; no-op stub on other platforms via DrawableStubs)
     /// </summary>
     protected readonly DrawContent drawContent;
 
     // public List<Region>? NextChildren { get; protected set; }
 
     /// <summary>
-    /// 后台点击【自己】的中心
+    /// 后台点击【自己】的中心 (Windows-only via Win32 API)
     /// </summary>
+#if BGI_FULL_WINDOWS
     public void BackgroundClick()
     {
         User32.GetCursorPos(out var p);
@@ -96,6 +100,7 @@ public class Region : IDisposable
         Thread.Sleep(10);
         DesktopRegion.DesktopRegionMove(p.X, p.Y); // 鼠标移动回原来位置
     }
+#endif
 
     /// <summary>
     /// 点击【自己】的中心
@@ -189,6 +194,7 @@ public class Region : IDisposable
     /// </summary>
     /// <param name="name"></param>
     /// <param name="pen"></param>
+#if BGI_FULL_WINDOWS
     public void DrawSelf(string name, Pen? pen = null)
     {
         // 相对自己是 0, 0 坐标
@@ -279,6 +285,7 @@ public class Region : IDisposable
         var drawable = ToLineDrawable(x1, y1, x2, y2, name, pen);
         drawContent.PutLine(name, drawable);
     }
+#endif
 
     public Rect ConvertSelfPositionToGameCaptureRegion()
     {

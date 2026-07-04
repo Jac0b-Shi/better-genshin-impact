@@ -1,0 +1,156 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>BetterGenshinImpact</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>$(DefineConstants);BGI_PLATFORM_MAC</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250507" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250507" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.21.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.7" />
+    <PackageReference Include="System.Collections.Immutable" Version="9.0.4" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BetterGenshinImpact.Platform.Abstractions\BetterGenshinImpact.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- ==================== LINKED: upstream business logic ==================== -->
+
+  <!-- GameTask core -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/GameTask/ITaskTrigger.cs" Link="GameTask/ITaskTrigger.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/ISoloTask.cs" Link="GameTask/ISoloTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/CaptureContent.cs" Link="GameTask/CaptureContent.cs" />
+  </ItemGroup>
+
+  <!-- GameTask/AutoPick (ZERO business logic modification) -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPick/AutoPickTrigger.cs" Link="GameTask/AutoPick/AutoPickTrigger.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPick/AutoPickConfig.cs" Link="GameTask/AutoPick/AutoPickConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPick/TextRectExtractor.cs" Link="GameTask/AutoPick/TextRectExtractor.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPick/PickOcrEngineEnum.cs" Link="GameTask/AutoPick/PickOcrEngineEnum.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPick/Assets/AutoPickAssets.cs" Link="GameTask/AutoPick/Assets/AutoPickAssets.cs" />
+  </ItemGroup>
+
+  <!-- GameTask/Model/Area (linked upstream files) -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/ImageRegion.cs" Link="GameTask/Model/Area/ImageRegion.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Region.cs" Link="GameTask/Model/Area/Region.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/DesktopRegion.cs" Link="GameTask/Model/Area/DesktopRegion.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/GameCaptureRegion.cs" Link="GameTask/Model/Area/GameCaptureRegion.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/INodeConverter.cs" Link="GameTask/Model/Area/Converter/INodeConverter.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/ScaleConverter.cs" Link="GameTask/Model/Area/Converter/ScaleConverter.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/TranslationConverter.cs" Link="GameTask/Model/Area/Converter/TranslationConverter.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/ConvertRes.cs" Link="GameTask/Model/Area/Converter/ConvertRes.cs" />
+  </ItemGroup>
+
+  <!-- GameTask/Model -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/ISystemInfo.cs" Link="GameTask/Model/ISystemInfo.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/RectArea.cs" Link="GameTask/Model/RectArea.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseAssets.cs" Link="GameTask/Model/BaseAssets.cs" />
+  </ItemGroup>
+
+  <!-- Core/Recognition -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionObject.cs" Link="Core/Recognition/RecognitionObject.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionTypes.cs" Link="Core/Recognition/RecognitionTypes.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OcrEngineTypes.cs" Link="Core/Recognition/OcrEngineTypes.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/PaddleOcrModelConfig.cs" Link="Core/Recognition/PaddleOcrModelConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/CommonRecognition.cs" Link="Core/Recognition/OpenCv/CommonRecognition.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/MatchTemplateHelper.cs" Link="Core/Recognition/OpenCv/MatchTemplateHelper.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/OpenCvCommonHelper.cs" Link="Core/Recognition/OpenCv/OpenCvCommonHelper.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ResizeHelper.cs" Link="Core/Recognition/OpenCv/ResizeHelper.cs" />
+  </ItemGroup>
+
+  <!-- Core/Recognition/OCR (full business logic preserved) -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/OcrFactory.cs" Link="Core/Recognition/OCR/OcrFactory.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/OcrResult.cs" Link="Core/Recognition/OCR/OcrResult.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/IOcrService.cs" Link="Core/Recognition/OCR/IOcrService.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Paddle/PaddleOcrService.cs" Link="Core/Recognition/OCR/Paddle/PaddleOcrService.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Paddle/Rec.cs" Link="Core/Recognition/OCR/Paddle/Rec.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Paddle/Det.cs" Link="Core/Recognition/OCR/Paddle/Det.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/OcrUtils.cs" Link="Core/Recognition/OCR/Engine/OcrUtils.cs" />
+  </ItemGroup>
+
+  <!-- Core/Recognition/ONNX -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/ProviderType.cs" Link="Core/Recognition/ONNX/ProviderType.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/InferenceDeviceType.cs" Link="Core/Recognition/ONNX/InferenceDeviceType.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/SVTR/PickTextInference.cs" Link="Core/Recognition/ONNX/SVTR/PickTextInference.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/SVTR/TextInferenceFactory.cs" Link="Core/Recognition/ONNX/SVTR/TextInferenceFactory.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/SVTR/ITextInference.cs" Link="Core/Recognition/ONNX/SVTR/ITextInference.cs" />
+  </ItemGroup>
+
+  <!-- Core/Recognition/OCR - Engine types -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/OcrVersionConfig.cs" Link="Core/Recognition/OCR/Engine/OcrVersionConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/data/OcrShape.cs" Link="Core/Recognition/OCR/Engine/data/OcrShape.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/data/OcrImgMode.cs" Link="Core/Recognition/OCR/Engine/data/OcrImgMode.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/data/OcrNormalizeImage.cs" Link="Core/Recognition/OCR/Engine/data/OcrNormalizeImage.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OCR/Engine/data/OcrMatOrder.cs" Link="Core/Recognition/OCR/Engine/data/OcrMatOrder.cs" />
+  </ItemGroup>
+
+  <!-- Core/Config (linked) + Script types -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Model/TimerConfig/AutoPickExternalConfig.cs" Link="Core/Script/Dependence/Model/TimerConfig/AutoPickExternalConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Config/OtherConfig.cs" Link="Core/Config/OtherConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Config/RectConfig.cs" Link="Core/Config/RectConfig.cs" />
+  </ItemGroup>
+
+  <!-- Helpers (pure C#, no Win32/WPF) -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Helpers/MathHelper.cs" Link="Helpers/MathHelper.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/ObjectUtils.cs" Link="Helpers/ObjectUtils.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/Extensions/PointExtension.cs" Link="Helpers/Extensions/PointExtension.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/Extensions/RectExtension.cs" Link="Helpers/Extensions/RectExtension.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/Extensions/RectCutExtension.cs" Link="Helpers/Extensions/RectCutExtension.cs" />
+  </ItemGroup>
+
+  <!-- Model -->
+  <ItemGroup>
+    <Compile Include="../BetterGenshinImpact/Model/Singleton.cs" Link="Model/Singleton.cs" />
+  </ItemGroup>
+
+  <!-- ==================== SHIM: platform facade files ==================== -->
+  <ItemGroup>
+    <Compile Include="Shim/App.cs" />
+    <Compile Include="Shim/BgiKeyMapper.cs" />
+    <Compile Include="Shim/BgiOnnxFactory.cs" />
+    <Compile Include="Shim/BgiOnnxModel.cs" />
+    <Compile Include="Shim/BvStubs.cs" />
+    <Compile Include="Shim/ConfigService.cs" />
+    <Compile Include="Shim/CoreExtensions.cs" />
+    <Compile Include="Shim/DrawableStubs.cs" />
+    <Compile Include="Shim/GameTaskManager.cs" />
+    <Compile Include="Shim/GameUiCategory.cs" />
+    <Compile Include="Shim/Global.cs" />
+    <Compile Include="Shim/MacSystemInfo.cs" />
+    <Compile Include="Shim/PlatformServices.cs" />
+    <Compile Include="Shim/RunnerContext.cs" />
+    <Compile Include="Shim/Simulation.cs" />
+    <Compile Include="Shim/SpeedTimer.cs" />
+    <Compile Include="Shim/StringUtils.cs" />
+    <Compile Include="Shim/TaskContext.cs" />
+    <Compile Include="Shim/TaskControl.cs" />
+    <Compile Include="Shim/ThemedMessageBox.cs" />
+  </ItemGroup>
+
+</Project>

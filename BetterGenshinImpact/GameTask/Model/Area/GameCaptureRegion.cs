@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.GameTask.Model.Area.Converter;
+using BetterGenshinImpact.GameTask.Model.Area.Converter;
 using BetterGenshinImpact.View.Drawable;
 using OpenCvSharp;
 using System;
@@ -23,6 +23,7 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
     /// <param name="pen"></param>
     /// <param name="name"></param>
     /// <returns></returns>
+#if BGI_FULL_WINDOWS
     public RectDrawable ConvertToRectDrawable(int x, int y, int w, int h, Pen? pen = null, string? name = null)
     {
         var scale = TaskContext.Instance().DpiScale;
@@ -56,6 +57,7 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
     // {
     //     VisionContext.Instance().DrawContent.PutRect(name ?? "None", ConvertToRectDrawable(x, y, w, h, pen, name));
     // }
+#endif
 
     /// <summary>
     /// 游戏窗口初始截图大于1080P的统一转换到1080P
@@ -77,6 +79,7 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
         // return new ImageRegion(newMat, 0, 0, this, new TranslationConverter(0, 0));
     }
 
+#if BGI_FULL_WINDOWS
     /// <summary>
     /// 静态方法,在游戏窗体捕获区域维度进行点击
     /// </summary>
@@ -126,4 +129,5 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
         // 1080P坐标 转换到实际游戏窗口坐标
         GameRegionMove((_, scale) => (cx * scale, cy * scale));
     }
+#endif
 }
