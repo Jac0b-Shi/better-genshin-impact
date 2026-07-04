@@ -191,93 +191,169 @@ App.OnStartup
     → TaskContext.Instance().Init(hWnd)
       → GameHandle = hWnd
       → PostMessageSimulator = Simulation.PostMessage(hWnd)
-      → SystemInfo = new SystemInfo(hWnd)    // creates Process, CaptureAreaRect, etc.
+      → SystemInfo = new SystemInfo(hWnd)
       → DpiScale = DpiHelper.ScaleY
       → IsInitialized = true
     → GameCapture.Start(hWnd, ...)
     → Triggers = LoadInitialTriggers()
 ```
 
-### macOS (Desired)
+### macOS (Desired — Approach B: Adapter, not Shim)
 
 ```
 Swift Host (MacGI / BetterGI.Mac.Runtime)
   → Enumerate game window → obtain window ID + metrics
+  → Create MacSystemInfo from metrics
+  → Create runtime providers (AutoPickConfig, OCR config)
+  → Create MacRuntimeAdapter(systemInfo, configProviders)
+  → Register adapter with Core composition root
   → Set PlatformServices.Input = MacInputBackend
   → Set DesktopRegion.DisplayWidth/Height from screen metrics
-  → TaskContext.Instance().Init(metrics)      // uses GameWindowMetrics, not IntPtr
-    → SystemInfo = new MacSystemInfo(metrics)
-    → IsInitialized = true
   → Start capture backend (ScreenCaptureKit)
-  → Load triggers (same upstream code)
-  → Begin dispatcher tick loop
+  → Load triggers → begin dispatcher tick loop
 ```
 
-Key differences:
-- No HWND, no DPI, no PostMessage — replaced by `GameWindowMetrics` + `IInputBackend`
-- `SystemInfo` created from platform metrics, not Win32 APIs
-- Config loaded before dispatcher start (same as Windows)
+Key differences from Windows:
+- No `TaskContext.Instance().Init()` call — adapter replaces the Shim
+- No HWND, no DPI, no PostMessage
+- `SystemInfo` created from `GameWindowMetrics`, not Win32 APIs
+- Config providers injected, not accessed via static `TaskContext.Instance().Config`
+- Init sequence does NOT use the Shim's `Init(GameWindowMetrics)` as a long-term API
 
----
 
-## 8. Interface Design: Per-Consumer vs Monolithic
 
-### ❌ Avoid: Monolithic CoreConfig Aggregator
+## 8. Interface Design: Per-Consumer with Correct Layering
+
+### ❌ Wrong Placement: Platform.Abstractions
 
 ```csharp
-// Current Shim pattern — do not institutionalize
-public class CoreConfig {
-    public AutoPickConfig AutoPickConfig { get; set; }
-    public OtherConfig OtherConfig { get; set; }
-    // ... will grow as more tasks enter Core
+// These reference AutoPickConfig, OtherConfig, ISystemInfo — all Core/business types.
+// Putting them in Platform.Abstractions creates:
+//   Core → Platform.Abstractions → Core   (circular dependency)
+public interface IAutoPickConfigProvider { ... }  // DON'T put here
+```
+
+### ✅ Correct Placement: Core Internal Abstractions
+
+```
+BetterGenshinImpact.Core/
+  Abstractions/
+    Runtime/
+      IAutoPickConfigProvider.cs
+      IOcrRuntimeConfigProvider.cs
+      IAutoPickRuntimeState.cs
+```
+
+Dependency direction:
+```
+Core consumers
+  → Core/Abstractions/Runtime/  (business runtime interfaces)
+  → Platform.Abstractions/      (platform capability interfaces)
+
+Windows/macOS adapters
+  → Core/Abstractions/Runtime/  (implement these)
+  → Platform.Abstractions/      (use these)
+```
+
+No circular dependency. `Platform.Abstractions` stays pure: input, window, capture, user interaction, BgiRect, BgiKey.
+
+### Per-Consumer Interfaces (final)
+
+```csharp
+// Core/Abstractions/Runtime/IAutoPickConfigProvider.cs
+public interface IAutoPickConfigProvider
+{
+    /// <summary>Read current pick key. May be changed by consumer in error-recovery path.
+    /// AutoPickAssets writes "F" back on custom-key load failure — consumers
+    /// that only read must tolerate the property being writable.</summary>
+    AutoPickConfig AutoPickConfig { get; }
+}
+
+// Core/Abstractions/Runtime/IOcrRuntimeConfigProvider.cs
+public interface IOcrRuntimeConfigProvider
+{
+    /// <summary>PaddleOCR model configuration (model paths, version).</summary>
+    PaddleOcrModelConfig PaddleModel { get; }
+
+    /// <summary>Game culture info name for OCR language selection.</summary>
+    string GameCultureInfoName { get; }
+}
+
+// Core/Abstractions/Runtime/IAutoPickRuntimeState.cs
+public interface IAutoPickRuntimeState
+{
+    /// <summary>Stop count > 0 means picking is paused. Read-only for AutoPickTrigger.</summary>
+    int StopCount { get; }
 }
 ```
 
-### ✅ Prefer: Per-Consumer Interfaces
+### Why IGameSystemInfoProvider is NOT needed
 
-```csharp
-public interface IAutoPickConfigProvider { AutoPickConfig AutoPickConfig { get; } }
-public interface IOcrRuntimeConfigProvider { OtherConfig.Ocr OcrConfig { get; } CultureInfo GameCultureInfo { get; } }
-public interface IGameSystemInfoProvider { ISystemInfo SystemInfo { get; } }
-public interface IAutoPickRuntimeState { int StopCount { get; } }
-```
+`ISystemInfo` already exists as a cross-platform interface (§2.1, item 6). Consumers (CaptureContent, BaseAssets) already depend on it directly. Adding a provider wrapper around it adds indirection without abstraction benefit. Keep `ISystemInfo` as-is.
 
-Rationale: AutoPick is the only consumer of `AutoPickConfig`; OCR is the only consumer of `OtherConfig.OcrConfig`. Each consumer gets exactly what it needs. No shared aggregator that must grow with each new task.
+### Why IOcrRuntimeConfigProvider exposes minimal values, not ObservableObject
 
----
+The upstream `OtherConfig.Ocr` inherits `ObservableObject` (UI databinding). It carries WPF change-notification baggage irrelevant to Core. The runtime contract should expose only the concrete values OCR actually reads — `PaddleOcrModelConfig` and `GameCultureInfoName`. The adapter maps from the full config object.
+
+### AutoPickConfig Write Semantics
+
+`AutoPickAssets.cs:86` writes `AutoPickConfig.PickKey = "F"` when custom key loading fails. This is a **persistent config mutation** — the consumer changes the config state as an error-recovery fallback.
+
+The interface's `AutoPickConfig` property must remain the **same mutable reference** as the upstream config object. The adapter must not return a defensive copy. This preserves the upstream behavior without changing business logic.
+
+This is a design decision, not a bug: the interface exposes writable config intentionally.
+
+
 
 ## 9. Migration Approach Comparison
 
 | Criterion | Approach A: Modify Upstream | Approach B: Core Adapter/Provider |
 |-----------|----------------------------|----------------------------------|
 | Diff size on upstream files | Larger — adds interface implementation | Smaller — no upstream mods |
-| Merge conflict risk (fork) | **High** — any upstream change to TaskContext signatures conflicts | **Low** — adapter lives in Core project |
+| Merge conflict risk (fork) | **High** | **Low** |
 | Call site changes | None (same `TaskContext.Instance()`) | Moderate (replace static access with injection) |
 | Long-term maintainability | Simpler initial code, harder rebase | More initial wiring, easier rebase |
 | Testability | Hard (static singleton) | Easy (injectable interface) |
 
-**Recommendation: Approach B** for this fork that must track upstream. Keep upstream TaskContext/RunnerContext untouched. Create adapter classes in Core that implement per-consumer interfaces, backed by the real upstream TaskContext on Windows and shim/real implementation on macOS.
+**Recommendation: Approach B.** Keep upstream TaskContext/RunnerContext untouched. Create adapter classes in Core that implement the per-consumer interfaces, delegating to the real upstream types on Windows and to Core-native implementations on macOS.
 
----
+### Injection Strategy
+
+**Priority 1: Constructor injection.** Each consumer receives its dependencies explicitly:
+```csharp
+public AutoPickTrigger(IAutoPickConfigProvider config, IAutoPickRuntimeState state, ...)
+```
+
+**Priority 2: Replaceable runtime service registry.** If upstream construction chains make constructor injection infeasible (e.g., many task types with deep inheritance), use a scoped service container with fallback adapters. This must be explicitly replaceable — not a hidden static singleton.
+
+**Banned: Non-replaceable static global gateway.** Do not create `CoreServices.AutoPickConfig` or equivalent static singletons. That just recreates `TaskContext.Instance()` under another name.
+
+
 
 ## 10. Recommended Migration Order (Revised)
 
-### Phase A: Interface Extraction (no code changes to upstream)
-1. Define `IAutoPickConfigProvider` — consumed by AutoPickTrigger, AutoPickAssets
-2. Define `IOcrRuntimeConfigProvider` — consumed by OcrFactory
-3. Define `IGameSystemInfoProvider` — consumed by CaptureContent, BaseAssets
-4. Define `IAutoPickRuntimeState` — consumed by AutoPickTrigger (read-only `StopCount`)
-5. Keep existing Shims; they already implement (partial) equivalents of these interfaces
-6. **Do not define a monolithic `ITaskContextCore`**
+### Phase A: Interface Extraction
+
+1. Create directory `BetterGenshinImpact.Core/Abstractions/Runtime/`
+2. Define `IAutoPickConfigProvider` in that directory
+3. Define `IOcrRuntimeConfigProvider` in that directory
+4. Define `IAutoPickRuntimeState` in that directory
+5. Verify Shims can satisfy these interfaces (read-only check)
+6. **Do not** define `ITaskContextCore` or `IGameSystemInfoProvider`
+7. **No files added to `Platform.Abstractions/`**
 
 ### Phase B: Adapter Implementation
-7. Create `TaskContextCoreAdapter` in Core that wraps the current Shim's `MacSystemInfo` + `CoreConfig`
-8. Create `WindowsTaskContextAdapter` that wraps real upstream `TaskContext` (not yet linked into Core)
-9. Wire AutoPickTrigger to use `IAutoPickConfigProvider` + `IGameSystemInfoProvider` via constructor or static gateway
+
+8. Create `MacCoreRuntimeAdapter` — implements all three interfaces using current Shim types (`MacSystemInfo` + `CoreConfig`)
+9. Create `WindowsCoreRuntimeAdapter` — implements all three interfaces backed by real upstream `TaskContext` (not linked into Core yet — lives in Windows host project)
+10. Wire `AutoPickTrigger` constructor to accept `IAutoPickConfigProvider` + `IAutoPickRuntimeState` via constructor injection
+11. Wire `OcrFactory` to accept `IOcrRuntimeConfigProvider` via constructor injection
+12. CaptureContent/BaseAssets continue using `ISystemInfo` directly (no wrapper needed)
 
 ### Phase C: Shim Deletion
-10. Once all consumers use per-consumer interfaces (not `TaskContext.Instance().Config.*` directly), delete `Shim/TaskContext.cs`, `Shim/RunnerContext.cs`, and `CoreConfig`
-11. At that point, Core is using authentic upstream config/logic through adapters, not parallel implementations
+
+13. Delete `Shim/TaskContext.cs`, `Shim/RunnerContext.cs`, `CoreConfig`
+14. Core now uses authentic upstream config/logic through adapters — no parallel implementations
 
 ### What NOT to Do
 - ❌ Do not add `#if BGI_FULL_WINDOWS` to upstream TaskContext
@@ -285,9 +361,11 @@ Rationale: AutoPick is the only consumer of `AutoPickConfig`; OCR is the only co
 - ❌ Do not delete upstream members to make it compile on macOS
 - ❌ Do not create parallel TaskContext/RunnerContext with same name in another namespace
 - ❌ Do not declare DpiScale equivalent to ScaleTo1080PRatio
-- ❌ Do not promote `DestroyInstance()` to a permanent interface without call site evidence
+- ❌ Do not promote `DestroyInstance()` to a permanent interface
+- ❌ Do not put runtime business interfaces in `Platform.Abstractions/` (circular dep)
+- ❌ Do not use static global singletons for dependency injection
 
----
+
 
 ## 11. Current Shim Retention Justification
 
@@ -295,8 +373,8 @@ Rationale: AutoPick is the only consumer of `AutoPickConfig`; OCR is the only co
 |-----------|-----------------------------|----------------------|
 | `TaskContext.cs` | Provides AutoPick with `SystemInfo` + `Config.AutoPickConfig` access | Delete after Phase C |
 | `RunnerContext.cs` | Provides `AutoPickTriggerStopCount` (read-only) | Delete after Phase C |
-| `CoreConfig` | Avoids linking full `AllConfig` with 20+ task config types | Delete after Config accessor refactoring |
-| `DestroyInstance()` | Test helper — resets singleton between test runs | Delete with Shim; re-evaluate if needed by tests |
+| `CoreConfig` | Avoids linking full `AllConfig` with 20+ task config types | Delete after Phase C |
+| `DestroyInstance()` | Test helper — resets singleton between test runs | Delete with Shim |
 
 ---
 
@@ -312,11 +390,11 @@ Core recognition path (Find, Derive, ConvertRes, coordinate transforms) is 100% 
 
 | # | Task | Files Affected | Prerequisites |
 |---|------|---------------|---------------|
-| A1 | Define `IAutoPickConfigProvider` | `Platform.Abstractions/` | None |
-| A2 | Define `IOcrRuntimeConfigProvider` | `Platform.Abstractions/` | None |
-| A3 | Define `IGameSystemInfoProvider` | `Platform.Abstractions/` | None |
-| A4 | Define `IAutoPickRuntimeState` | `Platform.Abstractions/` | None |
-| A5 | Verify existing Shims satisfy these interfaces | Read-only | A1-A4 |
-| A6 | Audit if `R5` introduces upstream changes | Review | A5 |
+| A1 | Create `Core/Abstractions/Runtime/` directory | `BetterGenshinImpact.Core/` | None |
+| A2 | Define `IAutoPickConfigProvider` (with write-semantics doc) | `Core/Abstractions/Runtime/` | A1 |
+| A3 | Define `IOcrRuntimeConfigProvider` (PaddleModel + CultureInfo only) | `Core/Abstractions/Runtime/` | A1 |
+| A4 | Define `IAutoPickRuntimeState` (StopCount read-only) | `Core/Abstractions/Runtime/` | A1 |
+| A5 | Verify existing Shims satisfy A2-A4 signatures | Read-only check | A2-A4 |
+| A6 | Confirm no files added to `Platform.Abstractions/` | `Platform.Abstractions/` | A1-A5 |
 | A7 | Propose Phase B adapter design | Design doc | A5 |
 | A8 | No code changes to upstream TaskContext/RunnerContext | — | All above |
