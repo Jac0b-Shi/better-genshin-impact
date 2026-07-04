@@ -28,7 +28,7 @@ if [ "$(uname -m)" != "arm64" ]; then
     echo "ERROR: This script must run on arm64 macOS." >&2; exit 1
 fi
 
-for cmd in cmake git; do
+for cmd in cmake git brew pkg-config dotnet file otool; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "ERROR: '$cmd' not found." >&2; exit 1
     fi
@@ -129,8 +129,19 @@ echo "  artifact:    $ARTIFACTS_DIR/libOpenCvSharpExtern.dylib"
 # ==== Run Verification ====
 echo ""
 echo "=== Building Verification ==="
-export DOTNET_ROOT="/usr/local/share/dotnet"
-export PATH="$DOTNET_ROOT:$PATH"
+# Use existing dotnet in PATH; fall back to common .NET install paths
+if ! command -v dotnet >/dev/null 2>&1; then
+    for candidate in /usr/local/share/dotnet /opt/homebrew/bin/dotnet "$HOME/.dotnet/dotnet"; do
+        if [ -x "$candidate" ]; then
+            export DOTNET_ROOT="$(dirname "$candidate")"
+            export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
+            break
+        fi
+    done
+    if ! command -v dotnet >/dev/null 2>&1; then
+        echo "ERROR: dotnet not found in PATH or known locations" >&2; exit 1
+    fi
+fi
 cd "$REPO_ROOT"
 dotnet build "$VERIF_PROJ" -c Debug --nologo
 

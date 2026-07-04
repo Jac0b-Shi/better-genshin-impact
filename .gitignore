@@ -42,5 +42,8 @@ __pycache__/
 !.trae/skills/**
 
 # Claude
-.claude/*artifacts/
-.build/
+.claude/*
+
+# Local native build artifacts
+/artifacts/
+/.build/
