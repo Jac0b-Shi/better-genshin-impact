@@ -28,7 +28,7 @@ if [ "$(uname -m)" != "arm64" ]; then
     echo "ERROR: This script must run on arm64 macOS." >&2; exit 1
 fi
 
-for cmd in cmake git brew pkg-config dotnet file otool; do
+for cmd in cmake git brew pkg-config file otool; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "ERROR: '$cmd' not found." >&2; exit 1
     fi
@@ -129,21 +129,34 @@ echo "  artifact:    $ARTIFACTS_DIR/libOpenCvSharpExtern.dylib"
 # ==== Run Verification ====
 echo ""
 echo "=== Building Verification ==="
-# Use existing dotnet in PATH; fall back to common .NET install paths
-if ! command -v dotnet >/dev/null 2>&1; then
-    for candidate in /usr/local/share/dotnet /opt/homebrew/bin/dotnet "$HOME/.dotnet/dotnet"; do
+
+# Resolve dotnet separately from other preflight tools.
+# Use PATH dotnet first; if not found, try known macOS .NET install locations.
+DOTNET_BIN=""
+if command -v dotnet >/dev/null 2>&1; then
+    DOTNET_BIN="$(command -v dotnet)"
+else
+    for candidate in \
+        "/usr/local/share/dotnet/dotnet" \
+        "/opt/homebrew/bin/dotnet" \
+        "$HOME/.dotnet/dotnet"
+    do
         if [ -x "$candidate" ]; then
-            export DOTNET_ROOT="$(dirname "$candidate")"
-            export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
+            DOTNET_BIN="$candidate"
+            DOTNET_DIR="$(dirname "$candidate")"
+            export PATH="$DOTNET_DIR:$PATH"
             break
         fi
     done
-    if ! command -v dotnet >/dev/null 2>&1; then
-        echo "ERROR: dotnet not found in PATH or known locations" >&2; exit 1
-    fi
 fi
+if [ -z "${DOTNET_BIN:-}" ] || ! "$DOTNET_BIN" --info >/dev/null 2>&1; then
+    echo "ERROR: usable dotnet SDK not found. Install via brew install --cask dotnet-sdk@8" >&2
+    exit 1
+fi
+echo "  dotnet:      $("$DOTNET_BIN" --version)"
+
 cd "$REPO_ROOT"
-dotnet build "$VERIF_PROJ" -c Debug --nologo
+"$DOTNET_BIN" build "$VERIF_PROJ" -c Debug --nologo
 
 # Copy dylib AFTER build (build may recreate output dirs)
 # Resolve the actual build output path (dotnet may vary)
@@ -162,7 +175,7 @@ echo "  verified:    $(file "$NATIVE_RUNTIME/libOpenCvSharpExtern.dylib" | cut -
 echo ""
 echo "=== Running Verification ==="
 export DYLD_LIBRARY_PATH="$NATIVE_RUNTIME:${DYLD_LIBRARY_PATH:-}"
-dotnet run --project "$VERIF_PROJ" --no-build --no-launch-profile
+"$DOTNET_BIN" run --project "$VERIF_PROJ" --no-build --no-launch-profile
 EXIT=$?
 
 echo ""
