@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using BetterGenshinImpact.GameTask.AutoPick;
+using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Platform.Abstractions;
 
@@ -219,6 +220,68 @@ Assert("parameterless has null _externalConfig",
     extField?.GetValue(t5) == null, "got non-null");
 Assert("parameterless has null _runtimeState",
     stateField?.GetValue(t5) == null, "got non-null");
+
+// ==== B6: AutoPickAssets split constructor + Configure() ====
+Console.WriteLine("AutoPickAssets: split constructor + Configure()");
+var pickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "W" },
+    PaddleOcrModelConfig.V5, "zh-Hans");
+var assets = AutoPickAssets.Instance;
+
+// EnsureConfigured should throw before Configure
+try
+{
+    AutoPickAssets.EnsureConfigured();
+    Assert("EnsureConfigured pre-Configure should throw", false, "no exception");
+}
+catch (InvalidOperationException)
+{
+    Assert("EnsureConfigured pre-Configure throws", true, "");
+}
+
+// Configure (will fall back to F since no template assets exist in test env)
+assets.Configure(pickConfigProvider);
+Assert("After Configure PickVk is F (fallback — no test assets)",
+    assets.PickVk == BgiKey.F, $"got {assets.PickVk}");
+Assert("After Configure PickRo is FRo (fallback — no test assets)",
+    ReferenceEquals(assets.PickRo, assets.FRo), "not FRo");
+Assert("EnsureConfigured post-Configure passes",
+    true, "");
+
+// Duplicate Configure throws (now that _configured = true is set in catch block)
+try
+{
+    assets.Configure(pickConfigProvider);
+    Assert("Duplicate Configure should throw", false, "no exception");
+}
+catch (InvalidOperationException)
+{
+    Assert("Duplicate Configure throws", true, "");
+}
+
+// DestroyInstance + re-Configure
+AutoPickAssets.DestroyInstance();
+var freshAssets = AutoPickAssets.Instance;
+var freshProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "S" },
+    PaddleOcrModelConfig.V5, "zh-Hans");
+freshAssets.Configure(freshProvider);
+Assert("Re-configured PickVk is F (fallback — no test assets)",
+    freshAssets.PickVk == BgiKey.F, $"got {freshAssets.PickVk}");
+
+// Re-configure should still be required
+try
+{
+    AutoPickAssets.DestroyInstance();
+    _ = AutoPickAssets.Instance;
+    AutoPickAssets.EnsureConfigured();
+    Assert("Third Destroy + ensure should throw", false, "no exception");
+}
+catch (InvalidOperationException)
+{
+    Assert("Third Destroy + ensure throws", true, "");
+}
+Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
 Environment.Exit(failed > 0 ? 1 : 0);

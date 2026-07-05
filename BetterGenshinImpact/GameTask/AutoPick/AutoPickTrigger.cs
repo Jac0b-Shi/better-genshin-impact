@@ -76,13 +76,15 @@ public partial class AutoPickTrigger : ITaskTrigger
     public AutoPickTrigger(AutoPickExternalConfig? config, IAutoPickRuntimeState? runtimeState)
     {
         _autoPickAssets = AutoPickAssets.Instance;
-        _pickRo = _autoPickAssets.PickRo;
         _externalConfig = config;
         _runtimeState = runtimeState;
+        // _pickRo is set in Init() after AutoPickAssets.EnsureConfigured
     }
 
     public void Init()
     {
+        AutoPickAssets.EnsureConfigured();
+        _pickRo = _autoPickAssets.PickRo;
         var config = TaskContext.Instance().Config.AutoPickConfig;
         IsEnabled = config.Enabled;
 

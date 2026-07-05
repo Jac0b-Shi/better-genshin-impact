@@ -1,4 +1,5 @@
 using System;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Helpers;
@@ -22,7 +23,18 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
     public BgiKey PickVk = BgiKey.F;
     public RecognitionObject PickRo;
     public RecognitionObject ChatPickRo;
+    private bool _configured;
 
+    /// <summary>
+    /// Config provider for this singleton. Read by Init/OnCapture paths.
+    /// Must be set via <see cref="Configure"/> before any config-dependent field access.
+    /// </summary>
+    private IAutoPickConfigProvider? _configProvider;
+
+    /// <summary>
+    /// Template-only initialization. No config reads — all config-dependent work
+    /// (PickKey, PickVk, PickRo, ChatPickRo) is deferred to <see cref="Configure"/>.
+    /// </summary>
     private AutoPickAssets()
     {
         FRo = new RecognitionObject
@@ -58,7 +70,7 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
             DrawOnWindowPen = new Pen(Color.Chocolate, 2),
 #endif
         }.InitTemplate();
-        
+
         LRo = new RecognitionObject
         {
             Name = "L",
@@ -70,32 +82,60 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
                 (int)(100 * AssetScale)),
         }.InitTemplate();
 
+        PickRo = FRo; // default until Configure sets the real one
+    }
 
-        PickRo = FRo;
-        var keyName = TaskContext.Instance().Config.AutoPickConfig.PickKey;
-        if (!string.IsNullOrEmpty(keyName))
+    /// <summary>
+    /// Apply configuration from the provided provider.
+    /// Must be called once before any config-dependent field access.
+    /// Idempotent: re-calling with a different provider throws.
+    /// </summary>
+    public void Configure(IAutoPickConfigProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        if (_configured)
+            throw new InvalidOperationException("AutoPickAssets is already configured.");
+
+        _configProvider = provider;
+        var keyName = provider.AutoPickConfig.PickKey;
+
+        try
         {
-            try
-            {
-                PickRo = LoadCustomPickKey(keyName);
-                PickVk = BgiKeyMapper.ToKey(keyName);
+            PickRo = LoadCustomPickKey(keyName);
+            PickVk = BgiKeyMapper.ToKey(keyName);
 #if BGI_FULL_WINDOWS
-                TaskContext.Instance().Config.KeyBindingsConfig.PickUpOrInteract = (Core.Config.KeyId)(int)PickVk;
+            TaskContext.Instance().Config.KeyBindingsConfig.PickUpOrInteract = (Core.Config.KeyId)(int)PickVk;
 #endif
-                ChatPickRo = LoadCustomChatPickKey(keyName);
-            }
-            catch (Exception e)
-            {
-                _logger.LogDebug(e, "加载自定义拾取按键时发生异常");
-                _logger.LogError("加载自定义拾取按键失败，继续使用默认的F键");
-                TaskContext.Instance().Config.AutoPickConfig.PickKey = "F";
-                return;
-            }
+            ChatPickRo = LoadCustomChatPickKey(keyName);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "加载自定义拾取按键时发生异常");
+            _logger.LogError("加载自定义拾取按键失败，继续使用默认的F键");
+            provider.AutoPickConfig.PickKey = "F";
+            PickRo = FRo;
+            PickVk = BgiKey.F;
+            _configured = true; // configured to fallback state
+            return;
+        }
 
-            if (keyName != "F")
-            {
-                _logger.LogInformation("自定义拾取按键：{Key}", keyName);
-            }
+        if (keyName != "F")
+        {
+            _logger.LogInformation("自定义拾取按键：{Key}", keyName);
+        }
+
+        _configured = true;
+    }
+
+    /// <summary>
+    /// Ensure configuration has been applied. Call before any config-dependent access.
+    /// </summary>
+    public static void EnsureConfigured()
+    {
+        if (!Instance._configured)
+        {
+            throw new InvalidOperationException(
+                "AutoPickAssets has not been configured. Call Configure() before accessing config-dependent fields.");
         }
     }
 
