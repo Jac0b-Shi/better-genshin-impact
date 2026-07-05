@@ -356,12 +356,13 @@ Fail fast if config-dependent fields (`PickRo`, `PickVk`) accessed before `Confi
 
 **Sub-phases** — each audited separately; do NOT rewrite OnCapture in one pass:
 
-#### B8.1: Input sends → existing IInputBackend
+#### B8.1: Input sends → injected IInputBackend
 
 - `Simulation.SendInput.Keyboard.KeyPress(PickVk)` (lines 210, 257, 355, 386)
 - `Simulation.SendInput.Mouse.VerticalScroll(2)` (line 198)
-- `PlatformServices.Input` → existing `IInputBackend`
-- No new interface; no static gateway
+- Goal: AutoPickTrigger receives explicit `IInputBackend` via constructor injection
+- Do NOT replace one static gateway (`Simulation.SendInput`) with another (`PlatformServices.Input`)
+- Windows transition: audit all trigger creation paths; prefer all callers inject explicitly (option B)
 
 #### B8.2: Capture metrics / AssetScale → existing ISystemInfo
 
@@ -375,6 +376,7 @@ Fail fast if config-dependent fields (`PickRo`, `PickVk`) accessed before `Confi
 - `TaskContext.Instance().Config.AutoPickConfig` offsets (lines 215, 227-228, 276-277)
 - `config.WhiteListEnabled`, `config.BlackListEnabled`, `config.OcrEngine`
 - Already injected via `_configProvider`; simply read from it in OnCapture() too
+- Transition: decide whether `_configProvider` becomes required (option B) or keeps `?? TaskContext...` fallback (option A). Audit before deciding.
 - Do NOT snapshot AutoPickConfig — config may change at runtime
 
 **Each sub-phase constraint:**
