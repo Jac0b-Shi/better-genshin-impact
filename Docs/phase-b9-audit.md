@@ -113,8 +113,32 @@ public sealed class WindowsYapAutoPickTextRecognizer : IAutoPickTextRecognizer
 }
 ```
 
-These are Windows-specific adapters, NOT cross-platform Core implementations.
-macOS composition replaces them with platform-appropriate implementations.
+These are **Windows-specific adapters**, only compiled into the full WPF target
+(`BetterGenshinImpact.csproj` — `net8.0-windows10.0.22621.0`).
+They are NOT compiled into the cross-platform Core target (`BetterGenshinImpact.Core.csproj` — `net8.0`).
+macOS composition provides different implementations (see §6).
+
+Both recognizers are **required, non-nullable** constructor parameters.
+No `IAutoPickTextRecognizer?`, no null fallback, no static gateway fallback in the trigger.
+For composition roots that lack a real backend:
+
+```csharp
+/// <summary>
+/// Fail-fast placeholder. Throws NotSupportedException with platform explanation.
+/// Never silently returns empty text (would mask missing wiring).
+/// </summary>
+public sealed class UnsupportedAutoPickTextRecognizer : IAutoPickTextRecognizer
+{
+    private readonly string _engineName;
+    public UnsupportedAutoPickTextRecognizer(string engineName) => _engineName = engineName;
+    public string Recognize(Mat textRegion) =>
+        throw new NotSupportedException(
+            $"AutoPick {_engineName} text recognition is not available on this platform. " +
+            "Provide a real IAutoPickTextRecognizer implementation in the composition root.");
+}
+```
+
+Use this in `MacAutoPickComposition` until a real macOS OCR backend exists.
 
 ### 3.2 Engine selection stays in OnCapture
 
@@ -132,21 +156,53 @@ The current `OcrWithoutDetector` / `Ocr` branch is handled inside `WindowsPaddle
 - Else → `Ocr`
 - `TextRectExtractor.GetTextBoundingRect` called internally
 
-### 3.4 TextRectExtractor stays as static utility
+### 3.5 Paddle routing — behavioral equivalence constraints
 
-Pure function — no state, no static gateway, no injection needed.
+When moving the Paddle OCR routing into `WindowsPaddleAutoPickTextRecognizer`, the following must be preserved identically:
+
+| Element | Constraint |
+|---------|-----------|
+| `TextRectExtractor.GetTextBoundingRect` | Called on full color `textRegion` — same as current `SrcMat` submat |
+| `boundingRect.X < 20` | Condition unchanged |
+| `boundingRect.Width > 5` | Condition unchanged |
+| `boundingRect.Height > 5` | Condition unchanged |
+| `textOnlyMat` crop formula | `new Rect(0, 0, boundingRect.Right + 5 < textMat.Width ? boundingRect.Right + 5 : textMat.Width, textMat.Height)` — exact |
+| `OcrWithoutDetector` | Called when bounding rect is valid |
+| Fallback `Ocr` | Called when bounding rect is invalid; debug message `"-- 无法识别到有效文字区域，尝试直接OCR DET"` preserved |
+| Mat disposal | `using var textMat`, `using var textOnlyMat` — same disposal pattern |
+| Returns | Raw OCR string — `ProcessOcrText` remains in trigger, not in adapter |
+
+### 3.6 Engine selection — Yap vs Paddle stays in trigger
+
+The `config.OcrEngine` comparison and double-invoke remains in `AutoPickTrigger.OnCapture`:
+```csharp
+if (config.OcrEngine == nameof(PickOcrEngineEnum.Yap))
+    text = _yapRecognizer.Recognize(textMat);
+else
+    text = _paddleRecognizer.Recognize(textMat);
+```
+The trigger does NOT need to know whether a recognizer uses Yap or Paddle internally.
+The field names `_paddleRecognizer` / `_yapRecognizer` are kept for clarity but the call is identical.
+
+### 3.7 TextRectExtractor stays as static utility
+
+`TextRectExtractor.GetTextBoundingRect` is a pure function — no state, no static gateway, no injection needed. It remains a static utility called inside `WindowsPaddleAutoPickTextRecognizer`.
 
 ---
 
-## 4. Mat Leak Note (B9 scope boundary)
+## 4. Yap Mat Dispose — B9 Scope
 
 The Yap branch at line 302 creates:
 ```csharp
 var textMat = new Mat(content.CaptureRectArea.CacheGreyMat, textRect);
 ```
-without `using`. This leaks a `Mat` object each time the Yap branch executes.
-
-**B9 does NOT fix this** — it's a pre-existing upstream issue. Document it in the audit for a future hygiene pass but do not change the allocation pattern. Mat lifecycle change belongs in a separate cleanup phase.
+without `using`. B9 fixes this as part of the ownership contract change:
+```csharp
+using var textMat = new Mat(content.CaptureRectArea.CacheGreyMat, textRect);
+text = _yapRecognizer.Recognize(textMat);
+```
+This does NOT change recognition behavior. It only ensures the submat is released when
+the scope exits. This is a necessary part of moving ownership to the recognizer contract.
 
 ---
 
@@ -154,13 +210,20 @@ without `using`. This leaks a `Mat` object each time the Yap branch executes.
 
 | Caller | Current | B9 change |
 |--------|---------|-----------|
-| `AutoPickTrigger` ctor | No OCR initialization | Receives two required `IAutoPickTextRecognizer` dependencies |
-| `AutoPickTrigger.OnCapture` | Static gateway calls (`OcrFactory.Paddle`, `TextInferenceFactory.Pick`) | Calls `_paddleRecognizer.Recognize()` / `_yapRecognizer.Recognize()` |
-| `GameTaskManager.LoadInitialTriggers` | No change needed | Wires recognizers into trigger ctor |
-| `GameTaskManager.AddTrigger` | Same | Same |
-| `MacAutoPickComposition.Compose` | Same (shim path) | Same |
-| Core shim `AddTrigger` | Same | Same |
-| Tests | Static gateways may not work without models | Pass mock/recording recognizer |
+| `AutoPickTrigger` ctor | No OCR initialization | Receives two required `IAutoPickTextRecognizer` |
+| `AutoPickTrigger.OnCapture` | Static gateways (`OcrFactory.Paddle`, `TextInferenceFactory.Pick`) | Calls `_paddleRecognizer.Recognize()` / `_yapRecognizer.Recognize()` |
+| Windows DI (`App.xaml.cs`) | — | Registers both recognizers |
+| `TaskTriggerDispatcher` ctor | Receives configProvider + inputBackend | **New:** receives both recognizers from DI; stores as private fields |
+| `TaskTriggerDispatcher.Start` → `GameTaskManager.LoadInitialTriggers` | Forwards inputBackend + systemInfo + configProvider | **New:** forwards both recognizers from dispatcher fields |
+| `TaskTriggerDispatcher.AddTrigger` → `GameTaskManager.AddTrigger` | Forwards inputBackend + systemInfo + configProvider | **New:** forwards both recognizers |
+| `MacAutoPickComposition.Compose` | Forwards configProvider + state + backend + systemInfo | **New:** receives both recognizers from macOS host; forwards to trigger |
+| Core shim `AddTrigger` | Forwards inputBackend + systemInfo + configProvider | **New:** forwards both recognizers |
+| Tests | Static gateways may not work | Pass recording/fake recognizers |
+
+**Constraints on GameTaskManager:**
+- Must NOT `new WindowsPaddle...()` or `new WindowsYap...()` directly
+- Must NOT access `App.ServiceProvider`
+- Receives both recognizers via explicit method parameters from the caller
 
 ---
 
@@ -181,15 +244,20 @@ Both engines share the same path forward: the macOS composition root must provid
 
 | Change | Files |
 |--------|-------|
-| Define `IAutoPickTextRecognizer` interface | New file in `Core/Abstractions/` |
-| Create `WindowsPaddleAutoPickTextRecognizer : IAutoPickTextRecognizer` | `Core/Runtime/Windows/` |
-| Create `WindowsYapAutoPickTextRecognizer : IAutoPickTextRecognizer` | `Core/Runtime/Windows/` |
-| AutoPickTrigger accepts both recognizers as required ctor params | `AutoPickTrigger.cs` |
-| Replace OcrFactory/TextInferenceFactory calls with recognizer.Recognize() | `AutoPickTrigger.cs` lines 300-337 |
-| Yap branch: add `using` to `textMat` allocation (ownership fix) | `AutoPickTrigger.cs` line 302 |
-| Windows DI registers recognizers | `App.xaml.cs` |
-| MacAutoPickComposition passes recognizers (nullable macOS placeholders) | `MacAutoPickComposition.cs` |
-| Verification tests pass recording/mock recognizers | `Program.cs` |
+| Define `IAutoPickTextRecognizer` interface | Shared Core abstraction — `BetterGenshinImpact.Core/Abstractions/` |
+| Create `WindowsPaddleAutoPickTextRecognizer` | WPF project only — `BetterGenshinImpact/Core/Runtime/Windows/` |
+| Create `WindowsYapAutoPickTextRecognizer` | WPF project only — same directory |
+| Create `UnsupportedAutoPickTextRecognizer` | Core — for macOS composition placeholder |
+| AutoPickTrigger accepts both recognizers as required non-nullable params | `AutoPickTrigger.cs` |
+| Yap branch: `using var textMat` (ownership fix) | `AutoPickTrigger.cs` line 302 |
+| Replace OcrFactory/TextInferenceFactory calls with recognizer.Recognize() | `AutoPickTrigger.cs` lines 303, 316, 337 |
+| Windows DI registers both recognizers | `App.xaml.cs` |
+| TaskTriggerDispatcher receives + forwards both recognizers | `TaskTriggerDispatcher.cs` |
+| GameTaskManager.LoadInitialTriggers accepts + forwards both | `GameTaskManager.cs` |
+| GameTaskManager.AddTrigger accepts + forwards both | `GameTaskManager.cs` |
+| Core shim AddTrigger accepts + forwards both | `Shim/GameTaskManager.cs` |
+| MacAutoPickComposition receives + forwards both (Unsupported placeholders) | `MacAutoPickComposition.cs` |
+| Verification tests pass recording recognizers | `Program.cs` |
 
 ---
 
