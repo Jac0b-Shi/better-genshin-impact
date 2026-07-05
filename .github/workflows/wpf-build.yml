@@ -1,51 +1,25 @@
-name: WPF Build
+name: Full WPF Build
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - mac-core-extraction
-    paths:
-      - "BetterGenshinImpact/**"
-      - "BetterGenshinImpact.Platform.Abstractions/**"
-      - "Fischless.WindowsInput/**"
-      - "Test/BetterGenshinImpact.Core.AdapterBuild/**"
-      - ".github/workflows/wpf-build.yml"
   pull_request:
+    branches:
+      - main
     paths:
       - "BetterGenshinImpact/**"
       - "BetterGenshinImpact.Platform.Abstractions/**"
       - "Fischless.WindowsInput/**"
-      - "Test/BetterGenshinImpact.Core.AdapterBuild/**"
+      - "Fischless.GameCapture/**"
       - ".github/workflows/wpf-build.yml"
+
+concurrency:
+  group: full-wpf-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-
-  # ── Isolated adapter gate: compile-only verification of the new adapter ──
-  adapter-gate:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-      - name: Restore adapter gate
-        run: >
-          dotnet restore
-          Test/BetterGenshinImpact.Core.AdapterBuild/BetterGenshinImpact.Core.AdapterBuild.csproj
-          -p:Platform=x64
-      - name: Build adapter gate
-        run: >
-          dotnet build
-          Test/BetterGenshinImpact.Core.AdapterBuild/BetterGenshinImpact.Core.AdapterBuild.csproj
-          -c Release
-          -p:Platform=x64
-          --no-restore
-
-  # ── Full WPF project build (known-failing baseline) ──
   full-build:
     runs-on: windows-latest
-    continue-on-error: true   # baseline: 146 errors — accepted blocker
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
