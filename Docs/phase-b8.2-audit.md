@@ -45,6 +45,19 @@ The config values (`ItemIconLeftOffset` etc.) are 1080p-relative; `scale` adjust
 
 All 16 uses are ROI pixel offsets in the template-only constructor. They are multiplied by `AssetScale` to adjust 1080p-relative coordinates to the actual game resolution.
 
+### 1.3 AssetScale Formula
+
+```
+AssetScale = min(actual_game_width / 1920d, 1.0)
+```
+
+Examples:
+- Game width 1280 → AssetScale = 1280/1920 = 0.6667 (ROIs scaled down)
+- Game width 1920 → AssetScale = 1920/1920 = 1.0 (native 1080p, no scaling)
+- Game width 2560 → AssetScale = min(2560/1920, 1.0) = 1.0 (capped — ROIs not expanded beyond 1080p layout)
+
+ROI positions defined in 1080p-relative pixels are multiplied by AssetScale to fit the actual game resolution. This multiplier is always ≤ 1.0 — it never upscales ROIs beyond the 1080p template.
+
 ---
 
 ## 2. ISystemInfo Interface Audit
@@ -155,15 +168,14 @@ public interface IAutoPickScaleProvider
 
 ### 3.4 Recommendation
 
-**Inject existing `ISystemInfo` directly (Option A).**
+**Inject existing `ISystemInfo` into AutoPickTrigger (Option A).**
 
 Rationale:
-- AutoPick uses exactly one member (`AssetScale`) and one derived property (`CaptureRect` via `ScaleMax1080PCaptureRect`)
+- AutoPick uses exactly one member (`AssetScale`) and one derived property (`ScaleMax1080PCaptureRect`)
 - ISystemInfo is already the canonical source for AssetScale on both platforms
 - Creating a narrower interface adds abstraction overhead with no practical benefit for a single double
-- The interface is already in the shared namespace (via `Link` + native inclusion)
 
-**The harder problem is AutoPickAssets:** it's a singleton with `AssetScale` consumed at construction time via `BaseAssets<T>(systemInfo)`. The `BaseAssets<T>` default constructor calls `TaskContext.Instance().SystemInfo`. To break this, `AutoPickAssets` constructor would need to receive `ISystemInfo` from the caller. But it's a singleton accessed via `AutoPickAssets.Instance`. This already has a `Configure(IAutoPickConfigProvider)` pattern from B6. A similar `ConfigureSystemInfo` or passing `ISystemInfo` into `Configure` is needed.
+**AutoPickAssets requires a separate dedicated initialization path** — see §5.2 below. The singleton construction timing makes ISystemInfo injection via `Configure()` impossible after construction.
 
 ---
 
@@ -226,28 +238,96 @@ var scale = TaskContext.Instance().SystemInfo.AssetScale;
 var scale = _systemInfo.AssetScale;
 ```
 
-### 5.2 AutoPickAssets
+### 5.2 AutoPickAssets — Dedicated Initialization Path
 
-Extend existing `Configure(IAutoPickConfigProvider)` to also accept `ISystemInfo`, OR create a new Configure overload that accepts both.
+**NOT viable:** `Configure(ISystemInfo)` after construction, `SetSystemInfo()`, or modifying `Singleton<T>`/`BaseAssets<T>`.
 
-Since `BaseAssets<T>` stores `systemInfo` as a protected readonly field but `AutoPickAssets`'s template-only constructor runs at singleton creation (before Configure), the singleton constructor must either:
-- Receive ISystemInfo at construction (via non-default BaseAssets ctor)
-- Or defer all ROI calculations to Configure() (major refactor)
+**Reason:** `BaseAssets<T>.systemInfo` is `readonly`, initialized in the constructor.
+AutoPickAssets' template ROIs read `AssetScale` and `CaptureRect` during construction.
+By the time `Configure()` is called, these values are already consumed. Post-hoc injection is impossible.
 
-**Least-invasive approach:** make `BaseAssets<T>`'s default constructor use the injected ISystemInfo from a new `SetSystemInfo(ISystemInfo)` method, or accept it via `Configure()` on AutoPickAssets.
+**Solution: private parameterized constructor + static `Initialize()`**
 
-### 5.3 Windows chain changes
+```csharp
+// AutoPickAssets adds a private constructor that accepts ISystemInfo
+private AutoPickAssets(ISystemInfo systemInfo)
+    : base(systemInfo)
+{
+    // Copy of existing template-only ctor body (FRo, ChatIconRo, SettingsIconRo, LRo)
+    // AssetScale and CaptureRect are now available via base class fields
+}
 
-- `TaskTriggerDispatcher` receives `ISystemInfo` (alongside `IAutoPickConfigProvider` + `IInputBackend`)
-- Forwards to `GameTaskManager.LoadInitialTriggers(IInputBackend, ISystemInfo)`
-- Which forwards to `new AutoPickTrigger(..., systemInfo)`
-- `AutoPickAssets.Configure(configProvider)` can also accept systemInfo, or it can be set before Configure
+// New static initialization replaces the default singleton path
+public static void Initialize(
+    ISystemInfo systemInfo,
+    IAutoPickConfigProvider configProvider)
+{
+    ArgumentNullException.ThrowIfNull(systemInfo);
+    ArgumentNullException.ThrowIfNull(configProvider);
+    lock (syncRoot ??= new())
+    {
+        if (_instance != null)
+            throw new InvalidOperationException(...);
+        var instance = new AutoPickAssets(systemInfo);
+        instance.Configure(configProvider);
+        _instance = instance;
+    }
+}
+```
+
+**Initialization sequence:**
+1. `ISystemInfo` → passed to parameterized `AutoPickAssets(systemInfo)` constructor
+2. `BaseAssets(ISystemInfo)` → sets `this.systemInfo`
+3. Template ROI expressions evaluate `AssetScale` and `CaptureRect` correctly
+4. `Configure(configProvider)` → handles config-dependent assets (PickRo, PickVk, ChatPickRo)
+5. Singleton published as `_instance`
+
+**Existing `DestroyInstance()` + `Instance` getter must still work:**
+DestroyInstance → clears `_instance` → next `Instance` call → calls `Initialize` or re-creates via old path depending on context.
+
+This means `AutoPickAssets.cs` needs two constructors:
+- The existing parameterless one (for backward/legacy paths)
+- A new private `AutoPickAssets(ISystemInfo)` for the explicit initialization path
+
+The `Instance` getter (from `Singleton<T>`) can be overridden or guarded to prefer the initialized path.
+
+### 5.3 Windows Lifecycle — dispatcher does NOT hold ISystemInfo
+
+**Confirmed:** `TaskTriggerDispatcher` constructor runs BEFORE `Start(hWnd, mode)`. `SystemInfo` is created inside `Start()` at line 147:
+```
+TaskContext.Instance().Init(hWnd);
+```
+At dispatcher construction time, no valid SystemInfo exists. **Do not inject ISystemInfo into dispatcher constructor.**
+
+**Windows chain (corrected):**
+
+```
+TaskTriggerDispatcher.Start(hWnd, mode)
+  ├─ TaskContext.Instance().Init(hWnd)         // creates SystemInfo
+  ├─ AutoPickAssets.Initialize(                 // NEW: dedicated init
+  │     TaskContext.Instance().SystemInfo,
+  │     _autoPickConfigProvider)
+  ├─ GameTaskManager.LoadInitialTriggers(
+  │     _inputBackend,
+  │     TaskContext.Instance().SystemInfo)     // pass ISystemInfo on Start, not constructor
+  │   └─ new AutoPickTrigger(..., systemInfo)
+  └─ ...
+```
+
+**ReloadInitialTriggers() behavior:**
+- Called from `TaskRunner.End()` — after `Start()`, so SystemInfo is available
+- Can read `TaskContext.Instance().SystemInfo` at call time instead of storing stale reference
+- If called before `Start()`, SystemInfo may be the shim default — acceptable for reload
+
+**No need to store `_systemInfo` on the dispatcher.** The dispatcher reads it from `TaskContext.Instance()` inside `Start()` and passes it downstream. Other methods access it when needed.
 
 ### 5.4 macOS composition
 
-- `MacAutoPickComposition.Compose()` receives `ISystemInfo` from the host
-- Passes to trigger constructor
-- Configures AutoPickAssets with both `IAutoPickConfigProvider` and `ISystemInfo`
+`MacAutoPickComposition.Compose()` receives `ISystemInfo` from the host and:
+
+1. Creates `AutoPickAssets` via dedicated `Initialize(systemInfo, configProvider)` — no `TaskContext.Instance()` fallback
+2. Passes `ISystemInfo` to `AutoPickTrigger(..., systemInfo)`
+3. All ROIs use the provided systemInfo, not the shim singleton
 
 ---
 
@@ -278,23 +358,18 @@ Since `BaseAssets<T>` stores `systemInfo` as a protected readonly field but `Aut
 
 ---
 
-## 8. Fix B8.1 Commit Chain in Docs
+## 8. B8.1 Commit Chain — Key Implementation Nodes
 
-**Current (wrong/duplicated line):**
-```
-3e25a80 + fc5ff09 + c7d4d61 + 3e25a80
-```
+**Not a complete chain** — only the primary implementation and fix commits.
 
-**Correct series:**
-- `e6c3495` — B8.1.0: Win32InputBackend
-- `0b93346` — B8.1.0a: helper layering fix
-- `7777b26` — B8.1.0b: WheelDelta cleanup
-- `698efff` — B8.1.0c: import fix + adapter-gate
-- `fc5ff09` — B8.1.0: csproj duplicate fix
-- `c7d4d61` — B8.1.0: verification using fix
-- `3e25a80` — B8.1.0: Exe→Library fix
-- `47e36c7` — B8.1.1: AutoPick IInputBackend injection
+### B8.1.0 series (Win32InputBackend + gate)
+- `e6c3495` — B8.1.0: Win32InputBackend + helpers
+- `0b93346` — Layering: helpers moved from Core to WPF
+- `7777b26` — Scroll helper cleanup
+- `698efff` — Using fix, adapter-gate CI, 146-error classification
+- `fc5ff09` — csproj duplicate Compile fix
+- `c7d4d61` — verification using fix
+- `3e25a80` — Exe→Library fix (gate passes)
 
-**Or simplified range:**
-- B8.1.0 series: `e6c3495` through `3e25a80` (adapter + gate)
-- B8.1.1: `47e36c7` (trigger injection)
+### B8.1.1 (AutoPick IInputBackend injection)
+- `47e36c7` — B8.1.1: trigger + dispatcher + GameTaskManager + MacComposition
