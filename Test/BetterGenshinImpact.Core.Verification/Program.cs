@@ -590,6 +590,10 @@ Console.WriteLine();
 // ==== B8.1.1: AutoPickTrigger IInputBackend injection ====
 Console.WriteLine("B8.1.1: AutoPickTrigger IInputBackend injection");
 
+// Also verifies: AddTrigger after LoadInitialTriggers does NOT re-initialize AutoPickAssets
+// (Initialize is already called by LoadInitialTriggers; AddTrigger reuses the existing assets)
+// If AddTrigger mistakenly called Initialize again, it would throw InvalidOperationException.
+
 var inputField = typeof(AutoPickTrigger)
     .GetField("_inputBackend", BindingFlags.NonPublic | BindingFlags.Instance)!;
 

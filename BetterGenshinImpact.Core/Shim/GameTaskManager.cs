@@ -21,6 +21,7 @@ public static class GameTaskManager
     /// <summary>
     /// Load a PNG asset image, scaled for the given ISystemInfo resolution.
     /// When systemInfo is null, falls back to 1920x1080 assets.
+    /// When the loaded asset resolution differs from the target, resizes to match AssetScale.
     /// </summary>
     public static Mat LoadAssetImage(string taskName, string fileName, ISystemInfo? systemInfo)
     {
@@ -42,6 +43,7 @@ public static class GameTaskManager
             : Path.Combine(baseDir, "GameTask", taskName, "Assets", resolutionDir);
 
         var filePath = Path.Combine(assetDir, fileName);
+        bool usedFallback = false;
         if (!File.Exists(filePath))
         {
             // Fallback to 1920x1080
@@ -53,8 +55,22 @@ public static class GameTaskManager
             {
                 throw new FileNotFoundException($"Asset not found: {filePath}");
             }
+            usedFallback = true;
         }
 
-        return Cv2.ImRead(filePath, ImreadModes.Color);
+        var mat = Cv2.ImRead(filePath, ImreadModes.Color);
+
+        // When loading from fallback 1920 assets for a non-1920 target, scale to match AssetScale
+        if (usedFallback && systemInfo != null && systemInfo.AssetScale < 1)
+        {
+            var newWidth = (int)(mat.Width * systemInfo.AssetScale);
+            var newHeight = (int)(mat.Height * systemInfo.AssetScale);
+            if (newWidth > 0 && newHeight > 0)
+            {
+                Cv2.Resize(mat, mat, new OpenCvSharp.Size(newWidth, newHeight));
+            }
+        }
+
+        return mat;
     }
 }

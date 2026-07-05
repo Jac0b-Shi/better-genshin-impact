@@ -98,7 +98,7 @@ internal class GameTaskManager
         {
             case "AutoPick":
                 triggerName = "AutoPick";
-                AutoPickAssets.AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider);
+                // Assets already initialized by LoadInitialTriggers; reuse.
                 trigger = new AutoPick.AutoPickTrigger(externalConfig as AutoPickExternalConfig, null, null, inputBackend, systemInfo);
                 break;
             case "AutoSkip":
