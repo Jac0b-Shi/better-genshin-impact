@@ -340,11 +340,17 @@ Each step must:
 As described in §2. Config-dependent logic moves from constructor to `Configure(IAutoPickConfigProvider)`.
 Fail fast if config-dependent fields (`PickRo`, `PickVk`) accessed before `Configure`.
 
-### B7: macOS trigger factory / composition root
+### B7: macOS composition root
 
-- `MacTriggerFactory` creates triggers with macOS wiring
-- macOS bootstrap calls factory, then dispatcher
-- Windows unchanged
+- `Core/Composition/MacAutoPickComposition.cs` — one-shot composition of AutoPickTrigger
+- Four-state state machine (NotComposed → Composing → Composed/→ Failed)
+- lock synchronization; null args validated before state change
+- AutoPickTrigger receives IAutoPickConfigProvider; Init config lookup avoids TaskContext
+- No IDisposable; internal ResetForVerification() for tests only
+- **Init completed:** construction + Init config lookup are TaskContext-free.
+  **OnCapture not covered:** still accesses TaskContext.Instance().SystemInfo.AssetScale
+  and TaskContext.Instance().Config.AutoPickConfig offsets (B8+ scope).
+- **Platform input not covered:** Simulation.SendInput still Win32 (B8+ scope).
 
 ### B8: Delete Shim files
 
@@ -375,8 +381,8 @@ Delete only when all three searches return zero results in the linked-file set.
 | B3 | macOS providers + Verification wiring — no consumer changes | B1 |
 | B4 | OcrFactory ctor + provider injection | B2+B3 (both providers must exist) |
 | B5 | AutoPickTrigger overload + runtime-state injection | B3 (mac state must exist) |
-| B6 | AutoPickAssets constructor split + Configure() | B3 (mac config provider must exist) |
-| B7 | macOS trigger factory | B4-B6 (consumers must work) |
+| B6 | AutoPickAssets constructor split + Configure() | B2+B3 (config provider + mac adapter) |
+| B7 | macOS composition root + AutoPickTrigger provider injection | B4-B6 (consumers must work) |
 | B8 | Delete Shim files | All above (caller count = 0) |
 
 B2 and B3 each depend on B1 (interfaces must be visible first). B4-B6 depend on B2+B3. B7 depends on B4-B6. B8 is terminal.
@@ -433,3 +439,51 @@ Commit: `daf0c5c`. Unified master ctor, precise tests, restore System.Drawing 10
 ## B5.2 Status: Complete
 
 Commit: `4a36609`. Removed null-ambiguous overload; `new AutoPickTrigger(null)` compiles.
+
+---
+
+## B6 Status: Complete
+
+**B6 series (40a548f → 28fad4f → 87ee973 → b913e68 → 2aa199b → 40a548f).**
+AutoPickAssets constructor split + Configure(IAutoPickConfigProvider):
+- Template-only ctor; config-dependent logic deferred to Configure()
+- Instance-level property guards (EnsureThisConfigured)
+- DestroyInstance lifecycle + Configure re-entry guard
+- Write-back semantics (PickKey = "F" on fallback)
+- TaskTriggerDispatcher lifecycle (_started/_starting/_startFailed + CleanupFailedStart)
+
+---
+
+## B7 Status: Complete
+
+**Design v2:** `44d95a3` — composition root in Core/Composition/, state machine, narrow deps, no IDisposable  
+**Implementation:** `261c9eb` — MacAutoPickComposition.cs, AutoPickTrigger configProvider injection, lock sync  
+**Verification fix:** `0cf37a7` — real Failed state test, redundant DestroyInstance removal, ConcurrentQueue  
+**Verification:** 76 passed, 0 failed
+
+### What B7 achieves
+
+| Boundary | Status | Notes |
+|----------|--------|-------|
+| MacAutoPickComposition in Core/Composition/ | ✅ | Not in Adapters |
+| Four-state machine + lock | ✅ | NotComposed/Composing/Composed/Failed |
+| Null validation before state change | ✅ | ArgumentNullException, no Failed poison |
+| AutoPickTrigger IAutoPickConfigProvider injection | ✅ | Master ctor: `(config, state, provider)` |
+| Init() config lookup TaskContext-free | ✅ | `_configProvider?.AutoPickConfig ?? TaskContext...` |
+| Compose failure → Failed → "Restart" | ✅ | Original exception preserved |
+| One-shot per process | ✅ | All states guarded; no public reset |
+| internal ResetForVerification | ✅ | Reflection access from tests |
+| Concurrent safety | ✅ | lock + Barrier test (exactly 1 success) |
+| Production code unchanged for Windows | ✅ | Two-param ctor delegates null |
+
+### What B7 does NOT cover (B8+ scope)
+
+| Gap | Code Location | Why Deferred |
+|-----|---------------|-------------|
+| OnCapture() TaskContext reads | lines 214-215 (AssetScale + AutoPickConfig offsets) | Needs ISystemInfoProvider + broader migration |
+| Simulation.SendInput (Win32) | lines 198, 210, 257, 355, 386 | IInputBackend exists but OnCapture not migrated |
+| OcrFactory.Paddle static | lines 310, 331 | Static gateway — needs DI (Phase C) |
+| TextInferenceFactory static | line 297 | Same as OcrFactory (Phase C) |
+| Shim deletion (17 files) | Core/Shim/*.cs | Gated on zero direct callers |
+| File I/O abstraction | Global.ReadAllTextIfExist | Shim — needs IFileSystem (Phase C) |
+| ThemedMessageBox | Shim — needs IUserInteractionService | Phase C |
