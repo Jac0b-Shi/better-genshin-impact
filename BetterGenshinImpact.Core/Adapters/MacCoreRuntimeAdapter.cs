@@ -1,4 +1,3 @@
-using System.Globalization;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.AutoPick;
@@ -26,8 +25,9 @@ public sealed class MacCoreRuntimeAdapter : IAutoPickConfigProvider, IOcrRuntime
     {
         _autoPickConfig = autoPickConfig ?? throw new ArgumentNullException(nameof(autoPickConfig));
         _paddleModel = paddleModel;
-        _gameCultureInfoName = gameCultureInfoName
-            ?? throw new ArgumentNullException(nameof(gameCultureInfoName));
+        if (string.IsNullOrWhiteSpace(gameCultureInfoName))
+            throw new ArgumentException("Game culture name must not be empty.", nameof(gameCultureInfoName));
+        _gameCultureInfoName = gameCultureInfoName;
     }
 
     // IAutoPickConfigProvider

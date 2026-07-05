@@ -104,6 +104,21 @@ Assert("GameCultureInfoName zh-Hans",
 var state = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState();
 Assert("MacAutoPickRuntimeState default 0",
     state.StopCount == 0, $"got {state.StopCount}");
+var state2 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(2);
+Assert("MacAutoPickRuntimeState(2).StopCount == 2",
+    state2.StopCount == 2, $"got {state2.StopCount}");
+
+// Culture validation
+try
+{
+    _ = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+        new AutoPickConfig(), PaddleOcrModelConfig.V5, "");
+    Assert("Empty culture should throw", false, "no exception");
+}
+catch (ArgumentException)
+{
+    Assert("Empty culture throws ArgumentException", true, "");
+}
 Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");

@@ -403,3 +403,13 @@ Phase B's goal is to **add config providers** — not eliminate all service loca
 
 Commit: `8622598`
 Three interfaces relocated to shared upstream source tree.
+
+---
+
+## B2 Status: Complete
+
+Commit: `2dde64a`. Windows providers + DI registration.
+
+## B3 Status: Complete
+
+Commit: `b05cba5`. Mac adapters + verification (20/20).
