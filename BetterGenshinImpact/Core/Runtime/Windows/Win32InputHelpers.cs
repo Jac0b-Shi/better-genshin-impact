@@ -3,8 +3,9 @@ using BetterGenshinImpact.Platform.Abstractions;
 namespace BetterGenshinImpact.Core.Runtime.Windows;
 
 /// <summary>
-/// Pure platform-agnostic helpers for Win32 coordinate conversion and key mapping.
+/// Pure helpers for Win32 coordinate conversion and key mapping.
 /// No Windows/WPF/Vanara dependencies — usable from any platform for testing.
+/// Owned by the WPF project; linked into Verification for pure-function testing.
 /// </summary>
 public static class Win32InputHelpers
 {
@@ -34,11 +35,12 @@ public static class Win32InputHelpers
     }
 
     /// <summary>
-    /// Convert screen-pixel coordinates (relative to virtual desktop origin)
-    /// to normalized 0–65535 absolute coordinates for Win32 SendInput.
+    /// Convert absolute desktop screen-pixel coordinates (may be negative on
+    /// multi-monitor setups with a non-zero virtual origin) to normalized
+    /// 0–65535 absolute coordinates for Win32 SendInput.
     /// </summary>
-    /// <param name="screenX">Screen-pixel X (virtual-desktop-relative).</param>
-    /// <param name="screenY">Screen-pixel Y (virtual-desktop-relative).</param>
+    /// <param name="screenX">Absolute desktop screen-pixel X (may be negative).</param>
+    /// <param name="screenY">Absolute desktop screen-pixel Y (may be negative).</param>
     /// <param name="virtualLeft">Virtual desktop left edge (may be negative).</param>
     /// <param name="virtualTop">Virtual desktop top edge (may be negative).</param>
     /// <param name="virtualWidth">Virtual desktop total width.</param>
@@ -71,15 +73,7 @@ public static class Win32InputHelpers
 
     /// <summary>
     /// Number of WHEEL_DELTA units per logical scroll click (Windows convention).
+    /// Used by Fischless.VerticalScroll internally; kept as a reference constant.
     /// </summary>
     public const int WheelDeltaPerClick = 120;
-
-    /// <summary>
-    /// Convert logical scroll clicks to Win32 mouse wheel data value.
-    /// Positive = wheel up (same direction as Windows VerticalScroll).
-    /// </summary>
-    public static int ScrollClicksToWheelData(int clicks)
-    {
-        return clicks * WheelDeltaPerClick;
-    }
 }

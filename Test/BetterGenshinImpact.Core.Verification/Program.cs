@@ -593,11 +593,7 @@ catch (ArgumentOutOfRangeException) { Assert("B8.1.0 None → ArgumentOutOfRange
     Assert("B8.1.0 top-monitor px(960,-540) virtT=-1080 → (32784,16391)", nx == 32784 && ny == 16391, $"({nx},{ny})");
 }
 
-// --- Scroll contract ---
-Assert("B8.1.0 ScrollClicksToWheelData(2) = 240",
-    Win32InputHelpers.ScrollClicksToWheelData(2) == 240, $"got {Win32InputHelpers.ScrollClicksToWheelData(2)}");
-Assert("B8.1.0 ScrollClicksToWheelData(-1) = -120",
-    Win32InputHelpers.ScrollClicksToWheelData(-1) == -120, $"got {Win32InputHelpers.ScrollClicksToWheelData(-1)}");
+// --- Scroll semantics: WheelDeltaPerClick constant ---
 Assert("B8.1.0 WheelDeltaPerClick = 120",
     Win32InputHelpers.WheelDeltaPerClick == 120, $"got {Win32InputHelpers.WheelDeltaPerClick}");
 

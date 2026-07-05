@@ -114,11 +114,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Shared pure helpers linked from Core project (testable on any platform) -->
-		<Compile Include="..\BetterGenshinImpact.Core\Core\Runtime\Windows\Win32InputHelpers.cs" Link="Core\Runtime\Windows\Win32InputHelpers.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<None Update="Assets\Map\**">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

@@ -15,4 +15,9 @@
     <ProjectReference Include="..\..\BetterGenshinImpact.Platform.Abstractions\BetterGenshinImpact.Platform.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Link WPF-owned Win32InputHelpers for pure-function testing (no Win32 runtime needed) -->
+    <Compile Include="..\..\BetterGenshinImpact\Core\Runtime\Windows\Win32InputHelpers.cs" Link="Runtime\Windows\Win32InputHelpers.cs" />
+  </ItemGroup>
+
 </Project>

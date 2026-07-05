@@ -147,11 +147,6 @@
     <Compile Include="Composition/MacAutoPickComposition.cs" />
   </ItemGroup>
 
-  <!-- ==================== Shared Win32 Helpers (pure, cross-platform testable) ==================== -->
-  <ItemGroup>
-    <Compile Include="Core/Runtime/Windows/Win32InputHelpers.cs" />
-  </ItemGroup>
-
   <!-- ==================== SHIM: platform facade files ==================== -->
   <ItemGroup>
     <Compile Include="Shim/App.cs" />
