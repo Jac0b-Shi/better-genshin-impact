@@ -1,6 +1,7 @@
 using BetterGenshinImpact.Platform.Abstractions;
 using Fischless.WindowsInput;
 using Vanara.PInvoke;
+using System.Threading;
 
 namespace BetterGenshinImpact.Core.Runtime.Windows;
 

@@ -195,23 +195,49 @@ No class in the WPF project implements `IInputBackend`. `Win32InputBackend` must
 4. Inject into `TaskTriggerDispatcher` constructor (one DI registration line change)
 5. Handle DesktopRegion compile break (minimal temporary fix; full migration deferred)
 
-### 6.5 WPF Build Status (B8.1.0b)
+### 6.5 WPF Build Status (B8.1.0c)
 
-| Environment | Result | Notes |
-|------------|--------|-------|
-| Windows CI (`windows-latest`) | Partial — **Win32 adapter passes; build blocked by upstream using regression** | See below |
+#### Adapter Gate (isolated + required)
 
-**First Windows CI result (17b887e):**
-- `Fischless.WindowsInput` — build success
-- `BetterGenshinImpact.Platform.Abstractions` — build success
-- `Win32InputBackend.cs` + `Win32InputHelpers.cs` — **no errors**
-- `IInputBackend` → `Win32InputBackend` DI registration — **no errors**
-- `User32.VK` / Fischless API calls — **no errors**
-- **Blocker:** `TaskTriggerDispatcher.cs` missing upstream `using` statements (`System`, `System.Collections.Generic`, `Microsoft.Extensions.Logging`, `Fischless.GameCapture`, etc.) — a branch regression, not a BCL/targeting pack issue.
+| Check | Status | Notes |
+|-------|--------|-------|
+| `Win32InputHelpers.cs` missing `using System;` | ❌ Fixed 814d42e → next | `ArgumentOutOfRangeException`, `ArgumentException`, `Math` unresolvable |
+| `Win32InputBackend.cs` missing `using System.Threading;` | ❌ Fixed 814d42e → next | `Thread.Sleep` unresolvable |
+| Interface + Fischless + Vanara method signatures | ✅ No errors in either CI run | |
+| DI registration (`IInputBackend → Win32InputBackend`) | ✅ No errors | |
+| Isolated adapter build project | ✅ NEW: `Test/BetterGenshinImpact.Core.AdapterBuild/` | Compiles only adapter + dependencies, not full WPF app |
 
-**Root cause confirmed:** macOS cross-build failure was NOT "BCL types unavailable on macOS." The same `using` regression caused identical errors on Windows CI. The adapter itself compiled cleanly once the dispatcher's imports were restored.
+The adapter-specific errors are limited to two missing `using` directives.
+After the fix, the isolated adapter gate (CI job `adapter-gate`) must pass 0 errors.
 
-**Fix (17b887e → next):** restored main-branch `using` set in `TaskTriggerDispatcher.cs`; zero logic changes.
+#### Full WPF Build (known-failing baseline, 146 errors)
+
+The full `BetterGenshinImpact.csproj` build produced **146 errors / 312 warnings** (second CI run,
+after restoring `TaskTriggerDispatcher.cs` usings). None of the adapter-specific fixes resolve these.
+They are pre-existing platform-compatibility regressions from the branch extraction.
+
+**Error classification (by root cause):**
+
+| Category | Estimated error count | Representative files | Need |
+|----------|---------------------|---------------------|------|
+| A. BgiKey ↔ User32.VK boundary | ~40 | `AutoPickTrigger`, `AutoSkipTrigger`, `AutoDomainTask`, `BvSimpleOperation`, `TaskTriggerDispatcher`, `KeyMouseMacroPlayer`, multiple Job/Script files | Windows adapter must convert at boundary; callers must not pass `BgiKey` to `User32.VK` API directly |
+| B. BgiRect ↔ RECT boundary | ~8 | `TaskTriggerDispatcher`, `PictureInPictureWindow`, `Job` files | Same as A — boundary conversion missing |
+| C. GameCaptureRegion Windows input helpers | ~35 | `Region`, `GameCaptureRegion`, `ImageRegion`, callers of `GameRegion1080PPosClick`, `BackgroundClick`, etc. | Drawing-input extension methods removed/not linked into WPF project |
+| D. DesktopRegion compatibility | ~10 | `DesktopRegion`, callers of parameterless constructor, `PlatformServices.Input` | Constructor signature changed; `PlatformServices` not defined in WPF project |
+| E. Missing imports (wider) | ~15 | Scattered across WPF files | Files missing `System`, `System.Threading`, `System.Linq` etc. |
+| F. AutoPickAssets/BgiKeyMapper references | ~6 | Callers expecting `BgiKeyMapper.ToUser32Vk` or `AutoPickAssets.PickVk` as `User32.VK` | Need conversion or old method restored |
+| G. Other/systemic (shim removal fallout) | ~32 | Various | `GameTaskManager.TriggerDictionary`, `App.GetLogger`, shim-dependant APIs |
+
+**Key observation:** These 146 errors are NOT introduced by B8.1. They were latent since earlier phases
+(Platorm.Abstractions, BgiKey/BgiRect introduction) removed Windows-specific shims or changed shared types
+without providing Windows-side conversion paths. The full WPF build has not been compiled on any platform
+since the cross-platform extraction began.
+
+**Strategy:** No attempt to fix all 146 errors in a single pass. Each B8.x phase should:
+1. Pass its isolated gate (adapter, helpers, etc.)
+2. Optionally resolve the WPF-compatibility categories directly relevant to its scope
+3. Never depend on the full WPF build being green for forward progress
+4. Reserve a dedicated restoration phase (B8.Z) for the full WPF compatibility cleanup
 
 ---
 
