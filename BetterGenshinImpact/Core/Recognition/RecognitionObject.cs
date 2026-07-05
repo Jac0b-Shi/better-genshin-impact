@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.Core.Recognition.OpenCv;
+using BetterGenshinImpact.Core.Recognition.OpenCv;
 using BetterGenshinImpact.Helpers.Extensions;
 using OpenCvSharp;
 using System;
@@ -76,8 +76,13 @@ public class RecognitionObject
 
     /// <summary>
     ///     DrawOnWindow 为 true 时，绘制的矩形框的颜色。可选，默认红色。
+    ///     WPF overlay only — no-op stub on non-Windows.
     /// </summary>
+#if BGI_FULL_WINDOWS
     public Pen DrawOnWindowPen = new(Color.Red, 2);
+#else
+    public Pen? DrawOnWindowPen = null;
+#endif
 
     /// <summary>
     ///    一个模板匹配多个结果的时候最大匹配数量。可选，默认 -1，即不限制。
@@ -260,7 +265,8 @@ public class RecognitionObject
             MaskColor = this.MaskColor,
             MaskMat = this.MaskMat, // 注意：Mat 是引用类型，克隆后仍然指向同一内存
             DrawOnWindow = this.DrawOnWindow,
-            DrawOnWindowPen = new Pen(this.DrawOnWindowPen.Color, this.DrawOnWindowPen.Width),
+            DrawOnWindowPen = this.DrawOnWindowPen != null
+                ? new Pen(this.DrawOnWindowPen.Color, this.DrawOnWindowPen.Width) : null,
             MaxMatchCount = this.MaxMatchCount,
             
             // 颜色匹配相关属性

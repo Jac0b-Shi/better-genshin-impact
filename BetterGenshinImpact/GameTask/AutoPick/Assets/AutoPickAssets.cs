@@ -43,15 +43,20 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
             RecognitionType = RecognitionTypes.TemplateMatch,
             TemplateImageMat = GameTaskManager.LoadAssetImage("AutoSkip", "icon_option.png"),
             DrawOnWindow = false,
-            DrawOnWindowPen = new Pen(Color.Chocolate, 2)
+#if BGI_FULL_WINDOWS
+            DrawOnWindowPen = new Pen(Color.Chocolate, 2),
+#endif
         }.InitTemplate();
+
         SettingsIconRo = new RecognitionObject
         {
             Name = "SettingsIcon",
             RecognitionType = RecognitionTypes.TemplateMatch,
             TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", "icon_settings.png"),
             DrawOnWindow = false,
-            DrawOnWindowPen = new Pen(Color.Chocolate, 2)
+#if BGI_FULL_WINDOWS
+            DrawOnWindowPen = new Pen(Color.Chocolate, 2),
+#endif
         }.InitTemplate();
         
         LRo = new RecognitionObject

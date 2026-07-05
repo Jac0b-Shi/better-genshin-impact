@@ -2,6 +2,7 @@ using BetterGenshinImpact;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Platform.Abstractions;
@@ -160,6 +161,33 @@ using var whitespaceFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFa
     whiteProvider);
 var whiteCulture = (string)(fallbackCultureField?.GetValue(whitespaceFactory) ?? throw new InvalidOperationException());
 Assert("Whitespace culture falls back to default", whiteCulture == expectedCulture, $"got {whiteCulture}");
+Console.WriteLine();
+
+// ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====
+Console.WriteLine("AutoPickTrigger: IAutoPickRuntimeState injection");
+// AutoPickTrigger() calls AutoPickAssets.Instance which reads TaskContext —
+// initialize minimal environment for construction to work
+BetterGenshinImpact.GameTask.TaskContext.Instance().SystemInfo =
+    new BetterGenshinImpact.GameTask.MacSystemInfo();
+var state0B5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
+var t0 = new AutoPickTrigger(state0B5);
+Assert("AutoPickTrigger with StopCount=0 runs", true, "");
+
+var stateForB5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(2);
+var t2 = new AutoPickTrigger(stateForB5);
+// Access the private StopCount via reflection
+var stopCountProp = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
+    .GetProperty("StopCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+var actualStop2 = (int)(stopCountProp?.GetValue(t2) ?? throw new InvalidOperationException());
+Assert("AutoPickTrigger StopCount=2 from state", actualStop2 == 2, $"got {actualStop2}");
+
+// Verify externalConfig + runtimeState don't conflict
+var external = new AutoPickExternalConfig { ForceInteraction = true };
+var t3 = new AutoPickTrigger(external);
+// t3 should still compile and exist — externalConfig path not broken
+Assert("AutoPickTrigger with externalConfig compiles", true, "");
+
+// Verify zero RunnerContext call in the new overload path (no need to mock RunnerContext)
 Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");

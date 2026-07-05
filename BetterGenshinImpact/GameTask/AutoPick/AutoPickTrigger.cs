@@ -1,3 +1,4 @@
+using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.Core.Recognition.OCR;
@@ -52,6 +53,13 @@ public partial class AutoPickTrigger : ITaskTrigger
 
     // 外部配置
     private AutoPickExternalConfig? _externalConfig;
+    private readonly IAutoPickRuntimeState? _runtimeState;
+
+    /// <summary>
+    /// Unified StopCount: prefer injected runtime state; fall back to RunnerContext for Windows legacy paths.
+    /// </summary>
+    private int StopCount =>
+        _runtimeState?.StopCount ?? RunnerContext.Instance.AutoPickTriggerStopCount;
 
     public AutoPickTrigger()
     {
@@ -62,6 +70,11 @@ public partial class AutoPickTrigger : ITaskTrigger
     public AutoPickTrigger(AutoPickExternalConfig? config) : this()
     {
         _externalConfig = config;
+    }
+
+    public AutoPickTrigger(IAutoPickRuntimeState runtimeState) : this()
+    {
+        _runtimeState = runtimeState;
     }
 
     public void Init()
@@ -161,7 +174,7 @@ public partial class AutoPickTrigger : ITaskTrigger
 
     public void OnCapture(CaptureContent content)
     {
-        while (RunnerContext.Instance.AutoPickTriggerStopCount > 0)
+        while (StopCount > 0)
         {
             Thread.Sleep(1000);
         }

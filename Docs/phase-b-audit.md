@@ -420,4 +420,8 @@ Commit: 5c0bf82 OcrFactory takes IOcrRuntimeConfigProvider; zero TaskContext ref
 
 ## B4.1 Status: Complete
 
-Commit: `5c0bf82`. Fallback logs, precise assertions, null check.
+Commit: `17814cd`. Fallback logs, precise assertions, null check.
+
+## B5 Status: Complete
+
+Commit: pending. AutoPickTrigger injects IAutoPickRuntimeState; Pen guards for macOS.
