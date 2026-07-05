@@ -131,9 +131,9 @@
 
   <!-- ==================== Core Runtime Abstractions ==================== -->
   <ItemGroup>
-    <Compile Include="Abstractions/Runtime/IAutoPickConfigProvider.cs" />
-    <Compile Include="Abstractions/Runtime/IOcrRuntimeConfigProvider.cs" />
-    <Compile Include="Abstractions/Runtime/IAutoPickRuntimeState.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Abstractions/Runtime/IAutoPickConfigProvider.cs" Link="Core/Abstractions/Runtime/IAutoPickConfigProvider.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Abstractions/Runtime/IAutoPickRuntimeState.cs" Link="Core/Abstractions/Runtime/IAutoPickRuntimeState.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Abstractions/Runtime/IOcrRuntimeConfigProvider.cs" Link="Core/Abstractions/Runtime/IOcrRuntimeConfigProvider.cs" />
   </ItemGroup>
 
   <!-- ==================== SHIM: platform facade files ==================== -->
