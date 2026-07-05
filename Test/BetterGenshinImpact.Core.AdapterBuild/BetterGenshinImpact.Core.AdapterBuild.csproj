@@ -16,7 +16,6 @@
   <ItemGroup>
     <Compile Include="..\..\BetterGenshinImpact\Core\Runtime\Windows\Win32InputHelpers.cs" Link="Win32InputHelpers.cs" />
     <Compile Include="..\..\BetterGenshinImpact\Core\Runtime\Windows\Win32InputBackend.cs" Link="Win32InputBackend.cs" />
-    <Compile Include="AdapterBuildVerification.cs" />
   </ItemGroup>
 
 </Project>
