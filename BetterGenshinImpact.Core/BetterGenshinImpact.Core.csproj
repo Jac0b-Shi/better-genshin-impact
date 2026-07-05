@@ -136,6 +136,12 @@
     <Compile Include="../BetterGenshinImpact/Core/Abstractions/Runtime/IOcrRuntimeConfigProvider.cs" Link="Core/Abstractions/Runtime/IOcrRuntimeConfigProvider.cs" />
   </ItemGroup>
 
+  <!-- ==================== macOS Adapters ==================== -->
+  <ItemGroup>
+    <Compile Include="Adapters/MacCoreRuntimeAdapter.cs" />
+    <Compile Include="Adapters/MacAutoPickRuntimeState.cs" />
+  </ItemGroup>
+
   <!-- ==================== SHIM: platform facade files ==================== -->
   <ItemGroup>
     <Compile Include="Shim/App.cs" />

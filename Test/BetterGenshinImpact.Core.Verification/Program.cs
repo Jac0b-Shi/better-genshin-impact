@@ -1,4 +1,6 @@
 using BetterGenshinImpact;
+using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Platform.Abstractions;
 
@@ -79,6 +81,29 @@ catch (Exception ex)
     Console.WriteLine($"  NATIVE FAIL: {ex.GetType().Name}: {ex.Message}");
     failed++;
 }
+Console.WriteLine();
+
+// ==== Adapter tests ====
+Console.WriteLine("Adapter: MacCoreRuntimeAdapter + MacAutoPickRuntimeState");
+var pickConfig = new AutoPickConfig { PickKey = "T" };
+var adapter = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    pickConfig,
+    PaddleOcrModelConfig.V5,
+    "zh-Hans");
+
+Assert("Adapter AutoPickConfig same ref",
+    ReferenceEquals(adapter.AutoPickConfig, pickConfig), "different references");
+pickConfig.PickKey = "F";
+Assert("PickKey mutation reflected",
+    adapter.AutoPickConfig.PickKey == "F", $"got {adapter.AutoPickConfig.PickKey}");
+Assert("PaddleModel V5",
+    adapter.PaddleModel == PaddleOcrModelConfig.V5, $"got {adapter.PaddleModel}");
+Assert("GameCultureInfoName zh-Hans",
+    adapter.GameCultureInfoName == "zh-Hans", $"got {adapter.GameCultureInfoName}");
+
+var state = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState();
+Assert("MacAutoPickRuntimeState default 0",
+    state.StopCount == 0, $"got {state.StopCount}");
 Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
