@@ -428,4 +428,4 @@ Commit: bac0af9 AutoPickTrigger injects IAutoPickRuntimeState; Pen guards for ma
 
 ## B5.1 Status: Complete
 
-Commit: `bac0af9`. Unified master ctor, precise tests, restore System.Drawing 10.0.7.
+Commit: `daf0c5c`. Unified master ctor, precise tests, restore System.Drawing 10.0.7.

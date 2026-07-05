@@ -174,17 +174,26 @@ var extField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
 var stateField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
     .GetField("_runtimeState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-// Test 1: injection with StopCount=0
+// Test 1: injection with StopCount=0 (via two-param ctor, null config)
 var state0B5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
-var t0 = new AutoPickTrigger(state0B5);
+var t0 = new AutoPickTrigger(null, state0B5);
 var actualStop0 = (int)(stopCountProp?.GetValue(t0) ?? throw new InvalidOperationException());
 Assert("StopCount=0 from state", actualStop0 == 0, $"got {actualStop0}");
 
 // Test 2: injection with StopCount=2
 var stateForB5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(2);
-var t2 = new AutoPickTrigger(stateForB5);
+var t2 = new AutoPickTrigger(null, stateForB5);
 var actualStop2 = (int)(stopCountProp?.GetValue(t2) ?? throw new InvalidOperationException());
 Assert("StopCount=2 from state", actualStop2 == 2, $"got {actualStop2}");
+
+// Test 3: new AutoPickTrigger(null) compiles unambiguously (config-only with null)
+var tNull = new AutoPickTrigger(null);
+var extNull = extField?.GetValue(tNull);
+var stateNull = stateField?.GetValue(tNull);
+Assert("AutoPickTrigger(null) has null _externalConfig",
+    extNull == null, "got non-null");
+Assert("AutoPickTrigger(null) has null _runtimeState",
+    stateNull == null, "got non-null");
 
 // Test 3: externalConfig-only preserves _externalConfig, no runtime state
 var external = new AutoPickExternalConfig { ForceInteraction = true };

@@ -69,12 +69,8 @@ public partial class AutoPickTrigger : ITaskTrigger
     {
     }
 
-    public AutoPickTrigger(IAutoPickRuntimeState runtimeState) : this(null, (IAutoPickRuntimeState?)runtimeState)
-    {
-    }
-
     /// <summary>
-    /// Combined external config and runtime state. macOS trigger factory uses this.
+    /// Combined external config and runtime state. macOS trigger factory uses this (pass null for config).
     /// Master constructor — all overloads delegate here.
     /// </summary>
     public AutoPickTrigger(AutoPickExternalConfig? config, IAutoPickRuntimeState? runtimeState)
