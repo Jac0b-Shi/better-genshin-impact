@@ -416,4 +416,8 @@ Commit: `b05cba5`. Mac adapters + verification (20/20).
 
 ## B4 Status: Complete
 
-Commit: pending. OcrFactory takes IOcrRuntimeConfigProvider; zero TaskContext refs; fallback preserved.
+Commit: 5c0bf82 OcrFactory takes IOcrRuntimeConfigProvider; zero TaskContext refs; fallback preserved.
+
+## B4.1 Status: Complete
+
+Commit: `5c0bf82`. Fallback logs, precise assertions, null check.

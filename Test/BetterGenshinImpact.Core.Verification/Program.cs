@@ -1,4 +1,6 @@
 using BetterGenshinImpact;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
+using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.Model.Area;
@@ -143,7 +145,21 @@ using var fallbackFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFact
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
     deadProvider);
 var fallbackModel = (PaddleOcrModelConfig)(modelField?.GetValue(fallbackFactory) ?? throw new InvalidOperationException());
-Assert("Fallback PaddleModel is valid value", fallbackModel != default(PaddleOcrModelConfig), $"got {fallbackModel}");
+var fallbackCultureField = typeof(BetterGenshinImpact.Core.Recognition.OCR.OcrFactory)
+    .GetField("_gameCultureInfoName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+var fallbackCulture = (string)(fallbackCultureField?.GetValue(fallbackFactory) ?? throw new InvalidOperationException());
+var expectedModel = new OtherConfig.Ocr().PaddleOcrModelConfig;
+var expectedCulture = new OtherConfig().GameCultureInfoName;
+Assert("Fallback PaddleModel matches default", fallbackModel == expectedModel, $"exp {expectedModel}, got {fallbackModel}");
+Assert("Fallback culture matches default", fallbackCulture == expectedCulture, $"exp {expectedCulture}, got {fallbackCulture}");
+
+// Test whitespace culture fallback — use a provider, not the adapter (adapter rejects whitespace)
+var whiteProvider = new CultureOnlyProvider("   ");
+using var whitespaceFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
+    Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
+    whiteProvider);
+var whiteCulture = (string)(fallbackCultureField?.GetValue(whitespaceFactory) ?? throw new InvalidOperationException());
+Assert("Whitespace culture falls back to default", whiteCulture == expectedCulture, $"got {whiteCulture}");
 Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
@@ -153,6 +169,14 @@ class DeadProvider : BetterGenshinImpact.Core.Abstractions.Runtime.IOcrRuntimeCo
 {
     public PaddleOcrModelConfig PaddleModel => throw new InvalidOperationException("Dead provider");
     public string GameCultureInfoName => throw new InvalidOperationException("Dead provider");
+}
+
+class CultureOnlyProvider : BetterGenshinImpact.Core.Abstractions.Runtime.IOcrRuntimeConfigProvider
+{
+    private readonly string _culture;
+    public CultureOnlyProvider(string culture) => _culture = culture;
+    public PaddleOcrModelConfig PaddleModel => PaddleOcrModelConfig.V5;
+    public string GameCultureInfoName => _culture;
 }
 
 class RecordingInputBackend : IInputBackend

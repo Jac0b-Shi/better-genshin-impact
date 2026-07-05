@@ -28,12 +28,13 @@ public class OcrFactory : IDisposable
     /// </summary>
     public OcrFactory(ILogger<BgiOnnxFactory> logger, IOcrRuntimeConfigProvider runtimeConfig)
     {
+        ArgumentNullException.ThrowIfNull(runtimeConfig);
         _logger = logger;
-        _paddleModel = GetPaddleModel(runtimeConfig);
-        _gameCultureInfoName = GetGameCultureInfoName(runtimeConfig);
+        _paddleModel = LoadPaddleModel(runtimeConfig);
+        _gameCultureInfoName = LoadGameCultureInfoName(runtimeConfig);
     }
 
-    private static PaddleOcrModelConfig GetPaddleModel(IOcrRuntimeConfigProvider provider)
+    private PaddleOcrModelConfig LoadPaddleModel(IOcrRuntimeConfigProvider provider)
     {
         try
         {
@@ -41,23 +42,23 @@ public class OcrFactory : IDisposable
         }
         catch (Exception e)
         {
-            // 如果配置获取失败，使用默认配置
-            var defaultConfig = new OtherConfig.Ocr();
-            return defaultConfig.PaddleOcrModelConfig;
+            _logger.LogWarning(e, "获取 Paddle OCR 模型配置失败，使用默认配置");
+            return new OtherConfig.Ocr().PaddleOcrModelConfig;
         }
     }
 
-    private static string GetGameCultureInfoName(IOcrRuntimeConfigProvider provider)
+    private string LoadGameCultureInfoName(IOcrRuntimeConfigProvider provider)
     {
         try
         {
             var name = provider.GameCultureInfoName;
             if (!string.IsNullOrWhiteSpace(name))
                 return name;
+            _logger.LogWarning("游戏语言配置为空或空白，使用默认语言");
         }
         catch (Exception e)
         {
-            // log within CreatePaddleOcrInstance fallback
+            _logger.LogWarning(e, "获取游戏语言配置失败，使用默认语言");
         }
         return new OtherConfig().GameCultureInfoName;
     }
