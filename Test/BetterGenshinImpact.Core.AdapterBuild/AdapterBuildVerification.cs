@@ -1,4 +1,5 @@
 using BetterGenshinImpact.Core.Runtime.Windows;
+using BetterGenshinImpact.Platform.Abstractions;
 
 // Compile-time verification that adapter types are resolvable.
 // This file is never executed — it only exists to force the compiler
