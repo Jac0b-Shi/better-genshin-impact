@@ -68,10 +68,11 @@ public AutoPickConfig AutoPickConfig => GameTask.TaskContext.Instance().Config.A
 `WhiteListEnabled` / `BlackListEnabled` are read live every frame.
 However, the actual list CONTENTS (`_whiteList`, `_blackList`, `_fuzzyBlackList`) are loaded only in `Init()`.
 This means:
-- Toggling `Enabled` off → OnCapture honors it live
-- Toggling `Enabled` on → the decision is live, but lists may be empty because Init was already called
+- Toggling `WhiteListEnabled` / `BlackListEnabled` from `true` to `false` → OnCapture honors it live (immediately stops checking against the lists)
+- Toggling from `false` to `true` → the toggle decision is live, but lists may be empty because Init was already called; no automatic reload
+- Note: `AutoPickConfig.Enabled` is different — it sets `IsEnabled` in Init() only; OnCapture does NOT re-check it every frame
 - This is the **existing upstream behavior** — B8.3 does NOT add runtime list reload
-- B8.3 keeps the behavior: toggle decision is live; list contents are Init-time snapshots
+- B8.3 keeps the behavior: toggle decision is live for white/black; list contents are Init-time snapshots
 
 ### Conclusion: Live reads via provider, not TaskContext.
 
