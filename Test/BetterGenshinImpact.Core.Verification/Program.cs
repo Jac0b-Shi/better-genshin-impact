@@ -626,13 +626,14 @@ Assert("B8.1.1 Compose preserves _inputBackend",
 Assert("B8.1.1 trigger wired with externalConfig null",
     b811Comp.Trigger.IsEnabled == true, $"IsEnabled={b811Comp.Trigger.IsEnabled}");
 
-// ==== B8.2: AddTrigger after Initialize does not re-initialize ====
-Console.WriteLine("B8.2: AddTrigger after Initialize preserves Assets singleton");
+// ==== B8.2: Core shim AddTrigger preserves Assets singleton ====
+Console.WriteLine("B8.2: Core shim AddTrigger after Initialize preserves Assets singleton");
 
-// AutoPickAssets is currently initialized (set up before B7 tests).
-// This simulates what GameTaskManager.AddTrigger("AutoPick") does:
-// constructing a new trigger WITHOUT calling Initialize again.
-// Verify Assets singleton unchanged (no duplicate Initialize)
+// Tests the Core/macOS GameTaskManager shim's AddTrigger ("AutoPick") path.
+// Verifies it does NOT re-initialize AutoPickAssets.
+// NOT a test of the Windows production GameTaskManager.AddTrigger —
+// that comes from source diff review. The shim and Windows implementation
+// are separate compile units; this test prevents drift in the macOS path only.
 var b82Recorder = new RecordingInputBackend();
 var b82Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
@@ -642,14 +643,14 @@ var assetsBefore = AutoPickAssets.Instance;
 // Real AddTrigger call (not pseudo-trigger via new ctor)
 GameTaskManager.ClearTriggers();
 var added = GameTaskManager.AddTrigger("AutoPick", null, b82Recorder, b5SystemInfo);
-Assert("B8.2 AddTrigger returns true", added, "returned false");
-Assert("B8.2 TriggerDictionary contains AutoPick",
+Assert("B8.2 Core shim AddTrigger returns true", added, "returned false");
+Assert("B8.2 Core shim TriggerDictionary contains AutoPick",
     GameTaskManager.TriggerDictionary?.ContainsKey("AutoPick") == true, "not found");
 var addedTrigger = GameTaskManager.TriggerDictionary?["AutoPick"];
-Assert("B8.2 Added trigger is AutoPickTrigger",
+Assert("B8.2 Core shim added trigger is AutoPickTrigger",
     addedTrigger is AutoPickTrigger, $"got {addedTrigger?.GetType().Name}");
 var assetsAfter = AutoPickAssets.Instance;
-Assert("B8.2 Assets singleton preserved after AddTrigger",
+Assert("B8.2 Core shim Assets singleton preserved after AddTrigger",
     ReferenceEquals(assetsAfter, assetsBefore), "assets were replaced by duplicate Initialize");
 
 Console.WriteLine();

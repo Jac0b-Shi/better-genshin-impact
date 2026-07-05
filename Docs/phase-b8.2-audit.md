@@ -402,3 +402,54 @@ private ISystemInfo RequireSystemInfo() =>
 
 ### B8.1.1 (AutoPick IInputBackend injection)
 - `47e36c7` — B8.1.1: trigger + dispatcher + GameTaskManager + MacComposition
+
+---
+
+## 9. B8.2 Closeout
+
+### Commit chain
+
+| Commit | Description |
+|--------|-------------|
+| `381fd2d` | AutoPickAssets.Initialize + AutoPickTrigger ISystemInfo injection |
+| `49c7554` | ReloadAssets ordering fix + explicit ISystemInfo in LoadAssetImage |
+| `60892cd` | AddTrigger duplicate Initialize fix + shim LoadAssetImage scaling |
+| `7909195` | Remove unused AddTrigger configProvider + cleanup Enabled fix |
+| `4b9f761` | Core shim AddTrigger integration test + resize doc + shim boundary |
+
+### Verification
+
+| Gate | Result |
+|------|--------|
+| Core Verification | 90/90 |
+| adapter-gate | Not triggered (no adapter file changes — expected) |
+| Full WPF build | Not run (manual only) |
+
+### What B8.2 achieves
+
+| Boundary | Status |
+|----------|--------|
+| AutoPickAssets.Initialize(ISystemInfo, provider) sole entry point | ✅ |
+| AutoPickTrigger ISystemInfo required — OnCapture uses _systemInfo | ✅ |
+| Windows chain: ReloadAssets → Initialize → LoadInitialTriggers | ✅ |
+| All 6 LoadAssetImage calls pass explicit ISystemInfo | ✅ |
+| AddTrigger does not duplicate Initialize (Windows + Core shim) | ✅ |
+| Shim LoadAssetImage fallback resize (intentional diff from Windows) | ✅ |
+| MacAutoPickComposition explicit ISystemInfo param | ✅ |
+| AddTrigger unused configProvider removed | ✅ |
+| Core Verification 90/90 | ✅ |
+
+### What B8.2 does NOT cover (B8.3+)
+
+| Gap | Phase |
+|-----|-------|
+| AutoPickConfig runtime reads in OnCapture (`config` at line 216) | B8.3 |
+| OCR/Yap static gateways | B9 |
+| Input backend (IInputBackend injection) | B8.1 done |
+| Shim deletion | B10 |
+| Full WPF build restoration | Phase C |
+
+### Notes
+
+- B8.2 Core shim `GameTaskManager.AddTrigger` test **only tests the Core shim implementation**, not the Windows production `GameTaskManager.AddTrigger`. The shim and Windows are separate compile units; Windows correctness relies on source diff review.
+- Core shim `GameTaskManager` is intentionally narrow (AutoPick only). Do not expand it — extract shared logic instead when macOS runtime needs full dispatcher behavior.

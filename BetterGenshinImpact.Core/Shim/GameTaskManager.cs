@@ -10,8 +10,15 @@ namespace BetterGenshinImpact.GameTask;
 /// <summary>
 /// Core shim: minimal GameTaskManager for macOS/Core.
 /// Supports LoadAssetImage with resolution-dependent directories and
-/// trigger management (AddTrigger, ConvertToTriggerList, ClearTriggers)
-/// for AutoPick only. Other trigger types are not compiled here.
+/// a narrow subset of trigger management (AddTrigger, ConvertToTriggerList,
+/// ClearTriggers) for AutoPick only.
+///
+/// LIMITATIONS (compared to Windows production GameTaskManager):
+/// - ConvertToTriggerList does NOT call Init() or sort by Priority
+/// - AddTrigger only handles "AutoPick" — not other trigger types
+/// - TriggerDictionary is the only state — no assets tracking
+/// This is NOT a general-purpose replacement. Do not expand it further;
+/// extract shared logic instead when macOS runtime needs full dispatcher behavior.
 ///
 /// <b>LoadAssetImage resize behavior (intentional difference from Windows):</b>
 /// - Windows implementation: always scales by AssetScale when GameScreenSize.Width != 1920
