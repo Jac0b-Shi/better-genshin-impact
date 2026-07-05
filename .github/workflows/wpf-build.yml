@@ -1,0 +1,47 @@
+name: WPF Build
+
+# Build the Windows WPF project to verify cross-platform extraction
+# hasn't broken the Windows target. Only triggers on relevant file changes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mac-core-extraction
+    paths:
+      - "BetterGenshinImpact/**"
+      - "BetterGenshinImpact.Platform.Abstractions/**"
+      - "Fischless.WindowsInput/**"
+      - ".github/workflows/wpf-build.yml"
+  pull_request:
+    paths:
+      - "BetterGenshinImpact/**"
+      - "BetterGenshinImpact.Platform.Abstractions/**"
+      - "Fischless.WindowsInput/**"
+      - ".github/workflows/wpf-build.yml"
+
+jobs:
+  build-wpf:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          # global.json pins to 8.0.422 with rollForward=latestPatch
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: >
+          dotnet restore
+          BetterGenshinImpact/BetterGenshinImpact.csproj
+          -p:Platform=x64
+
+      - name: Build
+        run: >
+          dotnet build
+          BetterGenshinImpact/BetterGenshinImpact.csproj
+          -c Release
+          -p:Platform=x64
+          --no-restore

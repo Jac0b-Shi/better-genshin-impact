@@ -195,6 +195,15 @@ No class in the WPF project implements `IInputBackend`. `Win32InputBackend` must
 4. Inject into `TaskTriggerDispatcher` constructor (one DI registration line change)
 5. Handle DesktopRegion compile break (minimal temporary fix; full migration deferred)
 
+### 6.5 WPF Build Status (B8.1.0b)
+
+| Environment | Result | Notes |
+|------------|--------|-------|
+| macOS cross-build | Blocked | `EnableWindowsTargeting=true` resolves NETSDK1100, but subsequent errors (BCL type resolution failures) prevent full build. Root cause unconfirmed — likely restore/reference-pack issue, not an inherent macOS limitation. |
+| Windows runner (`windows-latest`) | Pending | Authoritative build gate. `.github/workflows/wpf-build.yml` triggers on push to `mac-core-extraction`. |
+
+The macOS cross-build failure does NOT confirm Win32InputBackend has compile errors. It confirms cross-compilation of `net8.0-windows10.0.22621.0` WPF projects requires a Windows host. The CI workflow is the authoritative verification.
+
 ---
 
 ## 7. macOS Runtime Backend Status
