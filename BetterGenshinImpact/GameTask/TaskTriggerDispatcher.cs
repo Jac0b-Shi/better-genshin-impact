@@ -130,7 +130,7 @@ namespace BetterGenshinImpact.GameTask
         {
             lock (_triggerListLocker)
             {
-                if (GameTaskManager.AddTrigger(name, externalConfig, _inputBackend, RequireSystemInfo(), _autoPickConfigProvider))
+                if (GameTaskManager.AddTrigger(name, externalConfig, _inputBackend, RequireSystemInfo()))
                 {
                     SetTriggers(GameTaskManager.ConvertToTriggerList(true));
                     return true;

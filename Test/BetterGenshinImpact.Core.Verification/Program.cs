@@ -531,7 +531,7 @@ Console.WriteLine();
 // Final cleanup: restore configured singleton for any subsequent tests
 AutoPickAssets.DestroyInstance();
 var b7CleanupProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    new AutoPickConfig { PickKey = "F" }, PaddleOcrModelConfig.V5, "zh-Hans");
+    new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
 AutoPickAssets.Initialize(b5SystemInfo, b7CleanupProv);
 
 // ==== B8.1.0: Win32InputHelpers pure functions ====
@@ -624,6 +624,28 @@ Assert("B8.1.1 Compose preserves _inputBackend",
 // This test confirms the backend is wired correctly for future OnCapture invocations.
 Assert("B8.1.1 trigger wired with externalConfig null",
     b811Comp.Trigger.IsEnabled == true, $"IsEnabled={b811Comp.Trigger.IsEnabled}");
+
+// ==== B8.2: AddTrigger after Initialize does not re-initialize ====
+Console.WriteLine("B8.2: AddTrigger after Initialize preserves Assets singleton");
+
+// AutoPickAssets is currently initialized (set up before B7 tests).
+// This simulates what GameTaskManager.AddTrigger("AutoPick") does:
+// constructing a new trigger WITHOUT calling Initialize again.
+// Verify Assets singleton unchanged (no duplicate Initialize)
+var b82Recorder = new RecordingInputBackend();
+var b82Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = true },
+    PaddleOcrModelConfig.V5, "zh-Hans");
+var assetsBefore = AutoPickAssets.Instance;
+var b82Trigger = new AutoPickTrigger(null, null, b82Prov, b82Recorder, b5SystemInfo);
+b82Trigger.Init();
+Assert("B8.2 AddTrigger-style ctor + Init succeeds",
+    b82Trigger != null, "trigger null");
+Assert("B8.2 AddTrigger trigger IsEnabled",
+    b82Trigger.IsEnabled == true, $"IsEnabled={b82Trigger.IsEnabled}");
+var assetsAfter = AutoPickAssets.Instance;
+Assert("B8.2 Assets singleton preserved after trigger ctor",
+    ReferenceEquals(assetsAfter, assetsBefore), "assets were replaced");
 
 Console.WriteLine();
 

@@ -88,7 +88,7 @@ internal class GameTaskManager
     /// </summary>
     /// <param name="name"></param>
     /// <param name="externalConfig"></param>
-    public static bool AddTrigger(string name, object? externalConfig, IInputBackend inputBackend, ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider)
+    public static bool AddTrigger(string name, object? externalConfig, IInputBackend inputBackend, ISystemInfo systemInfo)
     {
         TriggerDictionary ??= new ConcurrentDictionary<string, ITaskTrigger>();
 
