@@ -37,9 +37,13 @@ internal class GameTaskManager
     /// <summary>
     /// 一定要在任务上下文初始化完毕后使用
     /// </summary>
-    public static List<ITaskTrigger> LoadInitialTriggers(IInputBackend inputBackend, ISystemInfo systemInfo)
+    public static List<ITaskTrigger> LoadInitialTriggers(
+        IInputBackend inputBackend,
+        ISystemInfo systemInfo,
+        IAutoPickConfigProvider autoPickConfigProvider)
     {
         ReloadAssets();
+        AutoPickAssets.AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider);
         TriggerDictionary = new ConcurrentDictionary<string, ITaskTrigger>();
 
         TriggerDictionary.TryAdd("RecognitionTest", new TestTrigger());
@@ -84,7 +88,7 @@ internal class GameTaskManager
     /// </summary>
     /// <param name="name"></param>
     /// <param name="externalConfig"></param>
-    public static bool AddTrigger(string name, object? externalConfig, IInputBackend inputBackend, ISystemInfo systemInfo)
+    public static bool AddTrigger(string name, object? externalConfig, IInputBackend inputBackend, ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider)
     {
         TriggerDictionary ??= new ConcurrentDictionary<string, ITaskTrigger>();
 
@@ -94,6 +98,7 @@ internal class GameTaskManager
         {
             case "AutoPick":
                 triggerName = "AutoPick";
+                AutoPickAssets.AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider);
                 trigger = new AutoPick.AutoPickTrigger(externalConfig as AutoPickExternalConfig, null, null, inputBackend, systemInfo);
                 break;
             case "AutoSkip":

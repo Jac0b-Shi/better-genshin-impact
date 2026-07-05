@@ -130,7 +130,7 @@ namespace BetterGenshinImpact.GameTask
         {
             lock (_triggerListLocker)
             {
-                if (GameTaskManager.AddTrigger(name, externalConfig, _inputBackend, RequireSystemInfo()))
+                if (GameTaskManager.AddTrigger(name, externalConfig, _inputBackend, RequireSystemInfo(), _autoPickConfigProvider))
                 {
                     SetTriggers(GameTaskManager.ConvertToTriggerList(true));
                     return true;
@@ -141,12 +141,13 @@ namespace BetterGenshinImpact.GameTask
         }
 
         /// <summary>
-        /// Reload initial triggers via GameTaskManager, forwarding stored SystemInfo.
+        /// Reload initial triggers via GameTaskManager, forwarding stored SystemInfo and config provider.
         /// Throws if Start() has not been called.
         /// </summary>
         public void ReloadInitialTriggers()
         {
-            SetTriggers(GameTaskManager.LoadInitialTriggers(_inputBackend, RequireSystemInfo()));
+            var si = RequireSystemInfo();
+            SetTriggers(GameTaskManager.LoadInitialTriggers(_inputBackend, si, _autoPickConfigProvider));
         }
 
         public void Start(IntPtr hWnd, CaptureModes mode, int interval = 50)
@@ -174,11 +175,9 @@ namespace BetterGenshinImpact.GameTask
                 // 获取有效的 SystemInfo
                 _systemInfo = TaskContext.Instance().SystemInfo;
 
-                // 初始化 AutoPickAssets（必须在 LoadInitialTriggers 之前）
-                AutoPickAssets.AutoPickAssets.Initialize(_systemInfo, _autoPickConfigProvider);
-
                 // 初始化触发器(一定要在任务上下文初始化完毕后使用)
-                _triggers = GameTaskManager.LoadInitialTriggers(_inputBackend, _systemInfo);
+                // LoadInitialTriggers 内部会调用 ReloadAssets + AutoPickAssets.Initialize
+                _triggers = GameTaskManager.LoadInitialTriggers(_inputBackend, _systemInfo, _autoPickConfigProvider);
                 GameLoadingTrigger.GlobalEnabled = TaskContext.Instance().Config.GenshinStartConfig.AutoEnterGameEnabled;
 
             // if (GraphicsCapture.IsHdrEnabled(hWnd))
