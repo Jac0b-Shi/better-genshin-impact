@@ -278,3 +278,69 @@ OnCapture offset/engine behavior tests deferred: they require stable fake Captur
 | AutoPickExternalConfig refactoring | Separate concern, orthogonal |
 | Full WPF build | Manual/stage-closeout only |
 | Shim deletion | B10 |
+
+---
+
+## 9. B8.3 Closeout
+
+### Commit chain
+
+| Commit | Description |
+|--------|-------------|
+| `7c64735` | B8.3 audit |
+| `e62fa5f` | Audit correction (6 fields/12 accesses, test migration, live semantics) |
+| `2cfde22` | Docs: fix WhiteListEnabled/BlackListEnabled nuance |
+| `d457dee` | Implementation: configProvider required, TaskContext fallback removed |
+| `d457dee→*` | Verification + closeout (this commit) |
+
+### Verification
+
+| Gate | Result |
+|------|--------|
+| Core Verification | **100/100** (9 B8.3 assertions) |
+| adapter-gate | Not triggered — expected (no adapter file changes) |
+| Full WPF build | Not run (manual only) |
+
+### B8.3 assertions (9 new)
+
+| Label | Verifies |
+|-------|----------|
+| B8.3A | `_configProvider` field wired (reflection) |
+| B8.3C | Init reads `Enabled=false` → `IsEnabled == false` |
+| B8.3C | Init reads `Enabled=true` → `IsEnabled == true` |
+| B8.3D | `WhiteListEnabled=false` → `_whiteList` empty |
+| B8.3D | `BlackListEnabled=false` → `_blackList` empty |
+| B8.3D | `BlackListEnabled=false` → `_fuzzyBlackList` empty |
+| B8.3E | Provider returns live mutable reference |
+| B8.3E | Mutation via same reference is visible |
+| B8.3E | Live mutation reflected on re-read |
+
+### Source guard
+
+```bash
+$ rg 'TaskContext.*Config.*AutoPickConfig' BetterGenshinImpact/GameTask/AutoPick/AutoPickTrigger.cs
+# → zero results
+```
+
+### Boundary table
+
+| Boundary | Status |
+|----------|--------|
+| `_configProvider` required (non-nullable) | ✅ |
+| Init reads provider — no TaskContext fallback | ✅ |
+| OnCapture reads provider — no TaskContext fallback | ✅ |
+| Live mutable config semantics preserved | ✅ |
+| Windows AddTrigger forwards provider from dispatcher | ✅ |
+| Core shim AddTrigger forwards provider | ✅ |
+| All test caller paths pass non-null provider | ✅ |
+| null provider → ArgumentNullException | ✅ |
+| WhiteList/BlackList toggle live, lists Init-time snapshots | ✅ (existing behavior, no runtime reload) |
+
+### Not covered
+
+| Gap | Phase |
+|-----|-------|
+| OCR/Yap static gateways | B9 |
+| AutoPickExternalConfig refactoring | Separate |
+| Full WPF build | Manual stage-closeout |
+| Shim deletion | B10 |

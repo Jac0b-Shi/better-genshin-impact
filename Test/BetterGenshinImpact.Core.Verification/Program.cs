@@ -189,7 +189,7 @@ var extField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
 var stateField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
     .GetField("_runtimeState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-// Test 1: injection with StopCount=0 (via five-param ctor, null config + provider)
+// Test 1: injection with StopCount=0 (via five-param ctor, null externalConfig + required provider)
 var b5Recorder = new RecordingInputBackend();
 var testConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
@@ -660,6 +660,64 @@ Assert("B8.2 Core shim Assets singleton preserved after AddTrigger",
 
 Console.WriteLine();
 
+// ==== B8.3: AutoPickConfig required provider ====
+Console.WriteLine("B8.3: AutoPickConfig required provider");
+
+var b83ConfigProviderField = typeof(AutoPickTrigger)
+    .GetField("_configProvider", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+// A. Provider field wiring
+var b83Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
+var b83Trigger = new AutoPickTrigger(null, null, b83Prov, b5Recorder, b5SystemInfo);
+var wiredProv = b83ConfigProviderField.GetValue(b83Trigger);
+Assert("B8.3A _configProvider field wired",
+    ReferenceEquals(wiredProv, b83Prov), "different reference");
+
+// B. null configProvider throws (already tested in B5 section)
+
+// C. Init reads Enabled from provider
+var b83DisabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = false }, PaddleOcrModelConfig.V5, "zh-Hans");
+var b83DisabledTrigger = new AutoPickTrigger(null, null, b83DisabledProv, b5Recorder, b5SystemInfo);
+b83DisabledTrigger.Init();
+Assert("B8.3C Init reads Enabled=false", !b83DisabledTrigger.IsEnabled, $"got {b83DisabledTrigger.IsEnabled}");
+
+var b83EnabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
+var b83EnabledTrigger = new AutoPickTrigger(null, null, b83EnabledProv, b5Recorder, b5SystemInfo);
+b83EnabledTrigger.Init();
+Assert("B8.3C Init reads Enabled=true", b83EnabledTrigger.IsEnabled, $"got {b83EnabledTrigger.IsEnabled}");
+
+// D. Init respects WhiteListEnabled=false from provider
+var b83BlOffProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = true, WhiteListEnabled = false, BlackListEnabled = false },
+    PaddleOcrModelConfig.V5, "zh-Hans");
+var b83BlOffTrigger = new AutoPickTrigger(null, null, b83BlOffProv, b5Recorder, b5SystemInfo);
+b83BlOffTrigger.Init();
+var b83WLField = typeof(AutoPickTrigger).GetField("_whiteList", BindingFlags.NonPublic | BindingFlags.Instance)!;
+var b83BLField = typeof(AutoPickTrigger).GetField("_blackList", BindingFlags.NonPublic | BindingFlags.Instance)!;
+var b83FLField = typeof(AutoPickTrigger).GetField("_fuzzyBlackList", BindingFlags.NonPublic | BindingFlags.Instance)!;
+var wl = (System.Collections.Generic.HashSet<string>)b83WLField.GetValue(b83BlOffTrigger)!;
+var bl = (System.Collections.Generic.HashSet<string>)b83BLField.GetValue(b83BlOffTrigger)!;
+var fl = (System.Collections.Generic.List<string>)b83FLField.GetValue(b83BlOffTrigger)!;
+Assert("B8.3D WhiteListEnabled=false → _whiteList empty", wl.Count == 0, $"got {wl.Count}");
+Assert("B8.3D BlackListEnabled=false → _blackList empty", bl.Count == 0, $"got {bl.Count}");
+Assert("B8.3D BlackListEnabled=false → _fuzzyBlackList empty", fl.Count == 0, $"got {fl.Count}");
+
+// E. Provider returns live mutable reference
+var b83LiveProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F", Enabled = true, ItemIconLeftOffset = 60 },
+    PaddleOcrModelConfig.V5, "zh-Hans");
+var ref1 = b83LiveProv.AutoPickConfig;
+Assert("B8.3E initial ItemIconLeftOffset", ref1.ItemIconLeftOffset == 60, $"got {ref1.ItemIconLeftOffset}");
+ref1.ItemIconLeftOffset = 99;
+var ref2 = b83LiveProv.AutoPickConfig;
+Assert("B8.3E same reference after mutation",
+    ReferenceEquals(ref2, ref1), "different objects");
+Assert("B8.3E live mutation visible", ref2.ItemIconLeftOffset == 99, $"got {ref2.ItemIconLeftOffset}");
+
+Console.WriteLine();
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
 Environment.Exit(failed > 0 ? 1 : 0);
 
