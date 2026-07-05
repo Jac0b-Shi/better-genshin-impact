@@ -429,3 +429,7 @@ Commit: bac0af9 AutoPickTrigger injects IAutoPickRuntimeState; Pen guards for ma
 ## B5.1 Status: Complete
 
 Commit: `daf0c5c`. Unified master ctor, precise tests, restore System.Drawing 10.0.7.
+
+## B5.2 Status: Complete
+
+Commit: `4a36609`. Removed null-ambiguous overload; `new AutoPickTrigger(null)` compiles.
