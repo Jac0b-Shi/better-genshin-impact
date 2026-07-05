@@ -301,19 +301,25 @@ Assert("PickVk setter not public", pickVkProp?.GetSetMethod() == null, "found se
 Assert("PickRo setter not public", pickRoProp?.GetSetMethod() == null, "found setter");
 Assert("ChatPickRo setter not public", chatProp?.GetSetMethod() == null, "found setter");
 
-// Old instance after Destroy keeps its own configured state
+// Old instance after Destroy keeps its own configured state — read AFTER Destroy
 AutoPickAssets.DestroyInstance();
 var oldInstance = AutoPickAssets.Instance;
 oldInstance.Configure(new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "W" }, PaddleOcrModelConfig.V5, "zh-Hans"));
-var oldKey = oldInstance.PickVk; // should not throw — old instance keeps its state
 AutoPickAssets.DestroyInstance();
-var newInstance = AutoPickAssets.Instance; // new singleton, not configured
-Assert("Old instance keeps PickVk after Destroy", oldKey == BgiKey.F, $"got {oldKey}");
+var oldKeyAfterDestroy = oldInstance.PickVk; // old instance keeps its own state
+Assert("Old instance PickVk after Destroy = F", oldKeyAfterDestroy == BgiKey.F, $"got {oldKeyAfterDestroy}");
 
 // New singleton not configured, throws independently
-try { _ = newInstance.PickRo; Assert("new PickRo should throw", false, ""); }
+var afterDestroyInstance = AutoPickAssets.Instance;
+try { _ = afterDestroyInstance.PickRo; Assert("new PickRo should throw", false, ""); }
 catch (InvalidOperationException) { Assert("New singleton unconfigured throws", true, ""); }
+
+// Restore configured singleton for any subsequent tests
+AutoPickAssets.DestroyInstance();
+var finalProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    new AutoPickConfig { PickKey = "F" }, PaddleOcrModelConfig.V5, "zh-Hans");
+AutoPickAssets.Instance.Configure(finalProv);
 Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");

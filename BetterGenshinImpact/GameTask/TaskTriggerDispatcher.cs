@@ -52,6 +52,7 @@ namespace BetterGenshinImpact.GameTask
         
 
         private readonly IAutoPickConfigProvider _autoPickConfigProvider;
+        private bool _started;
 
         public TaskTriggerDispatcher(IAutoPickConfigProvider autoPickConfigProvider)
         {
@@ -119,6 +120,9 @@ namespace BetterGenshinImpact.GameTask
 
         public void Start(IntPtr hWnd, CaptureModes mode, int interval = 50)
         {
+            if (_started)
+                throw new InvalidOperationException("TaskTriggerDispatcher has already been started.");
+            _started = true;
             // 初始化截图器
             ChatUiHotkeyGuard.Reset();
             GameCapture = GameCaptureFactory.Create(mode);
