@@ -199,10 +199,19 @@ No class in the WPF project implements `IInputBackend`. `Win32InputBackend` must
 
 | Environment | Result | Notes |
 |------------|--------|-------|
-| macOS cross-build | Blocked | `EnableWindowsTargeting=true` resolves NETSDK1100, but subsequent errors (BCL type resolution failures) prevent full build. Root cause unconfirmed — likely restore/reference-pack issue, not an inherent macOS limitation. |
-| Windows runner (`windows-latest`) | Pending | Authoritative build gate. `.github/workflows/wpf-build.yml` triggers on push to `mac-core-extraction`. |
+| Windows CI (`windows-latest`) | Partial — **Win32 adapter passes; build blocked by upstream using regression** | See below |
 
-The macOS cross-build failure does NOT confirm Win32InputBackend has compile errors. It confirms cross-compilation of `net8.0-windows10.0.22621.0` WPF projects requires a Windows host. The CI workflow is the authoritative verification.
+**First Windows CI result (17b887e):**
+- `Fischless.WindowsInput` — build success
+- `BetterGenshinImpact.Platform.Abstractions` — build success
+- `Win32InputBackend.cs` + `Win32InputHelpers.cs` — **no errors**
+- `IInputBackend` → `Win32InputBackend` DI registration — **no errors**
+- `User32.VK` / Fischless API calls — **no errors**
+- **Blocker:** `TaskTriggerDispatcher.cs` missing upstream `using` statements (`System`, `System.Collections.Generic`, `Microsoft.Extensions.Logging`, `Fischless.GameCapture`, etc.) — a branch regression, not a BCL/targeting pack issue.
+
+**Root cause confirmed:** macOS cross-build failure was NOT "BCL types unavailable on macOS." The same `using` regression caused identical errors on Windows CI. The adapter itself compiled cleanly once the dispatcher's imports were restored.
+
+**Fix (17b887e → next):** restored main-branch `using` set in `TaskTriggerDispatcher.cs`; zero logic changes.
 
 ---
 
