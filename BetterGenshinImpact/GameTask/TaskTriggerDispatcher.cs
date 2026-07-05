@@ -54,6 +54,7 @@ namespace BetterGenshinImpact.GameTask
         private readonly IAutoPickConfigProvider _autoPickConfigProvider;
         private bool _started;
         private bool _starting;
+        private bool _startFailed;
 
         public TaskTriggerDispatcher(IAutoPickConfigProvider autoPickConfigProvider)
         {
@@ -123,6 +124,8 @@ namespace BetterGenshinImpact.GameTask
         {
             if (_started)
                 throw new InvalidOperationException("TaskTriggerDispatcher has already been started.");
+            if (_startFailed)
+                throw new InvalidOperationException("TaskTriggerDispatcher previously failed during startup. Create a new instance.");
             if (_starting)
                 throw new InvalidOperationException("TaskTriggerDispatcher is already in the process of starting.");
             _starting = true;
@@ -172,6 +175,11 @@ namespace BetterGenshinImpact.GameTask
             }
 
             _started = true;
+        }
+        catch
+        {
+            _startFailed = true;
+            throw;
         }
         finally
         {
