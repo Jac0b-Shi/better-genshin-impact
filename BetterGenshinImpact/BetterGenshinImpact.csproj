@@ -110,6 +110,12 @@
 		<ProjectReference Include="..\Fischless.GameCapture\Fischless.GameCapture.csproj" />
 		<ProjectReference Include="..\Fischless.HotkeyCapture\Fischless.HotkeyCapture.csproj" />
 		<ProjectReference Include="..\Fischless.WindowsInput\Fischless.WindowsInput.csproj" />
+		<ProjectReference Include="..\BetterGenshinImpact.Platform.Abstractions\BetterGenshinImpact.Platform.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Shared pure helpers linked from Core project (testable on any platform) -->
+		<Compile Include="..\BetterGenshinImpact.Core\Core\Runtime\Windows\Win32InputHelpers.cs" Link="Core\Runtime\Windows\Win32InputHelpers.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

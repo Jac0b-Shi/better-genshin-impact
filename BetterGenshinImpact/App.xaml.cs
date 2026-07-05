@@ -164,6 +164,8 @@ public partial class App : Application
                 services.AddSingleton<Core.Abstractions.Runtime.IAutoPickConfigProvider, Core.Runtime.Windows.WindowsAutoPickConfigProvider>();
                 services.AddSingleton<Core.Abstractions.Runtime.IOcrRuntimeConfigProvider, Core.Runtime.Windows.WindowsOcrRuntimeConfigProvider>();
                 services.AddSingleton<Core.Abstractions.Runtime.IAutoPickRuntimeState, Core.Runtime.Windows.WindowsAutoPickRuntimeState>();
+                // Platform abstractions (Windows backend)
+                services.AddSingleton<Platform.Abstractions.IInputBackend, Core.Runtime.Windows.Win32InputBackend>();
                 services.AddMemoryCache();
                 services.AddSingleton<IAppCache, CachingService>();
                 services.AddSingleton<MemoryFileCache>();

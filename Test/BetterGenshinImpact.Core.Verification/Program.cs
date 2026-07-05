@@ -3,6 +3,7 @@ using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Composition;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.Core.Runtime.Windows;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
@@ -540,6 +541,67 @@ resetForVerification.Invoke(null, null);
 var b7CleanupProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F" }, PaddleOcrModelConfig.V5, "zh-Hans");
 AutoPickAssets.Instance.Configure(b7CleanupProv);
+
+// ==== B8.1.0: Win32InputHelpers pure functions ====
+Console.WriteLine("B8.1.0: Win32InputHelpers coordinate + key mapping");
+
+// BgiKey → VK mappings
+Assert("B8.1.0 F → 0x46", Win32InputHelpers.MapBgiKeyToVk(BgiKey.F) == 0x46, $"got {Win32InputHelpers.MapBgiKeyToVk(BgiKey.F):X}");
+Assert("B8.1.0 Escape → 0x1B", Win32InputHelpers.MapBgiKeyToVk(BgiKey.Escape) == 0x1B, $"{Win32InputHelpers.MapBgiKeyToVk(BgiKey.Escape):X}");
+Assert("B8.1.0 Space → 0x20", Win32InputHelpers.MapBgiKeyToVk(BgiKey.Space) == 0x20, $"{Win32InputHelpers.MapBgiKeyToVk(BgiKey.Space):X}");
+Assert("B8.1.0 W → 0x57", Win32InputHelpers.MapBgiKeyToVk(BgiKey.W) == 0x57, $"{Win32InputHelpers.MapBgiKeyToVk(BgiKey.W):X}");
+Assert("B8.1.0 LeftShift → 0xA0", Win32InputHelpers.MapBgiKeyToVk(BgiKey.LeftShift) == 0xA0, $"{Win32InputHelpers.MapBgiKeyToVk(BgiKey.LeftShift):X}");
+
+// Unmapped key throws
+try { _ = Win32InputHelpers.MapBgiKeyToVk(BgiKey.None); Assert("B8.1.0 None should throw", false, ""); }
+catch (ArgumentOutOfRangeException) { Assert("B8.1.0 None → ArgumentOutOfRangeException", true, ""); }
+
+// --- Coordinate conversion: single monitor 1920x1080 ---
+// Virtual desktop: left=0, top=0, width=1920, height=1080
+{
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(0, 0, 0, 0, 1920, 1080);
+    Assert("B8.1.0 (0,0) @ 1920x1080 → (0,0)", nx == 0 && ny == 0, $"({nx},{ny})");
+}
+{
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(1919, 1079, 0, 0, 1920, 1080);
+    Assert("B8.1.0 (1919,1079) → (65535,65535)", nx == 65535 && ny == 65535, $"({nx},{ny})");
+}
+{
+    // nx = (960 * 65535) / 1919 = 32784, ny = (540 * 65535) / 1079 = 32797
+    // (960,540) is NOT the exact center of an even-width screen; center is between 959-960
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(960, 540, 0, 0, 1920, 1080);
+    Assert("B8.1.0 pixel(960,540) @ 1920x1080 → (32784,32797)", nx == 32784 && ny == 32797, $"({nx},{ny})");
+}
+
+// --- Multi-monitor: secondary to left (virtualLeft = -1920) ---
+// 2 × 1920x1080, monitor 2 starts at (0,0), monitor 1 starts at (-1920,0)
+{
+    // Left monitor center: (-960, 540) screen → relX=960, relY=540 → (960*65535/3839, 540*65535/1079) = (16388, 32797)
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(-960, 540, -1920, 0, 3840, 1080);
+    Assert("B8.1.0 left-monitor px(-960,540) virtL=-1920 → (16388,32797)", nx == 16388 && ny == 32797, $"({nx},{ny})");
+}
+{
+    // Right monitor: (960, 540) screen → relX=2880, relY=540 → (2880*65535/3839, 540*65535/1079) = (49164, 32797)
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(960, 540, -1920, 0, 3840, 1080);
+    Assert("B8.1.0 right-monitor px(960,540) virtL=-1920 → (49164,32797)", nx == 49164 && ny == 32797, $"({nx},{ny})");
+}
+
+// --- Multi-monitor: secondary above (virtualTop = -1080) ---
+{
+    // (960, -540) screen → relX=960, relY=540 → (960*65535/1919, 540*65535/2159) = (32784, 16391)
+    var (nx, ny) = Win32InputHelpers.ScreenToNormalized(960, -540, 0, -1080, 1920, 2160);
+    Assert("B8.1.0 top-monitor px(960,-540) virtT=-1080 → (32784,16391)", nx == 32784 && ny == 16391, $"({nx},{ny})");
+}
+
+// --- Scroll contract ---
+Assert("B8.1.0 ScrollClicksToWheelData(2) = 240",
+    Win32InputHelpers.ScrollClicksToWheelData(2) == 240, $"got {Win32InputHelpers.ScrollClicksToWheelData(2)}");
+Assert("B8.1.0 ScrollClicksToWheelData(-1) = -120",
+    Win32InputHelpers.ScrollClicksToWheelData(-1) == -120, $"got {Win32InputHelpers.ScrollClicksToWheelData(-1)}");
+Assert("B8.1.0 WheelDeltaPerClick = 120",
+    Win32InputHelpers.WheelDeltaPerClick == 120, $"got {Win32InputHelpers.WheelDeltaPerClick}");
+
+Console.WriteLine();
 
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
 Environment.Exit(failed > 0 ? 1 : 0);
