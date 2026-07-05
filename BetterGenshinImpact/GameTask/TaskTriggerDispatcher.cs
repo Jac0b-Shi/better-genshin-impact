@@ -227,23 +227,19 @@ namespace BetterGenshinImpact.GameTask
             TryCleanup("game capture stop", () => capture?.Stop());
             TryCleanup("game capture dispose", () => capture?.Dispose());
 
+            var moveSizeHook = _winEventHookMoveSize;
+            _winEventHookMoveSize = default;
             TryCleanup("unhook move/size event", () =>
             {
-                if (_winEventHookMoveSize != default)
-                {
-                    if (!User32.UnhookWinEvent(_winEventHookMoveSize))
-                        _logger.LogWarning("Cleanup: UnhookWinEvent (move/size) returned false");
-                    _winEventHookMoveSize = default;
-                }
+                if (moveSizeHook != default && !User32.UnhookWinEvent(moveSizeHook))
+                    _logger.LogWarning("Cleanup: UnhookWinEvent (move/size) returned false");
             });
+            var locationHook = _winEventHookLocation;
+            _winEventHookLocation = default;
             TryCleanup("unhook location change event", () =>
             {
-                if (_winEventHookLocation != default)
-                {
-                    if (!User32.UnhookWinEvent(_winEventHookLocation))
-                        _logger.LogWarning("Cleanup: UnhookWinEvent (location) returned false");
-                    _winEventHookLocation = default;
-                }
+                if (locationHook != default && !User32.UnhookWinEvent(locationHook))
+                    _logger.LogWarning("Cleanup: UnhookWinEvent (location) returned false");
             });
 
             TryCleanup("clear task manager triggers", GameTaskManager.ClearTriggers);
