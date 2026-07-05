@@ -282,7 +282,7 @@ Result: OcrFactory takes `IOcrRuntimeConfigProvider` in constructor. `PaddleOcrS
 
 ---
 
-## 9. Revised Phase B Steps (B1-B8)
+## 9. Revised Phase B Steps (B1-B10)
 
 Each step must:
 - Compile and pass 15/15 at every step
@@ -352,7 +352,23 @@ Fail fast if config-dependent fields (`PickRo`, `PickVk`) accessed before `Confi
   and TaskContext.Instance().Config.AutoPickConfig offsets (B8+ scope).
 - **Platform input not covered:** Simulation.SendInput still Win32 (B8+ scope).
 
-### B8: Delete Shim files
+### B8: AutoPickTrigger.OnCapture platform dependency extraction
+
+- Extract input sends (Simulation.SendInput) to IInputBackend
+- Extract TaskContext.Instance().SystemInfo.AssetScale (requires ISystemInfoProvider or equivalent)
+- Extract TaskContext.Instance().Config.AutoPickConfig runtime reads in OnCapture()
+- Do NOT yet delete Shims — callers may still exist
+- Verification: v8 assertions including capture-path mocks
+
+### B9: Remaining static gateways / file and UI abstractions
+
+- OcrFactory.Paddle static → injected IOcrService
+- TextInferenceFactory static → injected ITextInference
+- Global.ReadAllTextIfExist → IFileSystem abstraction
+- ThemedMessageBox → IUserInteractionService
+- Do NOT yet delete Shims
+
+### B10: Final Shim deletion
 
 **Gate:** Direct caller count must reach zero. Verify with:
 
@@ -383,9 +399,11 @@ Delete only when all three searches return zero results in the linked-file set.
 | B5 | AutoPickTrigger overload + runtime-state injection | B3 (mac state must exist) |
 | B6 | AutoPickAssets constructor split + Configure() | B2+B3 (config provider + mac adapter) |
 | B7 | macOS composition root + AutoPickTrigger provider injection | B4-B6 (consumers must work) |
-| B8 | Delete Shim files | All above (caller count = 0) |
+| B8 | OnCapture platform dependency extraction | B7 (trigger must be composable) |
+| B9 | Static gateways + file/UI abstractions | B8 (input abstraction in place) |
+| B10 | Final Shim deletion | All above (caller count = 0) |
 
-B2 and B3 each depend on B1 (interfaces must be visible first). B4-B6 depend on B2+B3. B7 depends on B4-B6. B8 is terminal.
+B2 and B3 each depend on B1 (interfaces must be visible first). B4-B6 depend on B2+B3. B7 depends on B4-B6. B10 is terminal — B8 and B9 can be ordered flexibly.
 
 ---
 
@@ -444,7 +462,8 @@ Commit: `4a36609`. Removed null-ambiguous overload; `new AutoPickTrigger(null)` 
 
 ## B6 Status: Complete
 
-**B6 series (40a548f → 28fad4f → 87ee973 → b913e68 → 2aa199b → 40a548f).**
+**B6 implementation series:** `9bb2670` → `3554e60` → `41c555c` → `29a916f` → `13637e6`  
+**B6 lifecycle stabilization:** `28fad4f` → `87ee973` → `b913e68` → `2aa199b` → `40a548f`
 AutoPickAssets constructor split + Configure(IAutoPickConfigProvider):
 - Template-only ctor; config-dependent logic deferred to Configure()
 - Instance-level property guards (EnsureThisConfigured)
@@ -469,7 +488,7 @@ AutoPickAssets constructor split + Configure(IAutoPickConfigProvider):
 | Four-state machine + lock | ✅ | NotComposed/Composing/Composed/Failed |
 | Null validation before state change | ✅ | ArgumentNullException, no Failed poison |
 | AutoPickTrigger IAutoPickConfigProvider injection | ✅ | Master ctor: `(config, state, provider)` |
-| Init() config lookup TaskContext-free | ✅ | `_configProvider?.AutoPickConfig ?? TaskContext...` |
+| Init config lookup avoids TaskContext when non-null provider injected | ✅ | `_configProvider?.AutoPickConfig ?? TaskContext...` |
 | Compose failure → Failed → "Restart" | ✅ | Original exception preserved |
 | One-shot per process | ✅ | All states guarded; no public reset |
 | internal ResetForVerification | ✅ | Reflection access from tests |
