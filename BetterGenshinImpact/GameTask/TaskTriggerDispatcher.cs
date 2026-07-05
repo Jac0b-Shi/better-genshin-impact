@@ -215,28 +215,54 @@ namespace BetterGenshinImpact.GameTask
         /// <summary>
         /// Best-effort cleanup of partial startup state.
         /// Does NOT reset _startFailed — the dispatcher remains dead.
-        /// Individual cleanup failures are logged but never replace the original startup exception.
+        /// Every step is individually protected so no cleanup exception can mask the original startup exception.
+        /// Mirrors the safe subset of <see cref="Stop"/> cleanup.
         /// </summary>
         private void CleanupFailedStart()
         {
-            try { _timer.Stop(); } catch (Exception ex) { _logger.LogWarning(ex, "Cleanup: timer stop failed"); }
-            GameCapture?.Stop();
-            GameCapture?.Dispose();
+            TryCleanup("timer stop", () => _timer.Stop());
+
+            var capture = GameCapture;
             GameCapture = null;
-            if (_winEventHookMoveSize != default)
+            TryCleanup("game capture stop", () => capture?.Stop());
+            TryCleanup("game capture dispose", () => capture?.Dispose());
+
+            TryCleanup("unhook move/size event", () =>
             {
-                try { User32.UnhookWinEvent(_winEventHookMoveSize); } catch { }
-                _winEventHookMoveSize = default;
-            }
-            if (_winEventHookLocation != default)
+                if (_winEventHookMoveSize != default)
+                {
+                    if (!User32.UnhookWinEvent(_winEventHookMoveSize))
+                        _logger.LogWarning("Cleanup: UnhookWinEvent (move/size) returned false");
+                    _winEventHookMoveSize = default;
+                }
+            });
+            TryCleanup("unhook location change event", () =>
             {
-                try { User32.UnhookWinEvent(_winEventHookLocation); } catch { }
-                _winEventHookLocation = default;
-            }
-            GameTaskManager.ClearTriggers();
-            _triggers?.Clear();
+                if (_winEventHookLocation != default)
+                {
+                    if (!User32.UnhookWinEvent(_winEventHookLocation))
+                        _logger.LogWarning("Cleanup: UnhookWinEvent (location) returned false");
+                    _winEventHookLocation = default;
+                }
+            });
+
+            TryCleanup("clear task manager triggers", GameTaskManager.ClearTriggers);
+            TryCleanup("clear local triggers", () => _triggers?.Clear());
             _triggers = null;
-            try { AutoPickAssets.AutoPickAssets.DestroyInstance(); } catch (Exception ex) { _logger.LogWarning(ex, "Cleanup: AutoPickAssets.DestroyInstance failed"); }
+
+            TryCleanup("destroy AutoPickAssets", AutoPickAssets.AutoPickAssets.DestroyInstance);
+        }
+
+        private void TryCleanup(string operation, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed startup cleanup step: {Operation}", operation);
+            }
         }
 
         public void StartTimer()
