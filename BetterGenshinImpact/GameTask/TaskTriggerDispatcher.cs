@@ -125,7 +125,9 @@ namespace BetterGenshinImpact.GameTask
             if (_started)
                 throw new InvalidOperationException("TaskTriggerDispatcher has already been started.");
             if (_startFailed)
-                throw new InvalidOperationException("TaskTriggerDispatcher previously failed during startup. Create a new instance.");
+                throw new InvalidOperationException(
+                    "TaskTriggerDispatcher startup previously failed and may be partially initialized. " +
+                    "Restart the application before trying again.");
             if (_starting)
                 throw new InvalidOperationException("TaskTriggerDispatcher is already in the process of starting.");
             _starting = true;
@@ -179,6 +181,7 @@ namespace BetterGenshinImpact.GameTask
         catch
         {
             _startFailed = true;
+            CleanupFailedStart();
             throw;
         }
         finally
@@ -207,6 +210,33 @@ namespace BetterGenshinImpact.GameTask
                 User32.UnhookWinEvent(_winEventHookLocation);
                 _winEventHookLocation = default;
             }
+        }
+
+        /// <summary>
+        /// Best-effort cleanup of partial startup state.
+        /// Does NOT reset _startFailed — the dispatcher remains dead.
+        /// Individual cleanup failures are logged but never replace the original startup exception.
+        /// </summary>
+        private void CleanupFailedStart()
+        {
+            try { _timer.Stop(); } catch (Exception ex) { _logger.LogWarning(ex, "Cleanup: timer stop failed"); }
+            GameCapture?.Stop();
+            GameCapture?.Dispose();
+            GameCapture = null;
+            if (_winEventHookMoveSize != default)
+            {
+                try { User32.UnhookWinEvent(_winEventHookMoveSize); } catch { }
+                _winEventHookMoveSize = default;
+            }
+            if (_winEventHookLocation != default)
+            {
+                try { User32.UnhookWinEvent(_winEventHookLocation); } catch { }
+                _winEventHookLocation = default;
+            }
+            GameTaskManager.ClearTriggers();
+            _triggers?.Clear();
+            _triggers = null;
+            try { AutoPickAssets.AutoPickAssets.DestroyInstance(); } catch (Exception ex) { _logger.LogWarning(ex, "Cleanup: AutoPickAssets.DestroyInstance failed"); }
         }
 
         public void StartTimer()
