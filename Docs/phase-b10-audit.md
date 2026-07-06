@@ -928,7 +928,7 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 | 7 | **WPF** `TaskTriggerDispatcher.Start()` (line 188) | Pass `_runtimeState` to `GameTaskManager.LoadInitialTriggers(...)` |
 | 8 | **WPF** `TaskTriggerDispatcher.AddTrigger()` (line 141) | Pass `_runtimeState` to `GameTaskManager.AddTrigger(...)` |
 | 9 | **WPF** `TaskTriggerDispatcher.ReloadInitialTriggers()` (line 158) | Pass `_runtimeState` to `GameTaskManager.LoadInitialTriggers(...)` |
-| 10 | **WPF** `App.xaml.cs` DI registration (line 155) | Register `IAutoPickRuntimeState` → `WindowsAutoPickRuntimeState` as singleton; DI injects it into `TaskTriggerDispatcher` automatically |
+| 10 | **WPF** `App.xaml.cs` DI registration (line 166) | Already registered: `services.AddSingleton<IAutoPickRuntimeState, WindowsAutoPickRuntimeState>()`. Verify it remains unchanged, do **not** add a duplicate registration. DI injects it into `TaskTriggerDispatcher` automatically. |
 | 11 | `Verification/Program.cs` | See §9.13 for categorized migration |
 
 **Rules enforced:**
@@ -958,11 +958,11 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 | Category | Current pattern | Count | Action | Expected assertion count |
 |----------|----------------|-------|--------|--------------------------|
 | A — Unrelated test that happens to pass `null` | `new AutoPickTrigger(ext, null, prov, input, sys, pad, yap)` | 9 sites (lines 214, 225, 243, 246, 611, 675, 685, 691, 699) | Replace `null` with `new MacAutoPickRuntimeState(0)`. No assertion changes needed — these tests verify inputBackend, configProvider, recognizers, not runtimeState. | Unchanged |
-| B — Test that explicitly verifies null fallback behavior | `Assert("has null _runtimeState", stateNull == null)` | 2 assertions (lines 219-220, 229) | Replace with required-dependency guard: add `try { new AutoPickTrigger(..., runtimeState: null!, ...); Assert("null runtimeState should throw", false, ""); } catch (ArgumentNullException) { Assert("null runtimeState → ArgumentNullException", true, ""); }` | 2 replaced, same count |
+| B — Test that explicitly verifies null fallback behavior | `Assert("has null _runtimeState", stateNull == null)` + `Assert("externalConfig-only has null _runtimeState", ...)` | 2 assertions (lines 219-220, 229) | Replace with **2** required-dependency guard assertions: (1) `try { new AutoPickTrigger(ext, null!, ...); Assert("null rt should throw", false,""); } catch (ArgumentNullException) { Assert("null rt → ArgumentNullException", true,""); }` and (2) one assertion confirming `_externalConfig` remains nullable (extField still null when externalConfig param is null — externalConfig stays nullable). | Same count, 2 → 2 |
 | C — Combined/null-other-dep test | `new AutoPickTrigger(null, null, prov, null!, ...)` — tests null inputBackend | 2 sites (lines 243, 246) | Replace `null` with `MacAutoPickRuntimeState(0)` so the intended dependency (inputBackend, configProvider) remains the first to fail | Unchanged |
 | D — null paddle/yap guard | `new AutoPickTrigger(null, null, prov, rec, sys, null!, yap)` | 2 sites (lines 743, 745) | Replace `null` with `MacAutoPickRuntimeState(0)` | Unchanged |
 
-**Expected total assertions:** 112 → 113 (one new guard assertion in category B replaces two null-field assertions; the guard test itself adds one, net +1).
+**Expected total assertions:** 112 — unchanged from baseline. Category B replaces 2 null-field assertions with 2 required-dependency guard assertions. Categories A/C/D are mechanical null→MacAutoPickRuntimeState(0) replacements that affect no assertion count. No decrease without explicit reason.
 
 ### 9.14 B10.6.1 gate
 
@@ -976,7 +976,7 @@ After B10.6.1 completes, the following must all hold:
 - [ ] Core GameTaskManager shim passes its `runtimeState` parameter to `AutoPickTrigger` (not null)
 - [ ] WPF GameTaskManager passes its `runtimeState` parameter to `AutoPickTrigger` (not null)
 - [ ] TaskTriggerDispatcher stores `IAutoPickRuntimeState` as field and passes it to GameTaskManager
-- [ ] App.xaml.cs DI registers `IAutoPickRuntimeState → WindowsAutoPickRuntimeState`
+- [ ] App.xaml.cs existing DI registration verified (line 166); no duplicate registration added
 - [ ] All Verification call sites use valid non-null runtimeState except category-B explicit null-guard tests
 - [ ] `rg '\bRunnerContext\b' BetterGenshinImpact.Core/ --type cs` — zero production references (comments excluding MacCoreRuntimeAdapter.cs line 9 remain)
 - [ ] `BetterGenshinImpact.Core/Shim/RunnerContext.cs` — file still present
@@ -992,7 +992,7 @@ After B10.6.1 completes, the following must all hold:
 - [ ] `BetterGenshinImpact.Core/Shim/RunnerContext.cs` — deleted
 - [ ] Core csproj entry removed
 - [ ] `dotnet build BetterGenshinImpact.Core.csproj` — zero errors
-- [ ] Verification — all pass
+- [ ] Verification — all pass; assertion total 112, unchanged from baseline
 - [ ] WPF still resolves upstream `RunnerContext` (`GameTask/RunnerContext.cs`)
 - [ ] Shim count: 16 → **15**
 
@@ -1030,11 +1030,13 @@ The `GameTaskManager` shim is the only neighboring shim that interacts with this
 **WPF composition ownership chain (as discovered):**
 
 ```
-App.xaml.cs DI registration
-  → services.AddSingleton<IAutoPickRuntimeState, WindowsAutoPickRuntimeState>()   ← NEW
-  → services.AddSingleton<TaskTriggerDispatcher>()                                 ← existing, DI injects IAutoPickRuntimeState
-    → TaskTriggerDispatcher.Start()  → GameTaskManager.LoadInitialTriggers(..., _runtimeState)
-    → TaskTriggerDispatcher.AddTrigger() → GameTaskManager.AddTrigger(..., _runtimeState)
+App.xaml.cs existing DI registration (line 166)
+  services.AddSingleton<IAutoPickRuntimeState, WindowsAutoPickRuntimeState>()
+  → TaskTriggerDispatcher constructor receives IAutoPickRuntimeState (new param)
+  → stores _runtimeState field
+  → Start(): passes _runtimeState to GameTaskManager.LoadInitialTriggers()
+  → AddTrigger(): passes _runtimeState to GameTaskManager.AddTrigger()
+  → ReloadInitialTriggers(): passes _runtimeState to GameTaskManager.LoadInitialTriggers()
 ```
 
 - `TaskTriggerDispatcher` is the WPF composition entry point for triggers
