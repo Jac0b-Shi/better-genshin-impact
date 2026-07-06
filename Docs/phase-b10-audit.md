@@ -1086,3 +1086,23 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 | Core Verification | 112/112 | **112/112** ✅ |
 | WPF build — new errors from this change | — | **Zero** — 4 pre-existing errors (IInputBackend/ISystemInfo resolution, same original unmodified code) remain |
 | Shim count | 16 | **16** (unchanged, RunnerContext shim retained) |
+
+### 9.21 B10.6.2 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Core shim `Shim/RunnerContext.cs` | Exists (30 lines) | **Deleted** ✅ |
+| Core csproj `Shim/RunnerContext.cs` entry | Present | **Removed** ✅ |
+| Upstream RunnerContext link added? | — | **No** — upstream is WPF-host-only, not suitable for Core |
+| Core RunnerContext type definition | Shim | **Zero** — only WPF `GameTask/RunnerContext.cs` remains ✅ |
+| Core production code RunnerContext refs | Shim self-definition only | **Zero** ✅ |
+| Verification RunnerContext refs | Zero | **Zero** ✅ |
+| Csproj RunnerContext entry | Present | **Zero** ❌ |
+| `MacCoreRuntimeAdapter.cs` comment | `"no reference to TaskContext, RunnerContext, or Windows APIs"` | **Unchanged** — comment remains, not a symbol reference |
+| `WindowsAutoPickRuntimeState` | Delegates to upstream `GameTask.RunnerContext` | **Unchanged** — correct WPF behavior ✅ |
+| WPF upstream `GameTask/RunnerContext.cs` | — | **Unchanged** ✅ |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| WPF build — new errors from shim deletion | — | **Zero** — same 4 pre-existing errors as B10.6.1; no RunnerContext/DI/constructor errors added ✅ |
+| Shim count | 16 | **15** ✅ |
+| B10.6 status | B10.6.1 complete, shim retained | **B10.6 complete** ✅ |
