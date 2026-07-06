@@ -362,67 +362,94 @@ The upstream file is pure C#, has no WPF/Win32 dependencies, and is already in t
 
 **Key correction from earlier audit:** Members absent from the Core shim (`DpiScale`, `PostMessageSimulator`) do NOT cause null references or NREs in Core because all call sites in linked files are guarded by `#if BGI_FULL_WINDOWS`, which is not defined in the Core project (`BGI_PLATFORM_MAC` is defined instead).
 
-### 8.3 Real Core-compiled consumers (after preprocessing)
+### 8.3 Preprocessed Core references
 
-| File | Line | Code | Core consumer? |
-|------|------|------|---------------|
-| `BaseAssets.cs` | 21 | `TaskContext.Instance().SystemInfo` (default ctor) | ✅ **Yes — production** |
+| File | Line | Code | Preprocessed in Core? |
+|------|------|------|-----------------------|
+| `BaseAssets.cs` | 21 | `TaskContext.Instance().SystemInfo` (default ctor) | ✅ **Compiled reference** |
 | `AutoPickAssets.cs` | 176 | `TaskContext.Instance().Config.KeyBindingsConfig...` | ❌ Inside `#if BGI_FULL_WINDOWS` |
 | `GameCaptureRegion.cs` | 29,46,94–111 | `TaskContext.Instance().DpiScale` / `.SystemInfo.*` | ❌ Inside `#if BGI_FULL_WINDOWS` |
 | `Region.cs` | 99 | `TaskContext.Instance().PostMessageSimulator` | ❌ Inside `#if BGI_FULL_WINDOWS` |
-| Verification `Program.cs` | 179,181,396 | `TaskContext.Instance().SystemInfo` / `.Config` | ✅ **Yes — test** |
+| Verification `Program.cs` | 179,181,396 | `TaskContext.Instance()` | ✅ **Test reference** |
 
-**The only Core production consumer is `BaseAssets<T>` default constructor** → `TaskContext.Instance().SystemInfo`.
+**The only remaining preprocessed Core production reference is `BaseAssets<T>`'s parameterless constructor** calling `TaskContext.Instance().SystemInfo`. Whether that constructor is reachable from a supported Core runtime path must be audited separately.
 
-All other "consumers" identified in the earlier audit are excluded from Core compilation by `#if BGI_FULL_WINDOWS`.
+### 8.4 Reachability analysis
 
-### 8.4 Dependency graph (Core production)
+#### AutoPickAssets — does NOT use the parameterless ctor from the supported path
 
 ```
-BaseAssets<T>.BaseAssets() default constructor
-  → TaskContext.Instance()          (static singleton — service locator)
+MacAutoPickComposition.Compose(systemInfo, configProvider, ...)
+  → AutoPickAssets.Initialize(systemInfo, configProvider)
+    → private AutoPickAssets(ISystemInfo systemInfo) : base(systemInfo)
+      → BaseAssets(systemInfo)                         ← no TaskContext
+    → (configProvider applied via Configure())
+    → _instance = instance
+  → AutoPickAssets.Instance
+    → hidden new static property — throws if not initialized
+```
+
+The parameterless constructor (`private AutoPickAssets() : base()` → `TaskContext.Instance().SystemInfo`) exists only for legacy source compatibility. The supported composition path does NOT reach it.
+
+#### Which BaseAssets-derived types are linked in Core?
+
+Per Core csproj, the only linked `BaseAssets<T>` concrete production type is **AutoPickAssets**. Other types (AutoSkipAssets, AutoFightAssets, etc.) are NOT compiled into Core.
+
+#### Singleton<T> behavior
+
+`Singleton<T>` uses `Activator.CreateInstance(typeof(T), true)` which invokes the private parameterless constructor. However, AutoPickAssets' hidden `new static Instance` property **overrides the base behavior** — it throws before reaching `Singleton<T>.Instance`, and `Initialize()` directly writes `_instance`, bypassing `Activator`.
+
+#### Conclusion
+
+The `BaseAssets<T>` parameterless constructor compiles a reference to `TaskContext.Instance().SystemInfo`, but it is **not reachable from any supported AutoPick Core runtime composition path**. Existence of the reference is a legacy compliance burden, not an active production dependency.
+
+### 8.5 Dependency graph
+
+```
+── Compiled reference graph ──────────────────────────────
+BaseAssets<T>.BaseAssets()     (parameterless legacy ctor)
+  → TaskContext.Instance()
     → ISystemInfo
-  → used by:
-    -> AutoPickAssets (via BaseAssets<AutoPickAssets>)
-    -> AutoSkipAssets (via BaseAssets<AutoSkipAssets>)
-    -> other task-asset types that don't override the constructor
+  ↳ NOT reachable from supported AutoPick Core runtime
 
-Verification setup
-  → TaskContext.Instance()          (test infrastructure)
-    → sets SystemInfo = new MacSystemInfo()
-    → later reads AutoPickConfig from .Config
+── Supported AutoPick Core runtime graph ─────────────────
+MacAutoPickComposition.Compose(systemInfo, configProvider, ...)
+  → AutoPickAssets.Initialize(systemInfo, configProvider)
+    → private AutoPickAssets(systemInfo) : base(systemInfo)
+      → BaseAssets(systemInfo)     ✅ no TaskContext
+    → Configure(configProvider)
+    → _instance = instance
+  → AutoPickAssets.Instance → returns _instance
+
+── Verification graph ────────────────────────────────────
+Program.cs
+  → TaskContext.Instance()     (test infrastructure only)
+    → SystemInfo = new MacSystemInfo()
+    → Config.CoreConfig
 ```
 
-### 8.5 Architecture classification
+### 8.6 Architecture classification
 
-**TaskContext is a service locator / context bag:**
-- Bundles SystemInfo, Config, DpiScale, PostMessageSimulator, process state
-- Static `Instance()` accessor violates "no static gateway" principle
-- `BaseAssets<T>` default ctor dependency violates "constructor injection" pattern
+**TaskContext is a service locator / context bag.** The Core shim retains the static `Instance()` singleton pattern and `CoreConfig`. However, the only reachable production path (AutoPickAssets via Initialize) already bypasses it. The shim survives only because `BaseAssets<T>`'s legacy parameterless constructor still textually references it.
 
-The Core shim trims Windows-only members but retains the static singleton pattern.
+### 8.7 Recommendation
 
-### 8.6 Recommendation
+**Category C/D hybrid — keep shim temporarily; deletion may require only removing an unreachable legacy constructor.**
 
-**Category C/D hybrid — keep shim temporarily; migrate BaseAssets default ctor first.**
+Do NOT assume broad constructor injection work is necessary. The reachability audit determines the scope.
 
-The shim cannot be deleted until `BaseAssets<T>` default constructor stops calling `TaskContext.Instance().SystemInfo`.
+### 8.8 Minimal phase plan (not implemented in B10.5)
 
-### 8.7 Minimal phase plan (not implemented in B10.5)
+| Phase | Scope | Gate |
+|-------|-------|------|
+| B10.5.1 | Reachability audit: confirm no supported Core composition path invokes `BaseAssets()` parameterless ctor for any linked type | Documented audit |
+| B10.5.2 | If unreachable: remove or compile-exclude only the legacy `BaseAssets()` default ctor's TaskContext reference (e.g. add `#if` guard or delete unreachable code) | Core builds, 112/112 |
+| B10.5.3 | Remove Verification dependence on TaskContext/CoreConfig if any | Same |
+| B10.5.4 | Delete TaskContext shim + CoreConfig after preprocessed references reach zero | rg TaskContext zero in Core closure |
 
-| Phase | Scope | Files | Gate |
-|-------|-------|-------|------|
-| B10.5.1 | Audit all Core-linked `BaseAssets<T>`-derived types to determine which still use the parameterless constructor instead of `BaseAssets(ISystemInfo)` | `BaseAssets.cs`, all task-`Assets` files | Core builds, 112/112 |
-| B10.5.2 | Remove default `BaseAssets()` ctor's TaskContext dependency for Core-linked types — pass ISystemInfo via constructor or composition | `BaseAssets.cs`, task-`Assets` files | No TaskContext refs in Core BaseAssets-derived production code |
-| B10.5.3 | Remove Verification dependence on TaskContext singleton if any | `Program.cs` | Verification 112/112 without TaskContext |
-| B10.5.4 | Delete TaskContext shim and CoreConfig only after preprocessed Core references reach zero | `TaskContext.cs`, `CoreConfig` | Core build zero errors; 112/112; rg zero in Core closure |
+If a reachable consumer is found, design required constructor injection for that specific consumer — not a wholesale refactor.
 
-**NOT in scope for TaskContext removal:**
-- `DpiScale` injection — all Core references are `#if`-guarded
-- `PostMessageSimulator` handling — all Core references are `#if`-guarded
-- `GameCaptureRegion` migration — not a Core compiled consumer
-
-### 8.8 Baseline
+### 8.9 Baseline
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors
