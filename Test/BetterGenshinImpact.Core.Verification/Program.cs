@@ -176,9 +176,7 @@ Console.WriteLine();
 
 // ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====
 Console.WriteLine("AutoPickTrigger: IAutoPickRuntimeState injection");
-BetterGenshinImpact.GameTask.TaskContext.Instance().SystemInfo =
-    new BetterGenshinImpact.GameTask.MacSystemInfo();
-var b5SystemInfo = BetterGenshinImpact.GameTask.TaskContext.Instance().SystemInfo;
+var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();
 
 // Initialize AutoPickAssets before any trigger creation (trigger ctor accesses Instance)
 AutoPickAssets.DestroyInstance();
@@ -391,16 +389,15 @@ catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperation
 }
 
 // B7.7: Compose uses provider config (not TaskContext fallback)
-// Reset, then Compose with Enabled = false — verify IsEnabled from provider, not default TaskContext
+// Reset, then Compose with Enabled = false — verify IsEnabled reads from provider
 resetForVerification.Invoke(null, null);
-BetterGenshinImpact.GameTask.TaskContext.Instance().Config!.AutoPickConfig!.Enabled = true; // TaskContext says true
 var disabledCfg = new AutoPickConfig { PickKey = "F", Enabled = false };
 var disabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     disabledCfg, PaddleOcrModelConfig.V5, "zh-Hans");
 var disabledState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
 comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [disabledProv, disabledState, b7Recorder, b5SystemInfo, testPaddle, testYap, null])!;
-Assert("B7.7 Init uses provider (not TaskContext): IsEnabled = false",
-    comp7.Trigger.IsEnabled == false, $"got {comp7.Trigger.IsEnabled} (TaskContext.Enabled would be true)");
+Assert("B7.7 Init reads Enabled from provider (false)",
+    comp7.Trigger.IsEnabled == false, $"got {comp7.Trigger.IsEnabled}");
 
 // B7.8: After ResetForVerification, Compose succeeds again
 resetForVerification.Invoke(null, null);

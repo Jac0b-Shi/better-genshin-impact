@@ -460,11 +460,19 @@ If a reachable consumer is found, design required constructor injection for that
 | TaskContext shim | — | Retained (Verification still uses it) |
 | Shim count | — | 17 (unchanged) |
 
-### 8.10 Baseline
+### 8.10 B10.5.3 Implementation Result
+
+| Change | Detail |
+|--------|--------|
+| Verification `TaskContext.Instance()` | Removed — replaced with direct `new MacSystemInfo()` |
+| Verification `TaskContext.Config` mutation | Removed — test now verifies provider wins without manipulating TaskContext |
+| Core Verification | 112/112 ✅ |
+| Source guard: `TaskContext.Instance()` in Verification | Zero code refs ✅ (one comment remains) |
+| TaskContext shim | Retained — ready for B10.5.4 deletion evaluation |
+
+### 8.11 Baseline
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112
 ```
-
-No code modified during this audit.
