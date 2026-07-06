@@ -81,10 +81,12 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
     /// <summary>
     /// Legacy parameterless ctor (source compat only). Not called by Initialize() or hidden Instance.
     /// </summary>
+#if BGI_FULL_WINDOWS
     private AutoPickAssets()
     {
         InitTemplateAssets();
     }
+#endif
 
     /// <summary>
     /// Parameterized ctor used by <see cref="Initialize"/>. Receives ISystemInfo explicitly.

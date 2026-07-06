@@ -397,7 +397,7 @@ Per Core csproj, the only linked `BaseAssets<T>` concrete production type is **A
 
 #### Singleton<T> behavior
 
-`Singleton<T>` uses `Activator.CreateInstance(typeof(T), true)` which invokes the private parameterless constructor. However, AutoPickAssets' hidden `new static Instance` property **overrides the base behavior** — it throws before reaching `Singleton<T>.Instance`, and `Initialize()` directly writes `_instance`, bypassing `Activator`.
+`Singleton<T>` uses `Activator.CreateInstance(typeof(T), true)` which invokes the private parameterless constructor. However, AutoPickAssets' `new static Instance` property **hides** the inherited `Singleton<T>.Instance` member — it throws before reaching `Singleton<T>.Instance`, and `Initialize()` directly writes `_instance`, bypassing `Activator`. The inherited `Singleton<AutoPickAssets>.Instance` remains technically callable through the base generic type or reflection, but no supported Core composition path uses it.
 
 #### Conclusion
 
@@ -449,7 +449,18 @@ Do NOT assume broad constructor injection work is necessary. The reachability au
 
 If a reachable consumer is found, design required constructor injection for that specific consumer — not a wholesale refactor.
 
-### 8.9 Baseline
+### 8.9 B10.5.2 Implementation Result
+
+| Change | File | Detail |
+|--------|------|--------|
+| BaseAssets parameterless ctor | `BaseAssets.cs` | Guarded with `#if BGI_FULL_WINDOWS` — Core path throws `PlatformNotSupportedException` instead of calling `TaskContext.Instance()` |
+| AutoPickAssets legacy ctor | `AutoPickAssets.cs` | Guarded with `#if BGI_FULL_WINDOWS` — not compiled in Core |
+| Core Verification | — | 112/112 ✅ |
+| WPF behavior | — | Unchanged — both parameterless ctors still compiled under `BGI_FULL_WINDOWS` ✅ |
+| TaskContext shim | — | Retained (Verification still uses it) |
+| Shim count | — | 17 (unchanged) |
+
+### 8.10 Baseline
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors

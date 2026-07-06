@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.Model;
+using BetterGenshinImpact.Model;
 using OpenCvSharp;
 using System;
 using System.Threading;
@@ -18,7 +18,12 @@ public class BaseAssets<T> : Singleton<T> where T : class
 
     protected BaseAssets()
     {
+#if BGI_FULL_WINDOWS
         this.systemInfo = TaskContext.Instance().SystemInfo;
+#else
+        throw new PlatformNotSupportedException(
+            "BaseAssets parameterless construction requires ISystemInfo injection on this platform.");
+#endif
     }
 
     protected BaseAssets(ISystemInfo systemInfo)
