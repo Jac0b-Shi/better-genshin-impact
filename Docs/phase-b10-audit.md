@@ -104,3 +104,47 @@ Those changes are beyond B10 scope (they belong to the AutoPick/OCR extraction p
 | Shim files compiled | 20 |
 | adapter-gate | Not triggered (no adapter changes) |
 | Full WPF build | Pre-existing backlog (IAutoPickConfigProvider missing usings) |
+
+---
+
+## 5. B10.2 Audit: BgiKeyMapper
+
+### 5.1 Current state
+
+| Aspect | Detail |
+|--------|--------|
+| Shim file | `BetterGenshinImpact.Core/Shim/BgiKeyMapper.cs` |
+| Upstream equivalent | **None** — the shim IS the authoritative source. No `Helpers/BgiKeyMapper.cs` exists in the WPF project tree. |
+| Consumer(s) in Core-linked files | `AutoPickAssets.cs` line 174: `BgiKeyMapper.ToKey(keyName)` — single call site |
+| Dependency chain | Pure C# → Platform.Abstractions (BgiKey enum) → no WPF/Win32/App.ServiceProvider → no transitive blockers |
+
+### 5.2 Content comparison (shim is the only version)
+
+- Namespace: `BetterGenshinImpact.Helpers` — same as the missing upstream target
+- Method: `public static BgiKey ToKey(string key)` — single method, pure string → BgiKey mapping
+- Dependencies: Only `BetterGenshinImpact.Platform.Abstractions` (BgiKey enum)
+- No WPF/Win32/App.ServiceProvider/TaskContext references
+- 36 lines total
+
+### 5.3 Conclusion
+
+**This shim can be replaced with linked shared source (Category B).**
+
+Specifically:
+1. Move `BetterGenshinImpact.Core/Shim/BgiKeyMapper.cs` → `BetterGenshinImpact/Helpers/BgiKeyMapper.cs` (WPF project tree)
+2. WPF project auto-compiles it via default SDK glob
+3. `BetterGenshinImpact.Core.csproj` replaces `<Compile Include="Shim/BgiKeyMapper.cs" />` with a linked reference:
+   `<Compile Include="../BetterGenshinImpact/Helpers/BgiKeyMapper.cs" Link="Helpers/BgiKeyMapper.cs" />`
+4. Delete `BetterGenshinImpact.Core/Shim/BgiKeyMapper.cs`
+
+This eliminates one shim file, uses the existing shared-source pattern (same as `IAutoPickConfigProvider`, `ISystemInfo`, etc.), and has zero behavioral impact.
+
+### 5.4 Risk
+
+| Factor | Assessment |
+|--------|-----------|
+| Core build impact | None — same code, different compile item |
+| Behavior change | None — single authoritative source |
+| WPF build impact | None — now in WPF tree via default glob |
+| Future divergence | None — single authoritative source |
+| Adapter-gate | Not triggered (no adapter changes) |
