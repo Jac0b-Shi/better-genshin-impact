@@ -35,33 +35,26 @@ Therefore:
 
 ## 2. Shim Classification (mutually exclusive)
 
-### A. Directly deletable — zero references in all Core-compiled files
+### A. B10.1 attempted deletion — all 6 candidates have real references in linked files
 
-| File | Type defined | In linked sources? | In Verification? | Risk |
-|------|-------------|-------------------|------------------|------|
-| `BvStubs.cs` | `BvStubs` static class (3 stub `WhichGameUi` methods) | **No** — zero refs in AutoPick, Recognition, Helpers, Model, Config, Area files | **No** | Safe — no impact |
-| `CoreExtensions.cs` | Extension methods | **No** | **No** | Safe |
-| `DrawableStubs.cs` | `DrawContent` stub | **No** (drawn methods guarded by `#if BGI_FULL_WINDOWS`) | **No** | Safe |
-| `GameUiCategory.cs` | `GameUiCategory` enum | **No** | **No** | Safe |
-| `StringUtils.cs` | `StringUtils` static class | **No** | **No** | Safe |
-| `TaskControl.cs` | `TaskControl` static class | **No** | **No** | Safe |
+Trial deletion of the six shims identified as "zero references" in the initial audit
+revealed that all are required by linked upstream files compiled into Core:
 
-All six candidates have **zero references** in Core-linked upstream files (AutoPick, Recognition, Helpers, Model, Config, Area) and Verification. Local trial deletion produced zero Core build/test errors. B10.1 commit must re-run the authoritative gates:
+| File | Linked consumer(s) | Resolution |
+|------|-------------------|------------|
+| `BvStubs.cs` | `ITaskTrigger.cs` (namespace `BetterGenshinImpact.GameTask.Common.BgiVision`), `CaptureContent.cs` | **Keep** — namespace import in linked files |
+| `CoreExtensions.cs` | `ImageRegion.cs` [ClampTo], `RecognitionObject.cs` [ToScalar] | **Keep** — extension methods used by linked files |
+| `DrawableStubs.cs` | `Region.cs` [DrawContent], `ImageRegion.cs` [DrawContent, VisionContext, RemoveRect] | **Keep** — DrawContent type + VisionContext + methods used by linked files |
+| `GameUiCategory.cs` | `ITaskTrigger.cs`, `CaptureContent.cs` | **Keep** — enum used by linked files |
+| `StringUtils.cs` | `ImageRegion.cs` [StringUtils.RemoveAllSpace] | **Keep** — extension method used by linked file |
+| `TaskControl.cs` | `Region.cs`, `ImageRegion.cs` [TaskControl.Logger, CaptureToRectArea, Sleep] | **Keep** — static helper used by linked files |
 
-```
-dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...
-rg '\\b(BvStubs|CoreExtensions|DrawableStubs|GameUiCategory|StringUtils|TaskControl)\\b' BetterGenshinImpact.Core/ BetterGenshinImpact/GameTask/AutoPick/ BetterGenshinImpact/Core/Recognition/ BetterGenshinImpact/Core/Config/ BetterGenshinImpact/Helpers/ BetterGenshinImpact/Model/ Test/
-```
+**Conclusion: Zero shim files can be safely deleted from the current 20.** All 20 shims are still referenced
+by at least one linked upstream file compiled into Core. The audit's initial "zero references" claim
+was incorrect — it missed references in Area/Recognition/Config linked files outside the AutoPick chain.
 
-**B10.1 gate:**
-1. Delete 6 files
-2. Delete 6 `<Compile Include="Shim/..." />` from csproj
-3. Core build — zero errors
-4. Verification — 106/106
-5. `rg` on all 6 type names — zero hits across Core-compiled closure
-6. No other shim modifications
-7. No AutoPick behavior changes
+B10.1 is **not viable** at this time. No further B10.1 work should proceed unless linked upstream files
+are modified to remove their dependency on these types.
 
 ### C. Production compatibility shim — required until upstream dependency removed
 
