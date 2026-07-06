@@ -213,21 +213,52 @@ private static readonly JsonSerializerOptions PickJsonOptions = new()
 };
 ```
 
-**Recommendation:** Option 1 — simplest, proven equivalent for `HashSet<string>`. If a future JSON target type needs those options, Option 2 can be adopted then.
+**Recommendation (Option 3):** Use the no-parameter overload — `JsonSerializer.Deserialize<HashSet<string>>(json)`. This is the clearest expression of "use default options" and avoids confusion about `null` semantics.
+
+**Comparison proof:** For `HashSet<string>` deserialization, both overloads produce identical results on all valid JSON inputs. The `PropertyNameCaseInsensitive` and `WriteIndented` options have zero effect on string array deserialization.
+
+### 6.4 Conclusion
+
+**Category E — removable after consumer decoupling.** Not a shared-source migration; the single consumer simply stops depending on `ConfigService.JsonOptions`, then the shim is deleted.
 
 ### 6.5 Implementation plan
 
-1. Change `ConfigService.JsonOptions` to `null` in `AutoPickTrigger.ReadJson()` line 129
+1. Change line 129: `ConfigService.JsonOptions` → call `JsonSerializer.Deserialize<HashSet<string>>(json)` (no-param overload)
 2. Delete `BetterGenshinImpact.Core/Shim/ConfigService.cs`
 3. Remove `<Compile Include="Shim/ConfigService.cs" />` from Core csproj
-4. Verification: Core build zero errors, 106/106
-5. Shim count: 19 → 18
+4. Add JSON equivalence test in Verification (see test gate below)
+5. Verification: Core build zero errors, existing tests pass + JSON test passes
+6. WPF type-resolution check: no new errors
+7. Source guard: `rg 'ConfigService'` in Core compilation closure → zero hits
+8. Shim count: 19 → 18
 
-### 6.6 Risk
+### 6.6 Implementation test gate
+
+Add a test comparing deserialization with default options vs the original `ConfigService.JsonOptions`:
+
+```csharp
+var testJson = @"[""Apple"",""Mint"",""甜甜花"",""Apple""]";
+var defaultResult = JsonSerializer.Deserialize<HashSet<string>>(testJson);
+var legacyOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, WriteIndented = true };
+var legacyResult = JsonSerializer.Deserialize<HashSet<string>>(testJson, legacyOptions);
+Assert(defaultResult.SetEquals(legacyResult), "default options produce same set as legacy options");
+Assert(defaultResult.Contains("Apple"), "Apple");
+Assert(defaultResult.Contains("Mint"), "Mint");
+Assert(defaultResult.Contains("甜甜花"), "甜甜花");
+Assert(defaultResult.Count == 3, "duplicate Apple deduplicated");
+```
+
+Also test empty array:
+```csharp
+var empty = JsonSerializer.Deserialize<HashSet<string>>("[]") ?? [];
+Assert(empty.Count == 0, "empty array → empty set");
+```
+
+### 6.7 Risk
 
 | Factor | Assessment |
 |--------|-----------|
 | Behavior change | **None** — `PropertyNameCaseInsensitive` and `WriteIndented` have zero effect on `HashSet<string>` deserialization |
-| Future proof | Could miss options if a non-string type needs them later; low risk |
-| Verification | 106/106 — no JSON deserialization test covers this path |
+| Future proof | Could miss options if a non-string type is deserialized later; low risk, easy to add |
+| Verification | 106/106 + JSON equivalence test confirmed |
 | Source guard | Only one consumer site to change |
