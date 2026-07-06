@@ -1097,7 +1097,7 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 | Core RunnerContext type definition | Shim | **Zero** — only WPF `GameTask/RunnerContext.cs` remains ✅ |
 | Core production code RunnerContext refs | Shim self-definition only | **Zero** ✅ |
 | Verification RunnerContext refs | Zero | **Zero** ✅ |
-| Csproj RunnerContext entry | Present | **Zero** ❌ |
+| Csproj RunnerContext entry | Present | **Removed** ✅ |
 | `MacCoreRuntimeAdapter.cs` comment | `"no reference to TaskContext, RunnerContext, or Windows APIs"` | **Unchanged** — comment remains, not a symbol reference |
 | `WindowsAutoPickRuntimeState` | Delegates to upstream `GameTask.RunnerContext` | **Unchanged** — correct WPF behavior ✅ |
 | WPF upstream `GameTask/RunnerContext.cs` | — | **Unchanged** ✅ |
@@ -1106,3 +1106,222 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 | WPF build — new errors from shim deletion | — | **Zero** — same 4 pre-existing errors as B10.6.1; no RunnerContext/DI/constructor errors added ✅ |
 | Shim count | 16 | **15** ✅ |
 | B10.6 status | B10.6.1 complete, shim retained | **B10.6 complete** ✅ |
+
+---
+
+## 10. B10.7 Audit: PlatformServices
+
+### 10.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/PlatformServices.cs` |
+| Lines | 12 |
+| Namespace | `BetterGenshinImpact` |
+| Type kind | `public static class PlatformServices` — mutable static gateway |
+| Public API | 2 properties |
+| `Input` | `public static IInputBackend Input { get; set; } = null!;` — mutable static, default `null!` (uninitialized) |
+| `UserInteraction` | `public static IUserInteractionService? UserInteraction { get; set; }` — nullable, unused in Core |
+| Comment | `"Static gateway to platform services. Initialized by the host before starting the dispatcher."` |
+| Origin | Created in commit `32590fc` (macOS port) — no WPF upstream analog |
+
+### 10.2 Upstream/history investigation
+
+| Aspect | WPF upstream | Core shim |
+|--------|-------------|-----------|
+| `PlatformServices` class | **Does not exist** in WPF tree | `Shim/PlatformServices.cs` |
+| DesktopRegion input access | Refers to `PlatformServices.Input` (same linked file) | Same — `DesktopRegion.cs` is linked shared source |
+| History | Only commit `32590fc` creates this shim | No upstream, no predecessor |
+
+There is no WPF tree `PlatformServices.cs`. The shim was written for the macOS port to satisfy `DesktopRegion`'s static reference to `PlatformServices.Input`. The WPF project has a different mechanism (`Simulation.SendInput`) for input dispatch, but nevertheless the same linked `DesktopRegion.cs` (which references `PlatformServices.Input`) compiles in WPF because WPF references the Core project which provides the shim.
+
+### 10.3 Preprocessed reference table
+
+#### 10.3.1 Core-compiled references
+
+| # | File | Line | Code | Type |
+|---|------|------|------|------|
+| 1 | `Shim/PlatformServices.cs` | 1–12 | Type definition | Definition |
+| 2 | `Shim/Simulation.cs` | 10 | `public static IInputBackend InputBackend => PlatformServices.Input;` | **Consumer** — delegates Simulation to PlatformServices.Input |
+| 3 | `GameTask/Model/Area/DesktopRegion.cs` (linked) | 29 | `var input = PlatformServices.Input;` | **Consumer** |
+| 4 | `GameTask/Model/Area/DesktopRegion.cs` (linked) | 41 | `PlatformServices.Input.MoveMouseTo(...)` | **Consumer** |
+| 5 | `GameTask/Model/Area/DesktopRegion.cs` (linked) | 48 | `var input = PlatformServices.Input;` | **Consumer** |
+| 6 | `GameTask/Model/Area/DesktopRegion.cs` (linked) | 58 | `PlatformServices.Input.MoveMouseTo(...)` | **Consumer** |
+| 7 | `GameTask/Model/Area/DesktopRegion.cs` (linked) | 63 | `PlatformServices.Input.MoveMouseBy(...)` | **Consumer** |
+
+**Total Core production references: 7** — all reading `PlatformServices.Input`. No Core production code writes to `PlatformServices` (initialize/set).
+
+#### 10.3.2 Verification references
+
+| # | File | Line | Code | Type |
+|---|------|------|------|------|
+| 1 | `Verification/Program.cs` | 22 | `PlatformServices.Input = recorder;` | **Write** — sets the static gateway for DesktopRegion test |
+
+#### 10.3.3 WPF-only references
+
+The WPF project does not reference `PlatformServices` directly. However, the linked `DesktopRegion.cs` (same file, compiled in both Core and WPF via `<Compile Include=... Link=...>`) also uses `PlatformServices.Input`. In WPF, the type resolves because the Core project (which contains the shim) is referenced by WPF. This means:
+
+- WPF DesktopRegion also uses the Core shim's `PlatformServices`
+- WPF has its own `Simulation.cs` which uses `SendInput` (not `PlatformServices`)
+- The upstream WPF does NOT have its own PlatformServices — it depends on the Core shim for type resolution of DesktopRegion
+
+### 10.4 Reachability analysis
+
+#### 10.4.1 Compiled reference graph
+
+```
+Core compilation closure (BGI_PLATFORM_MAC)
+│
+├── Shim/PlatformServices.cs ───────── static gateway definition
+│   ├── Input: IInputBackend (get/set, mutable, null! default)
+│   └── UserInteraction: IUserInteractionService? (unused in Core)
+│
+├── Shim/Simulation.cs ────────────── delegates via PlatformServices.Input
+│   └── IInputBackend → PlatformServices.Input
+│       → calls: KeyPress, KeyDown, KeyUp, Scroll, MoveMouseTo, MoveMouseBy, etc.
+│
+└── DesktopRegion.cs (linked) ─────── 5 static PlatformServices.Input calls
+    → DesktopRegionClick(i, x, y, w, h)
+    → DesktopRegionMove(i, x, y, w, h)
+    → DesktopRegionClick(d cx, d cy)
+    → DesktopRegionMove(d cx, d cy)
+    → DesktopRegionMoveBy(d dx, d dy)
+```
+
+#### 10.4.2 Supported Core runtime graph (macOS AutoPick composition)
+
+```
+MacAutoPickComposition.Compose(inputBackend, runtimeState, configProvider, ...)
+  → AutoPickTrigger(..., inputBackend, ...)
+    → uses _inputBackend field     ← constructor-injected, NOT PlatformServices
+  → AutoPickAssets.Initialize(systemInfo, configProvider)
+    → uses injected dependencies    ← NOT PlatformServices
+
+DesktopRegion methods:
+  → NOT called from AutoPick composition path
+  → NOT called from AutoPickTrigger.OnCapture
+  → Only reachable if a trigger/task explicitly creates a DesktopRegion
+    and calls its instance/static methods
+
+DesktopRegion is linked in Core but its PlatformServices.Input calls
+are not on the AutoPick hot path. They are reachable for any code
+that constructs a DesktopRegion or invokes its static methods.
+```
+
+#### 10.4.3 Verification graph
+
+```
+Verification Program.cs
+  → PlatformServices.Input = recorder;             ← must set before DesktopRegion
+  → DesktopRegion.DesktopRegionMove(960, 540)      ← reads PlatformServices.Input
+  → DesktopRegion.DesktopRegionClick(...)           ← reads PlatformServices.Input
+```
+
+Verification explicitly sets PlatformServices.Input before desktop-region tests. Without this set, accessing `PlatformServices.Input` would throw `NullReferenceException` (the default value is `null!`).
+
+### 10.5 Semantic analysis
+
+#### Classification: **Static gateway / service locator (anti-pattern)**
+
+| Check | Result |
+|-------|--------|
+| Is it a static gateway? | **Yes** — `PlatformServices.Input` is a mutable static property |
+| Is it a service locator? | **Partial** — holds one required service (IInputBackend) and one unused service (IUserInteractionService) |
+| Is it a DI escape hatch? | **Yes** — bypasses constructor injection; consumers grab `PlatformServices.Input` from anywhere |
+| Does it hide required dependencies? | **Yes** — DesktopRegion's 5 methods silently require PlatformServices.Input to be set; there's no compile-time or constructor guard |
+| Does it allow business logic to access platform capabilities statically? | **Yes** — `DesktopRegion.DesktopRegionClick(double, double)` is a public static method that reads Input |
+| Does it propagate IServiceProvider? | **No** |
+| Does it provide dummy/no-op default? | **Yes** — `= null!` means accessing Input before initialization throws NullReferenceException at runtime, not at compile time |
+| Does it let incomplete wiring seem runnable? | **Partially** — code compiles fine but crashes at first desktop interaction |
+| Is it thread-safe? | **No** — mutable static with no synchronization |
+| Can it be replaced with constructor injection? | **Yes** — `IInputBackend` is the only consumed capability |
+| Platform.Abstractions candidate? | **No** — the pattern (static gateway) is an anti-pattern, not an abstraction |
+
+#### Architecture rule violations
+
+| Rule | Violation | Severity |
+|------|-----------|----------|
+| No static gateway | ✅ `static class` with mutable static `Input` property | **High** — pattern violation |
+| No service locator | ⚠️ Holds 2 services; only Input is consumed | Medium |
+| Required capability must be constructor injection | ❌ `IInputBackend` is consumed via static — DesktopRegion gets it from `PlatformServices.Input` instead of constructor param | **High** |
+| Consumer should depend on narrow interface | ✅ `IInputBackend` is already a narrow interface | Low |
+| No `null!`/dummy half-valid state | ❌ `Input { get; set; } = null!;` — accessing before init crashes at runtime | **Medium** |
+
+### 10.6 Consumer analysis
+
+#### DesktopRegion.cs (linked shared source, 5 calls)
+
+Each call is a simple read of `PlatformServices.Input` followed by `MoveMouseTo`, `LeftButtonDown`, etc. DesktopRegion has two groups of consumers:
+
+**Instance methods** (DesktopRegionClick/Move with rect params): Called via `DesktopRegion.ClickTo()` or similar patterns. These could be refactored to accept `IInputBackend` via constructor.
+
+**Static methods** (DesktopRegionClick/Move/MoveBy with pixel coords): Called via `DesktopRegion.DesktopRegionMove(x, y)`. These are static convenience methods. They could be changed to instance methods with injected Input or remain static but accept Input as parameter.
+
+#### Simulation.cs (Core shim, 1 call)
+
+`Simulation.InputBackend => PlatformServices.Input` — the entire Simulation facade delegates to PlatformServices. This was built as a verification-compatibility layer matching the WPF `Simulation.SendInput` API shape. It's used by Verification tests and any production code that calls `Simulation.SendInput.Keyboard.KeyPress(...)`.
+
+### 10.7 Relation to neighboring shims
+
+| Shim | Relationship | Ordering |
+|------|-------------|----------|
+| `Simulation.cs` | **Depends on** `PlatformServices.Input` | Must be fixed together or before |
+| `DesktopRegion.cs` | **Depends on** `PlatformServices.Input` | Linked source — must fix DesktopRegion to use injection |
+| `App.cs` | No direct reference | Independent |
+| `Global.cs` | No direct reference | Independent |
+| `GameTaskManager.cs` | Receives `IInputBackend` via parameter (no PlatformServices usage) | Independent |
+| `MacSystemInfo.cs` | No reference | Independent |
+| `TaskControl.cs` | No reference | Independent |
+
+**Key insight:** PlatformServices is the **only** place where the `IInputBackend` is stored as a static. If DesktopRegion and Simulation were refactored to receive `IInputBackend` via constructor/injection, PlatformServices could be deleted. The `IInputBackend` is already threaded through the composition (MacAutoPickComposition accepts it, GameTaskManager forwards it). Only DesktopRegion and Simulation bypass this chain via the static gateway.
+
+### 10.8 Recommendation
+
+**Category B/C: Replace static PlatformServices.Input usage with explicit IInputBackend injection.**
+
+Not Category A (dead shim) — 7 Core production references exist.
+Not Category E (link authoritative source) — no upstream PlatformServices exists.
+Not Category D (keep temporarily) — the pattern is actively harmful (static `null!` gateway).
+
+The `IInputBackend` is already a narrow interface in `Platform.Abstractions`. The macOS composition already injects it. The only gap is that DesktopRegion and Simulation reach for the static gateway instead of accepting the already-injected instance.
+
+### 10.9 Minimal implementation plan
+
+#### B10.7.1: Remove Verification's dependency on PlatformServices.Input setter
+
+Move desktop-region tests to use a helper that sets PlatformServices privately, OR refactor DesktopRegion test helpers to accept IInputBackend directly. This is a test-only change.
+
+#### B10.7.2: Add IInputBackend to DesktopRegion constructor; migrate static callers
+
+- DesktopRegion instance already has a constructor taking `(int w, int h)`. Add `IInputBackend input.`
+- Static methods (`DesktopRegionMove`, `DesktopRegionClick`, `DesktopRegionMoveBy`) become instance methods or accept `IInputBackend input` parameter.
+- All 5 internal `PlatformServices.Input` references replaced with field or parameter.
+- Update all callers in WPF and Core to pass the injected Input.
+
+#### B10.7.3: Replace Simulation.InputBackend delegation
+
+Simulation shim currently delegates `InputBackend => PlatformServices.Input`. Change to accept `IInputBackend` via constructor or static setter (but not via PlatformServices). In the `MacAutoPickComposition`, the `IInputBackend` is already available.
+
+#### B10.7.4: Delete PlatformServices shim
+
+After B10.7.1–3 produce zero references to `PlatformServices.Input`:
+- Delete `BetterGenshinImpact.Core/Shim/PlatformServices.cs`
+- Remove csproj entry
+- Remove `PlatformServices.Input = recorder;` from Verification (replaced with direct injection)
+- Shim count: 15 → **14**
+
+### 10.10 Risks
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| DesktopRegion is linked shared source — changes affect both Core and WPF | **Medium** — must verify WPF DesktopRegion callers | Audit all DesktopRegion callers in WPF project; they also use PlatformServices and must be migrated together |
+| Static DesktopRegion methods are convenience API called from many places in WPF (`PathExecutor`, `AutoFightTask`, etc.) | **High** — large refactor surface in WPF | Consider keeping static overloads that accept IInputBackend as a parameter (new signature) while deprecating parameterless ones |
+| Simulation facade is used by Verification tests and potentially WPF code | **Medium** — must maintain backward-compatible API | Migration from `Simulation.InputBackend` to direct `_inputBackend` in test code |
+| IUserInteractionService is currently unused in Core | **Low** — can be removed with the shim, no behavioral impact | Track in deletion checklist |
+
+### 10.11 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
