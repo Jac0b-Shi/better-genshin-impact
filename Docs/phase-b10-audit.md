@@ -266,52 +266,58 @@ Assert(empty.Count == 0, "empty array → empty set");
 
 ## 7. B10.4 Audit: SpeedTimer
 
-### 7.1 Current shim
+### 7.1 Current state
 
-| Aspect | Detail |
-|--------|--------|
-| File | `BetterGenshinImpact.Core/Shim/SpeedTimer.cs` |
-| Namespace | `BetterGenshinImpact.Helpers` |
-| API | `Record(string name)`, `DebugPrint()`, internal `Stopwatch` + `Dictionary<string, long>` |
-| Dependencies | `System.Diagnostics` (Stopwatch) — pure C#, no WPF/Win32/ServiceProvider |
-| Comment | "Linked from upstream (pure C#, no Windows deps)" — but no upstream copy exists |
+Two copies exist:
+
+| Aspect | Upstream (`BetterGenshinImpact/Helpers/SpeedTimer.cs`) | Core shim (`BetterGenshinImpact.Core/Shim/SpeedTimer.cs`) |
+|--------|--------------------------------------------------------|------------------------------------------------------------|
+| Origin | Added in commit bf06ba3 ("fixed #3237") — original upstream | Added in commit 32590fc (macOS extraction) — simplified copy |
+| Constructor | `SpeedTimer()` and `SpeedTimer(string name)` | `SpeedTimer()` only |
+| Timer type | `Stopwatch`, stores `TimeSpan` in `_timeRecordDic` | `Stopwatch`, stores `long` ms in `_records` |
+| `Record()` | Saves `_stopwatch.Elapsed`, then `_stopwatch.Restart()` | Saves `_stopwatch.ElapsedMilliseconds` (no restart) |
+| `DebugPrint()` | **Real output:** formats and logs via `Debug.WriteLine()` | **No-op** — empty body |
+| Dependencies | Pure C# (`Stopwatch`, `Debug`), no WPF/Win32 | Same |
 
 ### 7.2 Consumers
 
-| Consumer | Core-linked? | Usage | Business impact if removed |
-|----------|-------------|-------|---------------------------|
-| `AutoPickTrigger.OnCapture` | ✅ Yes | 7 calls: `new SpeedTimer()` + 6 `Record()` + `DebugPrint()` | **None** — debug timing only, `DebugPrint()` is a no-op |
-| `Feature2DExtensions.cs` | ❌ WPF-only | 3 `SpeedTimer()` | None — debug only |
-| `AutoFight/CombatScenes.cs` | ❌ WPF-only | 1 `SpeedTimer()` | None |
-| `TaskTriggerDispatcher.cs` | ❌ WPF-only | 1 `SpeedTimer()` | None |
-| `Common/Map/*.cs` | ❌ WPF-only | 4 `SpeedTimer()` | None |
-| `Test/*` | ❌ Test project | 5 `SpeedTimer()` | None — tests |
+| Consumer file | Compiled in Core? | Calls `DebugPrint()`? | Would regress without real impl? |
+|---------------|-------------------|-----------------------|----------------------------------|
+| `AutoPickTrigger.cs` | ✅ Yes (1x) | ✅ Yes (line 371) | No — currently receives no-op; real output would be additive |
+| `TaskTriggerDispatcher.cs` | ❌ WPF-only (1x) | ✅ Yes | Yes — currently receives real `Debug.WriteLine` output |
+| `CombatScenes.cs` | ❌ WPF-only (1x) | ✅ Yes | Yes |
+| `Feature2DExtensions.cs` | ❌ WPF-only (3x) | ✅ Yes | Yes |
+| `BaseMapLayer.cs` | ❌ WPF-only (1x) | ✅ Yes | Yes |
+| `BaseMapLayerByTemplateMatch.cs` | ❌ WPF-only (1x) | ✅ Yes | Yes |
+| `SceneBaseMapByTemplateMatch.cs` | ❌ WPF-only (2x) | ✅ Yes | Yes |
+| `BigMapMatchTest.cs` (Test) | ❌ (2x) | ✅ Yes | Yes |
+| `EntireMapTest.cs` (Test) | ❌ (1x) | ✅ Yes | Yes |
+| `FeatureMatcher.cs` (Test) | ❌ (4x) | ✅ Yes | Yes |
 
-**Only consumer in Core-linked files:** `AutoPickTrigger.OnCapture` — debug performance logging, no business impact.
+**Core-only consumer:** `AutoPickTrigger.OnCapture` — debug performance timing, no business impact.
 
-### 7.3 Upstream comparison
+### 7.3 Conclusion
 
-No authoritative upstream `Helpers/SpeedTimer.cs` exists. The shim is the only implementation and is pure C# (Stopwatch + Dictionary + Console). It can serve as the authoritative shared source.
+**Category B — link upstream `BetterGenshinImpact/Helpers/SpeedTimer.cs` into Core, delete shim.**
 
-### 7.4 Conclusion
+The upstream file is pure C#, has no WPF/Win32 dependencies, and is already in the WPF project tree. Core should link it the same way it links other `Helpers/*.cs` files.
 
-**Category B — can be replaced with authoritative shared linked source** (same pattern as BgiKeyMapper).
+**This is NOT a case of "shim becomes authoritative source."** The authoritative source is the **upstream `Helpers/SpeedTimer.cs`**, which already exists and has real `DebugPrint` output. The shim is an inferior copy that should be replaced.
 
-The shim is pure C#, no WPF/Win32/ServiceProvider dependencies. Move to `BetterGenshinImpact/Helpers/SpeedTimer.cs`, link from Core csproj, delete Shim copy.
+### 7.4 Implementation plan
 
-### 7.5 Implementation plan
-
-1. Move `Shim/SpeedTimer.cs` → `BetterGenshinImpact/Helpers/SpeedTimer.cs`
-2. Core csproj: delete `<Compile Include="Shim/SpeedTimer.cs" />`, add `<Compile Include="../BetterGenshinImpact/Helpers/SpeedTimer.cs" Link="Helpers/SpeedTimer.cs" />`
+1. Core csproj: delete `<Compile Include="Shim/SpeedTimer.cs" />`, add `<Compile Include="../BetterGenshinImpact/Helpers/SpeedTimer.cs" Link="Helpers/SpeedTimer.cs" />`
+2. Delete `BetterGenshinImpact.Core/Shim/SpeedTimer.cs`
 3. Verify: Core build zero errors, Verification unchanged
-4. WPF: auto-compiled via SDK glob
-5. Shim count: 18 → 17
+4. WPF: unchanged — upstream file already compiled by default glob
+5. Core consumers gain real `DebugPrint` output — additive only, no regression
+6. Shim count: 18 → 17
 
-### 7.6 Risk
+### 7.5 Behavior impact
 
-| Factor | Assessment |
-|--------|-----------|
-| Core build impact | None — identical code |
-| Behavior change | None — `DebugPrint()` is already a no-op |
-| Business impact | None — debug timing only |
-| WPF build impact | None — now in WPF tree |
+| Layer | Impact |
+|-------|--------|
+| Core runtime behavior | Identical source; `DebugPrint()` now outputs to `Debug.WriteLine` (additive) |
+| Production business logic | No effect — timing is debug-only |
+| WPF diagnostic behavior | **Unchanged** — uses the same upstream file as before |
+| AutoPickTrigger | `DebugPrint()` now produces output on Core as well — consistent behavior |
