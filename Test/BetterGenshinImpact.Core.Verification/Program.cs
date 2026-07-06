@@ -7,6 +7,7 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.Core.Runtime.Windows;
 using OpenCvSharp;
+using System.Text.Json;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
@@ -755,6 +756,25 @@ using (var mat = new Mat(1, 1, MatType.CV_8UC3))
     try { new UnsupportedYapAutoPickTextRecognizer().Recognize(mat); Assert("UnsupportedYap should throw", false, ""); }
     catch (NotSupportedException) { Assert("B9.2 UnsupportedYap → NotSupportedException", true, ""); }
 }
+
+// ==== B10.3: ConfigService removed — JSON equivalence ====
+Console.WriteLine("B10.3: ConfigService removed — JSON equivalence");
+
+var b103TestJson = @"[""Apple"",""Mint"",""甜甜花"",""Apple""]";
+var b103DefaultResult = JsonSerializer.Deserialize<HashSet<string>>(b103TestJson) ?? [];
+var b103LegacyOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, WriteIndented = true };
+var b103LegacyResult = JsonSerializer.Deserialize<HashSet<string>>(b103TestJson, b103LegacyOpts) ?? [];
+
+Assert("B10.3 default matches legacy", b103DefaultResult.SetEquals(b103LegacyResult), "sets differ");
+Assert("B10.3 contains Apple", b103DefaultResult.Contains("Apple"), "missing Apple");
+Assert("B10.3 contains Mint", b103DefaultResult.Contains("Mint"), "missing Mint");
+Assert("B10.3 contains 甜甜花", b103DefaultResult.Contains("甜甜花"), "missing 甜甜花");
+var b103Count = b103DefaultResult.Count;
+Assert("B10.3 deduplication Count=3", b103Count == 3, $"got {b103Count}");
+
+var b103Empty = JsonSerializer.Deserialize<HashSet<string>>("[]") ?? [];
+var b103EmptyCount = b103Empty.Count;
+Assert("B10.3 empty array → empty set", b103EmptyCount == 0, $"got {b103EmptyCount}");
 
 Console.WriteLine();
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");

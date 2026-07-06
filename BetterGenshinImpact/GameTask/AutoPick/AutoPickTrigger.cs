@@ -8,7 +8,6 @@ using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Helpers;
 using BetterGenshinImpact.Platform.Abstractions;
-using BetterGenshinImpact.Service;
 using BetterGenshinImpact.View.Windows;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
@@ -126,7 +125,7 @@ public partial class AutoPickTrigger : ITaskTrigger
             var json = Global.ReadAllTextIfExist(jsonFilePath);
             if (!string.IsNullOrEmpty(json))
             {
-                return JsonSerializer.Deserialize<HashSet<string>>(json, ConfigService.JsonOptions) ?? [];
+                return JsonSerializer.Deserialize<HashSet<string>>(json) ?? [];
             }
         }
         catch (Exception e)

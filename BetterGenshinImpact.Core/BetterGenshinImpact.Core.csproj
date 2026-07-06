@@ -163,7 +163,6 @@
     <Compile Include="Shim/BgiOnnxFactory.cs" />
     <Compile Include="Shim/BgiOnnxModel.cs" />
     <Compile Include="Shim/BvStubs.cs" />
-    <Compile Include="Shim/ConfigService.cs" />
     <Compile Include="Shim/CoreExtensions.cs" />
     <Compile Include="Shim/DrawableStubs.cs" />
     <Compile Include="Shim/GameTaskManager.cs" />
