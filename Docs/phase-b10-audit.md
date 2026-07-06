@@ -248,3 +248,16 @@ Assert(empty.Count == 0, "empty array → empty set");
 | Future proof | Could miss options if a non-string type is deserialized later; low risk, easy to add |
 | Verification | Existing baseline 106/106; JSON equivalence test required during implementation |
 | Source guard | Only one consumer site to change |
+
+### 6.8 B10.3 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| ConfigService shim | `Shim/ConfigService.cs` | Deleted ✅ |
+| AutoPickTrigger line 129 | `ConfigService.JsonOptions` | No-param `Deserialize<HashSet<string>>(json)` ✅ |
+| Core csproj compile item | `<Compile Include="Shim/ConfigService.cs" />` | Deleted ✅ |
+| Core Verification | 106/106 | **112/112** ✅ (+6 JSON assertions) |
+| GameUiCategory.cs | Accidentally modified by B10.3 commit | Restored to original (corrective commit) ✅ |
+| WPF ConfigService type resolution | — | Zero errors ✅ |
+| Source guard: `ConfigService` in Core closure | — | Zero hits ✅ |
+| Shim count | 19 | **18** ✅ |
