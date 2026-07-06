@@ -197,25 +197,15 @@ The shim's `JsonOptions` settings are identical to the upstream static field.
 
 ### 6.4 Conclusion
 
-**Category B — can be replaced by inlining in the single consumer.** The options are not needed for `HashSet<string>` deserialization. Two valid approaches:
+**Category E — removable after consumer decoupling.** The single consumer (`AutoPickTrigger.ReadJson`) stops depending on `ConfigService.JsonOptions`, then the shim is deleted. No linked shared-source migration needed; just a one-line change in the consumer.
 
-**Option 1 (minimal):** Replace with `null` (default options):
+**Approach:** Use the no-parameter overload:
 ```csharp
-return JsonSerializer.Deserialize<HashSet<string>>(json, null) ?? [];
+return JsonSerializer.Deserialize<HashSet<string>>(json) ?? [];
 ```
+This is the clearest expression of "use default options" and avoids confusion about `null` semantics.
 
-**Option 2 (future-proof):** Define a local `JsonSerializerOptions` in `AutoPickTrigger`:
-```csharp
-private static readonly JsonSerializerOptions PickJsonOptions = new()
-{
-    PropertyNameCaseInsensitive = true,
-    WriteIndented = true
-};
-```
-
-**Recommendation (Option 3):** Use the no-parameter overload — `JsonSerializer.Deserialize<HashSet<string>>(json)`. This is the clearest expression of "use default options" and avoids confusion about `null` semantics.
-
-**Comparison proof:** For `HashSet<string>` deserialization, both overloads produce identical results on all valid JSON inputs. The `PropertyNameCaseInsensitive` and `WriteIndented` options have zero effect on string array deserialization.
+**Comparison proof:** For JSON arrays deserialized as `HashSet<string>`, the default overload and the legacy options produce equivalent sets. `PropertyNameCaseInsensitive` and `WriteIndented` have zero effect on string array deserialization.
 
 ### 6.4 Conclusion
 
@@ -238,9 +228,9 @@ Add a test comparing deserialization with default options vs the original `Confi
 
 ```csharp
 var testJson = @"[""Apple"",""Mint"",""甜甜花"",""Apple""]";
-var defaultResult = JsonSerializer.Deserialize<HashSet<string>>(testJson);
+var defaultResult = JsonSerializer.Deserialize<HashSet<string>>(testJson) ?? [];
 var legacyOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, WriteIndented = true };
-var legacyResult = JsonSerializer.Deserialize<HashSet<string>>(testJson, legacyOptions);
+var legacyResult = JsonSerializer.Deserialize<HashSet<string>>(testJson, legacyOptions) ?? [];
 Assert(defaultResult.SetEquals(legacyResult), "default options produce same set as legacy options");
 Assert(defaultResult.Contains("Apple"), "Apple");
 Assert(defaultResult.Contains("Mint"), "Mint");
@@ -260,5 +250,5 @@ Assert(empty.Count == 0, "empty array → empty set");
 |--------|-----------|
 | Behavior change | **None** — `PropertyNameCaseInsensitive` and `WriteIndented` have zero effect on `HashSet<string>` deserialization |
 | Future proof | Could miss options if a non-string type is deserialized later; low risk, easy to add |
-| Verification | 106/106 + JSON equivalence test confirmed |
+| Verification | Existing baseline 106/106; JSON equivalence test required during implementation |
 | Source guard | Only one consumer site to change |
