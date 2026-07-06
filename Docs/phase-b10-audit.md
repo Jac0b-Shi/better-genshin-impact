@@ -148,3 +148,17 @@ This eliminates one shim file, uses the existing shared-source pattern (same as 
 | WPF build impact | None — now in WPF tree via default glob |
 | Future divergence | None — single authoritative source |
 | Adapter-gate | Not triggered (no adapter changes) |
+
+### 5.5 B10.2 implementation result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Shim file | `Shim/BgiKeyMapper.cs` | Deleted |
+| Authoritative source | — | `BetterGenshinImpact/Helpers/BgiKeyMapper.cs` |
+| Core compile item | `<Compile Include="Shim/BgiKeyMapper.cs" />` | `<Compile Include="../BetterGenshinImpact/Helpers/BgiKeyMapper.cs" Link="Helpers/BgiKeyMapper.cs" />` |
+| WPF compile | — (not in WPF tree) | Default SDK glob |
+| Shim count | 20 | **19** |
+| Core Verification | 106/106 | 106/106 ✅ |
+| WPF BgiKeyMapper type resolution | — | Zero errors ✅ |
+| Source guard — only one definition | — | `BetterGenshinImpact/Helpers/BgiKeyMapper.cs` only ✅ |
+| Source guard — old shim reference | — | Zero csproj hits ✅ |
