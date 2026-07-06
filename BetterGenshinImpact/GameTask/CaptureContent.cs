@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.GameTask.Model.Area;
+using BetterGenshinImpact.GameTask.Model.Area;
 using System;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using OpenCvSharp;
@@ -25,10 +25,17 @@ public class CaptureContent : IDisposable
     {
         FrameIndex = frameIndex;
         TimerInterval = interval;
+
+#if BGI_FULL_WINDOWS
         var systemInfo = TaskContext.Instance().SystemInfo;
 
         var gameCaptureRegion = systemInfo.DesktopRectArea.Derive(image, systemInfo.CaptureAreaRect.X, systemInfo.CaptureAreaRect.Y);
         CaptureRectArea = gameCaptureRegion.DeriveTo1080P();
+#else
+        // CaptureContent construction is platform-specific.
+        // On Core/macOS, the capture pipeline provides ImageRegion directly.
+        CaptureRectArea = null!;
+#endif
     }
 
     /// <summary>

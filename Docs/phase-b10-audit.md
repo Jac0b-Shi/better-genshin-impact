@@ -476,3 +476,18 @@ If a reachable consumer is found, design required constructor injection for that
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112
 ```
+
+### 8.12 B10.5.4 Implementation Result
+
+| Change | Detail |
+|--------|--------|
+| Core TaskContext shim | `Shim/TaskContext.cs` — deleted ✅ |
+| CoreConfig | Deleted with shim (defined in same file) ✅ |
+| Core csproj entry | `<Compile Include="Shim/TaskContext.cs" />` — removed ✅ |
+| CaptureContent.cs | Guarded `TaskContext.Instance()` with `#if BGI_FULL_WINDOWS` |
+| Core production references | Zero (comments only) ✅ |
+| Verification references | Zero (one comment) ✅ |
+| WPF | Continues using upstream `GameTask/TaskContext.cs` ✅ |
+| Upstream link added? | **No** — upstream is WPF-host-only; not suitable for Core |
+| Core Verification | 112/112 ✅ |
+| Shim count | 17 → **16** ✅ |

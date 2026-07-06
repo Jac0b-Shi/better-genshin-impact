@@ -174,7 +174,6 @@
     <Compile Include="Shim/RunnerContext.cs" />
     <Compile Include="Shim/Simulation.cs" />
     <Compile Include="Shim/StringUtils.cs" />
-    <Compile Include="Shim/TaskContext.cs" />
     <Compile Include="Shim/TaskControl.cs" />
     <Compile Include="Shim/ThemedMessageBox.cs" />
   </ItemGroup>
