@@ -912,24 +912,34 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 
 #### B10.6.1 — Make IAutoPickRuntimeState required in AutoPickTrigger, migrate all call sites
 
+**Scope:** Only migration. The RunnerContext shim and its csproj entry remain present.
+
 | Step | File | Change |
 |------|------|--------|
 | 1a | `GameTask/AutoPick/AutoPickTrigger.cs` field | `IAutoPickRuntimeState? _runtimeState` → `IAutoPickRuntimeState _runtimeState` (non-nullable) |
 | 1b | `GameTask/AutoPick/AutoPickTrigger.cs` constructor | `IAutoPickRuntimeState? runtimeState` → `IAutoPickRuntimeState runtimeState` + `ArgumentNullException.ThrowIfNull(runtimeState)` |
 | 1c | `GameTask/AutoPick/AutoPickTrigger.cs` StopCount | `_runtimeState?.StopCount ?? RunnerContext.Instance...` → `_runtimeState.StopCount` |
 | 1d | `GameTask/AutoPick/AutoPickTrigger.cs` comment | Remove `/// fall back to RunnerContext...` comment |
-| 2 | `Core/Shim/GameTaskManager.cs:58-59` | Add `IAutoPickRuntimeState runtimeState` parameter to `AddTrigger`; pass it through to the `AutoPickTrigger` constructor instead of `null` |
-| 3 | `Core/Composition/MacAutoPickComposition.cs` | Compose already passes non-null `runtimeState` — unchanged |
-| 4 | `GameTask/GameTaskManager.cs:54` | Add `IAutoPickRuntimeState runtimeState` parameter to the init method; pass `new WindowsAutoPickRuntimeState()` or the provided runtimeState |
-| 5 | `GameTask/GameTaskManager.cs:105` | Same — thread the runtimeState through `AddTrigger` |
-| 6 | `GameTask/GameTaskManager.cs` callers | Update callers to pass `WindowsAutoPickRuntimeState` from composition root |
-| 7 | `Verification/Program.cs` | Replace all 10+ `null` runtimeState args with `new MacAutoPickRuntimeState(0)` in non-null-throw tests; for tests explicitly checking null semantics, remove those assertions |
-| 8 | `Core/Shim/RunnerContext.cs` | **Delete** — only after zero Core production references remain |
-| 9 | `Core/BetterGenshinImpact.Core.csproj` | Remove `<Compile Include="Shim/RunnerContext.cs" />` |
+| 2 | `Core/Shim/GameTaskManager.cs:58-59` | Add `IAutoPickRuntimeState runtimeState` parameter to `AddTrigger` (alongside existing `IInputBackend`, `ISystemInfo`, etc.); pass it through to the `AutoPickTrigger` constructor instead of `null` |
+| 3 | `Core/Composition/MacAutoPickComposition.cs:64` | Already passes non-null `runtimeState` — unchanged |
+| 4 | **WPF** `GameTask/GameTaskManager.cs:54` (LoadInitialTriggers) | Add `IAutoPickRuntimeState runtimeState` parameter; pass it to `new AutoPickTrigger(..., runtimeState, ...)` |
+| 5 | **WPF** `GameTask/GameTaskManager.cs:105` (AddTrigger) | Add `IAutoPickRuntimeState runtimeState` parameter; pass it to `new AutoPickTrigger(..., runtimeState, ...)` |
+| 6 | **WPF** `GameTask/TaskTriggerDispatcher.cs` — constructor | Add `IAutoPickRuntimeState runtimeState` parameter; store as field `_runtimeState` |
+| 7 | **WPF** `TaskTriggerDispatcher.Start()` (line 188) | Pass `_runtimeState` to `GameTaskManager.LoadInitialTriggers(...)` |
+| 8 | **WPF** `TaskTriggerDispatcher.AddTrigger()` (line 141) | Pass `_runtimeState` to `GameTaskManager.AddTrigger(...)` |
+| 9 | **WPF** `TaskTriggerDispatcher.ReloadInitialTriggers()` (line 158) | Pass `_runtimeState` to `GameTaskManager.LoadInitialTriggers(...)` |
+| 10 | **WPF** `App.xaml.cs` DI registration (line 155) | Register `IAutoPickRuntimeState` → `WindowsAutoPickRuntimeState` as singleton; DI injects it into `TaskTriggerDispatcher` automatically |
+| 11 | `Verification/Program.cs` | See §9.13 for categorized migration |
 
-**Implementation note:** Step 2 (Core GameTaskManager shim) is the only Gate for Core deletion. If the shim's `AddTrigger` signature gains a required `IAutoPickRuntimeState` parameter, the macOS composition call site (`MacAutoPickComposition` does not call `AddTrigger` — it calls `MacAutoPickComposition.Compose` directly) must also be checked. Search `rg 'AddTrigger'` in Core closure for additional callers.
+**Rules enforced:**
+- GameTaskManager (both Core shim and WPF) **receives** `IAutoPickRuntimeState`, never creates it
+- TaskTriggerDispatcher receives `IAutoPickRuntimeState` via DI, stores as field, passes to GameTaskManager
+- WindowsAutoPickRuntimeState is created **only** in the DI composition root (App.xaml.cs)
+- No optional/default runtimeState — all callers must provide one
 
-#### B10.6.2 — Source guard + delete shim
+#### B10.6.2 — Source guard + delete shim (independent commit)
+
+**Scope:** Only shim file deletion. No behavioral changes.
 
 | Step | File | Change |
 |------|------|--------|
@@ -937,11 +947,56 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 | 2 | `BetterGenshinImpact.Core/Shim/RunnerContext.cs` | Delete file |
 | 3 | `BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj` | Remove `<Compile Include="Shim/RunnerContext.cs" />` |
 | 4 | — | `dotnet build BetterGenshinImpact.Core.csproj` — zero errors |
-| 5 | — | `dotnet run` on Verification project — 112/112 |
+| 5 | — | `dotnet run` on Verification project — all pass |
+| 6 | — | WPF type-resolution check: `rg 'RunnerContext'` in WPF project — still resolves to upstream definition |
+| 7 | — | Shim count: 16 → **15** |
 
-**No intermediate `?? 0` step.** The migration goes directly from nullable-fallback to required-injection.
+**B10.6.1 and B10.6.2 are two separate implementation commits.** Do not merge them or delete the shim in B10.6.1.
 
-### 9.13 Behavior preservation table
+### 9.13 Verification migration strategy (categorized)
+
+| Category | Current pattern | Count | Action | Expected assertion count |
+|----------|----------------|-------|--------|--------------------------|
+| A — Unrelated test that happens to pass `null` | `new AutoPickTrigger(ext, null, prov, input, sys, pad, yap)` | 9 sites (lines 214, 225, 243, 246, 611, 675, 685, 691, 699) | Replace `null` with `new MacAutoPickRuntimeState(0)`. No assertion changes needed — these tests verify inputBackend, configProvider, recognizers, not runtimeState. | Unchanged |
+| B — Test that explicitly verifies null fallback behavior | `Assert("has null _runtimeState", stateNull == null)` | 2 assertions (lines 219-220, 229) | Replace with required-dependency guard: add `try { new AutoPickTrigger(..., runtimeState: null!, ...); Assert("null runtimeState should throw", false, ""); } catch (ArgumentNullException) { Assert("null runtimeState → ArgumentNullException", true, ""); }` | 2 replaced, same count |
+| C — Combined/null-other-dep test | `new AutoPickTrigger(null, null, prov, null!, ...)` — tests null inputBackend | 2 sites (lines 243, 246) | Replace `null` with `MacAutoPickRuntimeState(0)` so the intended dependency (inputBackend, configProvider) remains the first to fail | Unchanged |
+| D — null paddle/yap guard | `new AutoPickTrigger(null, null, prov, rec, sys, null!, yap)` | 2 sites (lines 743, 745) | Replace `null` with `MacAutoPickRuntimeState(0)` | Unchanged |
+
+**Expected total assertions:** 112 → 113 (one new guard assertion in category B replaces two null-field assertions; the guard test itself adds one, net +1).
+
+### 9.14 B10.6.1 gate
+
+After B10.6.1 completes, the following must all hold:
+
+- [ ] `AutoPickTrigger._runtimeState` field: non-nullable (`IAutoPickRuntimeState`, not `IAutoPickRuntimeState?`)
+- [ ] `AutoPickTrigger` constructor: `IAutoPickRuntimeState runtimeState` with `ArgumentNullException.ThrowIfNull(runtimeState)`
+- [ ] `StopCount`: `_runtimeState.StopCount` (no fallback)
+- [ ] `AutoPickTrigger.cs` comment no longer references `RunnerContext`
+- [ ] All production call sites pass non-null `IAutoPickRuntimeState`
+- [ ] Core GameTaskManager shim passes its `runtimeState` parameter to `AutoPickTrigger` (not null)
+- [ ] WPF GameTaskManager passes its `runtimeState` parameter to `AutoPickTrigger` (not null)
+- [ ] TaskTriggerDispatcher stores `IAutoPickRuntimeState` as field and passes it to GameTaskManager
+- [ ] App.xaml.cs DI registers `IAutoPickRuntimeState → WindowsAutoPickRuntimeState`
+- [ ] All Verification call sites use valid non-null runtimeState except category-B explicit null-guard tests
+- [ ] `rg '\bRunnerContext\b' BetterGenshinImpact.Core/ --type cs` — zero production references (comments excluding MacCoreRuntimeAdapter.cs line 9 remain)
+- [ ] `BetterGenshinImpact.Core/Shim/RunnerContext.cs` — file still present
+- [ ] Core csproj entry for `Shim/RunnerContext.cs` — still present
+- [ ] `dotnet build BetterGenshinImpact.Core.csproj` — zero errors
+- [ ] Verification — all pass
+- [ ] WPF build/type-resolution check — no new errors
+
+### 9.15 B10.6.2 gate
+
+- [ ] `rg '\bRunnerContext\b' BetterGenshinImpact.Core/ --type cs` — zero production references
+- [ ] Verification references to RunnerContext — zero
+- [ ] `BetterGenshinImpact.Core/Shim/RunnerContext.cs` — deleted
+- [ ] Core csproj entry removed
+- [ ] `dotnet build BetterGenshinImpact.Core.csproj` — zero errors
+- [ ] Verification — all pass
+- [ ] WPF still resolves upstream `RunnerContext` (`GameTask/RunnerContext.cs`)
+- [ ] Shim count: 16 → **15**
+
+### 9.16 Behavior preservation table
 
 | Scenario | `_runtimeState` | `StopCount` before | `StopCount` after | Delta |
 |----------|----------------|--------------------|-------------------|-------|
@@ -959,7 +1014,7 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 - WPF `GameTaskManager.AddTrigger`: pass `WindowsAutoPickRuntimeState`
 - Core `GameTaskManager` shim: accept `IAutoPickRuntimeState` parameter
 
-### 9.14 Neighboring shim relationship
+### 9.17 Neighboring shim relationship
 
 | Shim | Relationship with RunnerContext | Ordering constraint |
 |------|-------------------------------|---------------------|
@@ -972,16 +1027,33 @@ The `RunnerContext.Instance.AutoPickTriggerStopCount` fallback is **dead code on
 
 The `GameTaskManager` shim is the only neighboring shim that interacts with this audit's implementation. Its `AddTrigger` signature must gain an `IAutoPickRuntimeState` parameter. The `GameTaskManager` shim itself is not deleted — only its `null` runtimeState hardcode is replaced.
 
-### 9.15 Risks
+**WPF composition ownership chain (as discovered):**
+
+```
+App.xaml.cs DI registration
+  → services.AddSingleton<IAutoPickRuntimeState, WindowsAutoPickRuntimeState>()   ← NEW
+  → services.AddSingleton<TaskTriggerDispatcher>()                                 ← existing, DI injects IAutoPickRuntimeState
+    → TaskTriggerDispatcher.Start()  → GameTaskManager.LoadInitialTriggers(..., _runtimeState)
+    → TaskTriggerDispatcher.AddTrigger() → GameTaskManager.AddTrigger(..., _runtimeState)
+```
+
+- `TaskTriggerDispatcher` is the WPF composition entry point for triggers
+- It already stores `_inputBackend`, `_autoPickConfigProvider`, `_paddleRecognizer`, `_yapRecognizer` as constructor-injected fields via DI
+- The new `IAutoPickRuntimeState _runtimeState` field follows the same pattern
+- `WindowsAutoPickRuntimeState` is created **once** by DI and injected into `TaskTriggerDispatcher`
+- Neither `GameTaskManager` (WPF) nor `GameTaskManager` (Core shim) creates `WindowsAutoPickRuntimeState`
+
+### 9.18 Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Windows null-runtimeState call sites not fully migrated before B10.6.1 closes | **High** — would change legacy behavior | Tracked in implementation gates; all call sites audited in §9.8 |
-| Core GameTaskManager shim's `AddTrigger` signature change breaks non-Core callers | **Medium** — must verify no other callers exist | Search `AddTrigger` in Core closure |
-| Verification tests that assert null-field behavior need rewriting | **Low** — 10+ sites, mechanical change | Replace null → MacAutoPickRuntimeState(0); remove null-propagation assertions |
+| Windows null-runtimeState call sites not fully migrated before B10.6.1 closes | **High** — would change legacy behavior | Tracked in B10.6.1 gate (§9.14); all call sites audited in §9.8 |
+| Core GameTaskManager shim's `AddTrigger` signature change breaks non-Core callers | **Medium** — must verify no other callers exist | Search `AddTrigger` in Core closure; `MacAutoPickComposition` does not call AddTrigger, only `Compose()` directly |
+| Verification tests with null assertions need careful categorization | **Low** — mechanical replacement, tracked in §9.13 | Category A/B/C/D applied per site |
 | Rebase conflict with upstream changes to AutoPickTrigger constructor | **Low** — single-file change, easy to rebase | None |
+| TaskTriggerDispatcher DI registration change in App.xaml.cs affects unrelated trigger components | **Medium** — only adds `IAutoPickRuntimeState` registration, no existing registrations removed | DI container handles additive changes safely |
 
-### 9.16 Baseline validation
+### 9.19 Baseline validation
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
