@@ -2094,3 +2094,54 @@ This is a larger refactor outside B10's scope.
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 16. B10.13 Audit: Global
+
+### 16.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/Global.cs` |
+| Lines | 38 |
+| Namespace | `BetterGenshinImpact.Core.Config` |
+| Type kind | `public static class Global` |
+| WPF authoritative | `BetterGenshinImpact/Core/Config/Global.cs` (`class Global` with semantic versioning) |
+
+| Member | Implementation | Consumer count (Core-linked) |
+|--------|---------------|------------------------------|
+| `Version` | `"0.0.0-mac-core"` (hardcoded string) | 1 (BgiOnnxModel.cs — cache path) |
+| `StartUpPath` | Mutable static, defaults to `BaseDirectory` | 1 (RuntimeHelper.cs — not linked) |
+| `Absolute(string)` | Walks up directory tree to find project root, joins path | **~15 callers** across ONNX, OCR, recognition, AutoPick |
+| `ReadAllTextIfExist(string)` | Resolves path + `File.ReadAllText` | 3 (AutoPickTrigger.cs) |
+| `WriteAllText(string, string)` | Resolves path + `File.WriteAllText` | 0 (unused in Core closure) |
+
+### 16.2 Reference classification
+
+| Layer | Count |
+|-------|-------|
+| Core-preprocessed refs | **~18** across 6 files |
+| Verification refs | **Zero** |
+| Runtime reachable from AutoPick path | ✅ Yes — `Absolute` used by OCR/ONNX pipeline, `ReadAllTextIfExist` used by AutoPickTrigger.Init |
+
+### 16.3 Trial deletion
+
+6 compile errors across PaddleOcrService, PickTextInference, AutoPickTrigger, BgiOnnxModel, and others.
+
+**Not deletable.**
+
+### 16.4 Classification
+
+**Category D — keep temporarily.** Real path-resolution logic, not a no-op stub. The shim is a reduced but functional implementation of the WPF authoritative `Global` class. Core relies on path resolution (`Absolute`) for model loading, OCR configuration, and file I/O. Cannot be removed without providing equivalent path-resolution capability.
+
+### 16.5 Implementation plan
+
+Not actionable in current B10 scope. `Global.Absolute` is the central path-resolution primitive used by the entire Core pipeline. No standard-library alternative exists for the project-root walking logic.
+
+### 16.6 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
