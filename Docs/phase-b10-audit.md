@@ -2398,3 +2398,70 @@ This is a higher-priority issue than other Category D shims because it's not jus
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 21. B10.16.2 Audit: OCR Static Gateway Chain
+
+### 21.1 Crash chain
+
+```
+App.ServiceProvider
+  ├── OcrFactory.Paddle (line 18)   ← static gateway, throws NotSupportedException
+  │     ↓
+  │   ImageRegion.cs:210,310,439    ← shared source, linked in Core
+  │     ↓
+  │   AutoPick processing path
+  │
+  └── OcrFactory.CreatePaddleOcrInstance (lines 104-130) ← called if Paddle succeeds
+        ↓
+      PaddleOcrService(BgiOnnxFactory) ← also needs App.ServiceProvider
+```
+
+Also:
+```
+PickTextInference.cs:28
+  → App.ServiceProvider.GetRequiredService<BgiOnnxFactory>()
+  → used by Yap OCR recognition path
+```
+
+### 21.2 Core closure callers
+
+| Caller | App.ServiceProvider usage | Linked in Core? | macOS reachable? |
+|--------|--------------------------|-----------------|------------------|
+| `OcrFactory.cs:18` — `Paddle` static | `GetRequiredService<OcrFactory>()` | ✅ Yes | ✅ **Yes** — through ImageRegion.cs OCR path |
+| `OcrFactory.cs:104-130` — `CreatePaddleOcrInstance()` | `GetRequiredService<BgiOnnxFactory>()` | ✅ Yes | ✅ Yes (indirect via Paddle) |
+| `PickTextInference.cs:28` — ctor | `GetRequiredService<BgiOnnxFactory>()` | ✅ Yes | ✅ Yes (Yap OCR) |
+
+**All three are reachable from the macOS AutoPick OCR pipeline.**
+
+### 21.3 B9 injection gap
+
+B9 introduced `IOcrRuntimeConfigProvider` injection into OcrFactory's constructor. This was tested in Verification via `new OcrFactory(logger, runtimeConfig)`. However:
+
+- The **static** `OcrFactory.Paddle` property still uses `App.ServiceProvider.GetRequiredService<OcrFactory>()`
+- `ImageRegion.cs` calls `OcrFactory.Paddle`, not `new OcrFactory(...)`
+- B9 injection only verified the constructor path, not the production static gateway path
+
+**The B9 injection chain is correct but unused by the production call path.**
+
+### 21.4 Fix options
+
+| Option | Scope | Risk |
+|--------|-------|------|
+| **A — Inject into ImageRegion** | Pass `IOcrService` to `ImageRegion.Find()` instead of calling static `OcrFactory.Paddle` | Large — ImageRegion is shared source, propagates through all Find() callers |
+| **B — Replace OcrFactory.Paddle with instance** | Change OcrFactory from static-gateway + constructor to instance-only; have callers receive IOcrService via DI | Large — all OcrFactory.Paddle callers need updating |
+| **C — Provide minimal ServiceProvider for Core** | Make `App.ServiceProvider` return a real but minimal DI container for Core that can resolve OcrFactory and BgiOnnxFactory | Medium — requires Core composition root, risk of service locator anti-pattern |
+
+### 21.5 Recommendation
+
+**Option C (short-term)** — Provide a minimal service provider in Core that can resolve BgiOnnxFactory and OcrFactory with IOcrRuntimeConfigProvider. This is the smallest change that prevents the runtime crash.
+
+**Long-term:** Migrate callers off the static `OcrFactory.Paddle` gateway to injected `IOcrService` instances (Option A/B). This is outside current B10 scope.
+
+### 21.6 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
