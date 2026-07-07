@@ -2216,3 +2216,56 @@ PlatformServices.Input deletion deferred. DesktopRegion input methods remain Cat
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 18. B10.14.2 Audit: DesktopRegion/Input Coupling
+
+### 18.1 Call chain
+
+```
+PlatformServices.Input (5 compiled refs in DesktopRegion.cs)
+  ├── DesktopRegionClick(int,int,int,int)   — instance, called from Region.ClickTo()
+  ├── DesktopRegionMove(int,int,int,int)    — instance, called from Region.MoveTo()
+  ├── DesktopRegionClick(double,double)     — static, WPF-only callers
+  ├── DesktopRegionMove(double,double)      — static, WPF + Verification callers
+  └── DesktopRegionMoveBy(double,double)    — static, WPF-only callers
+
+Region.ClickTo() → ConvertRes<DesktopRegion> → DesktopRegionClick() → PlatformServices.Input
+Region.MoveTo()  → ConvertRes<DesktopRegion> → DesktopRegionMove() → PlatformServices.Input
+```
+
+### 18.2 Reachability
+
+| Caller | Core-compiled? | Called from any Core-linked file? |
+|--------|---------------|-----------------------------------|
+| `Region.ClickTo(x,y,w,h)` (line 158) | ✅ | ❌ **Zero** callers in Core closure |
+| `Region.MoveTo(x,y,w,h)` (line 193) | ✅ | ❌ **Zero** |
+| `Region.BackgroundClick()` (line 101) | ❌ `#if BGI_FULL_WINDOWS` | ❌ |
+| `GameCaptureRegion.GameRegionClick/Move/MoveBy` | ❌ `#if BGI_FULL_WINDOWS` | ❌ |
+| `DesktopRegion.DesktopRegionClick/Move` (static) | ✅ | ❌ Zero (except Verification tests) |
+
+**Supported macOS runtime calls to PlatformServices.Input: ZERO.** All 5 compiled refs are dead code on macOS.
+
+### 18.3 Constraint: shared source
+
+Region.cs and DesktopRegion.cs are authoritative WPF sources, linked in Core. Any change affects both targets. `#if BGI_PLATFORM_MAC` guards would work but must cover the full input method chain (DesktopRegion input methods → Region.ClickTo/MoveTo → all callers).
+
+### 18.4 Options
+
+| Option | Scope | Risk |
+|--------|-------|------|
+| **A — `#if BGI_PLATFORM_MAC`** | Guard DesktopRegion 5 methods + Region.ClickTo/MoveTo + Region.Click/Move/DoubleClick | Correct but large (WPF must keep `#else` branch); `BGI_FULL_WINDOWS` is undefined in WPF csproj |
+| **B — Parametrize with IInputBackend** | Add `IInputBackend` param to DesktopRegion/Region input methods | Huge blast radius (~100+ callers) in WPF |
+| **C — Keep Category D** | No change | Zero risk in current phase |
+
+### 18.5 Recommendation
+
+**Keep Category D.** The shared-source constraint and undefined `BGI_FULL_WINDOWS` symbol make Option A risky without confirming WPF's build configuration. Input coupling is deferred to a later phase focused on Region API architecture.
+
+### 18.6 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
