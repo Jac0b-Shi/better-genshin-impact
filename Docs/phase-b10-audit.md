@@ -1359,13 +1359,22 @@ Temporary removal of shim + csproj entry:
 |-------------|-------------------|--------------|
 | `IsNullOrEmpty(this string? s)` → `string.IsNullOrEmpty(s)` | `string.IsNullOrEmpty(s)` | ✅ Direct — just call `string.IsNullOrEmpty()` directly in consumer |
 | `IsNotNullOrEmpty(this string? s)` → `!string.IsNullOrEmpty(s)` | `!string.IsNullOrEmpty(s)` | ✅ Direct — just call `!string.IsNullOrEmpty()` directly |
-| `RemoveAllSpace(this string s)` → 4 `Replace` calls | `s.Replace(" ", "").Replace("\t", "").Replace("\n", "").Replace("\r", "")` | ✅ Direct — inline in consumer |
+| `RemoveAllSpace(this string s)` → 4 `Replace` calls | `s.Replace(" ", "").Replace("\t", "").Replace("\n", "").Replace("\r", "")` | ⚠️ Equivalent to Core shim, **NOT** equivalent to WPF authoritative `RemoveAllSpace` |
 
-**All 3 shim methods are thin wrappers expressible as standard C# expressions.** None require shim-level indirection.
+**Critical shared-source constraint:** `BetterGenshinImpact/GameTask/Model/Area/ImageRegion.cs` is the WPF authoritative physical source. Core compiles it through a linked `<Compile Include=... Link=...>` item. This means **any unconditional change affects both targets**.
+
+The two `RemoveAllSpace` implementations differ:
+
+| Implementation | Removes space | Removes tab | Removes `\n` | Removes `\r` |
+|----------------|:---:|:---:|:---:|:---:|
+| Core shim `RemoveAllSpace` | ✅ | ✅ | ✅ | ✅ |
+| WPF authoritative `RemoveAllSpace` | ✅ | ✅ | ❌ | ❌ |
+
+If `StringUtils.RemoveAllSpace(result.Text)` is replaced with the 4-Replace expression unconditionally, WPF behavior changes (would start stripping newlines). This violates the "keep upstream WPF behavior" constraint.
 
 ### 11.6 Architecture classification
 
-**Category B — Replace consumers with standard primitives, then delete shim.**
+**Category B — Replace consumers with target-specific conditional, then delete shim.**
 
 Not Category A — 2 Core-compiled consumers exist.
 Not Category C — no shared utility logic to extract; standard APIs suffice.
@@ -1387,45 +1396,66 @@ No ordering constraints. StringUtils is a utility leaf node with no inter-shim d
 
 ### 11.8 Implementation phases
 
-#### B10.8.1: Replace 2 `StringUtils.RemoveAllSpace()` calls in ImageRegion.cs with inline
+#### B10.8.1: Add target-specific helper in ImageRegion.cs; replace 2 call sites
 
-**ImageRegion.cs line 209:**
+`ImageRegion.cs` is a shared physical source (authoritative in WPF, linked in Core). Add a private helper with `#if BGI_PLATFORM_MAC` to preserve both targets' semantics:
+
+```csharp
+private static string NormalizeOcrText(string text)
+{
+#if BGI_PLATFORM_MAC
+    return text
+        .Replace(" ", "")
+        .Replace("\t", "")
+        .Replace("\n", "")
+        .Replace("\r", "");
+#else
+    return StringUtils.RemoveAllSpace(text);
+#endif
+}
+```
+
+Replace both call sites (lines 209, 309):
+
 ```csharp
 // Before:
 var text = StringUtils.RemoveAllSpace(result.Text);
 // After:
-var text = result.Text.Replace(" ", "").Replace("\t", "").Replace("\n", "").Replace("\r", "");
+var text = NormalizeOcrText(result.Text);
 ```
 
-**ImageRegion.cs line 309:**
-```csharp
-// Before:
-var text = StringUtils.RemoveAllSpace(result.Text);
-// After:
-var text = result.Text.Replace(" ", "").Replace("\t", "").Replace("\n", "").Replace("\r", "");
-```
+**Behavior preservation:**
 
-**Behavior preservation:** Identical — the shim's `RemoveAllSpace` does exactly these 4 `Replace` calls.
+| Target | Before | After | Delta |
+|--------|--------|-------|-------|
+| Core (BGI_PLATFORM_MAC) | shim: 4-char removal | NormalizeOcrText: 4-char removal | ✅ Identical |
+| WPF (no BGI_PLATFORM_MAC) | authoritative StringUtils.RemoveAllSpace: 2-char removal | NormalizeOcrText → StringUtils.RemoveAllSpace: 2-char removal | ✅ Identical |
+
+**After this step:** `rg '\bStringUtils\b' BetterGenshinImpact.Core/ --type cs` → zero production code hits (comment-only). Core preprocessing no longer requires the StringUtils type.
 
 #### B10.8.2: Delete StringUtils shim + csproj entry
 
-After B10.8.1:
 - Delete `BetterGenshinImpact.Core/Shim/StringUtils.cs`
 - Remove `<Compile Include="Shim/StringUtils.cs" />` from Core csproj
-- Source guard: `rg '\bStringUtils\b' BetterGenshinImpact.Core/ --type cs` → zero (MacCoreRuntimeAdapter comment may mention)
-- Core build 0 errors
+- Core build 0 errors (after B10.8.1, `BGI_PLATFORM_MAC` preprocessing removes the `#else` branch, so `StringUtils` is not needed)
 - Verification 112/112
+- WPF: ImageRegion's `#else` branch continues resolving WPF authoritative `StringUtils` — no build change
 - Shim count: 14 → **13**
 
-**The 2 unused extension methods (`IsNullOrEmpty`, `IsNotNullOrEmpty`) are removed without replacement — they have zero consumers in any Core-linked file.**
+**Core build gate (B10.8.2):** `dotnet build BetterGenshinImpact.Core.csproj` succeeds — the `#else` branch is removed by `BGI_PLATFORM_MAC` preprocessing, so `StringUtils` is not required at compile time.
+
+**WPF check (B10.8.2):** `ImageRegion.cs` `#else` branch continues resolving `BetterGenshinImpact.Helpers.StringUtils` (WPF authoritative source). No change to WPF newline-stripping semantics.
+
+**Source guard note:** Textual `StringUtils` references remain in `ImageRegion.cs` (inside `#else`), but they are preprocessed out of Core. `rg` should check Core-preprocessed closure, not raw physical text.
 
 ### 11.9 Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| `RemoveAllSpace` inline code duplicates logic across 2 call sites | **Low** — 2 sites, intentional for B10's "no abstraction" principle | Acceptable tradeoff; a shared helper can be extracted later if needed |
+| Unconditional inline would change WPF newline-stripping behavior | **High** — prevented by `#if BGI_PLATFORM_MAC` conditional in NormalizeOcrText | ✅ Conditional ensures both targets see their expected semantics |
+| `NormalizeOcrText` is a private helper — not reusable outside ImageRegion | **Low** — intentional; only 2 call sites exist, both in ImageRegion | No action needed |
 | WPF `StringUtils` partial class keyword may cause confusion if another partial exists | **Low** — only one WPF file uses `partial`; no other partial found | No action needed |
-| TryExtractPositiveInt references RegexHelper — would prevent linking upstream StringUtils into Core | **Low** — we chose inline replacement, not linking | Correct by design |
+| TryExtractPositiveInt references RegexHelper — prevents linking upstream StringUtils into Core | **Low** — we chose conditional inline, not linking | Correct by design |
 
 ### 11.10 Baseline validation
 
