@@ -1263,3 +1263,22 @@ Postponed. Exit condition: all 5 DesktopRegion.cs `PlatformServices.Input` refs 
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+### 10.12 B10.7.1 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Core shim `Shim/Simulation.cs` | Exists (79 lines — Simulation, SendInputFacade, KeyboardFacade, MouseFacade) | **Deleted** ✅ |
+| Core csproj entry | `<Compile Include="Shim/Simulation.cs" />` | **Removed** ✅ |
+| Replacement static facade created? | — | **No** ✅ |
+| Core production Simulation consumers | Zero | **Zero** ✅ |
+| Verification Simulation consumers | Zero | **Zero** ✅ |
+| WPF authoritative `Core/Simulator/Simulation.cs` | — | **Unchanged** ✅ |
+| GlobalMethod.cs / ClickExtension.cs | Resolve WPF Simulation | **Unchanged** ✅ |
+| AutoPickTrigger.cs Simulation comment | Comment only | **Unchanged** (comment still present) |
+| PlatformServices kept | — | **Yes** ✅ (Category D) |
+| PlatformServices compiled refs | 6 (Simulation 1 + DesktopRegion 5) | **5** (DesktopRegion 5 only) |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| WPF build — new errors from Simulation deletion | — | **Zero** — same 4 pre-existing errors remain; no Simulation/namespace/type ambiguity errors added ✅ |
+| Shim count | 15 | **14** ✅ |
