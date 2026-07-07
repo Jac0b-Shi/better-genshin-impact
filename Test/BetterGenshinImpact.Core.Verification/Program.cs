@@ -139,6 +139,7 @@ Console.WriteLine();
 Console.WriteLine("OcrFactory: IOcrRuntimeConfigProvider injection");
 using var ocrFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
+    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(),
     adapter);
 
 // Use reflection to verify injected values were adopted
@@ -155,6 +156,7 @@ Assert("OcrFactory GameCultureInfoName zh-Hans", actualCulture == "zh-Hans", $"g
 var deadProvider = new DeadProvider();
 using var fallbackFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
+    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(),
     deadProvider);
 var fallbackModel = (PaddleOcrModelConfig)(modelField?.GetValue(fallbackFactory) ?? throw new InvalidOperationException());
 var fallbackCultureField = typeof(BetterGenshinImpact.Core.Recognition.OCR.OcrFactory)
@@ -169,6 +171,7 @@ Assert("Fallback culture matches default", fallbackCulture == expectedCulture, $
 var whiteProvider = new CultureOnlyProvider("   ");
 using var whitespaceFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
+    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(),
     whiteProvider);
 var whiteCulture = (string)(fallbackCultureField?.GetValue(whitespaceFactory) ?? throw new InvalidOperationException());
 Assert("Whitespace culture falls back to default", whiteCulture == expectedCulture, $"got {whiteCulture}");

@@ -5,7 +5,6 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition.OCR.Paddle;
 using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.Core.Recognition.OCR;
@@ -14,22 +13,50 @@ public class OcrFactory : IDisposable
 {
     // public static IOcrService Media = Create(OcrEngineTypes.Media);
 
+    private static OcrFactory? _defaultInstance;
+    private static readonly object _defaultLock = new();
 
-    public static IOcrService Paddle => App.ServiceProvider.GetRequiredService<OcrFactory>().PaddleOcr;
+    /// <summary>
+    /// Default static Paddle OCR service. Uses a lazily-created default OcrFactory.
+    /// For custom configuration, construct OcrFactory directly with constructor injection.
+    /// </summary>
+    public static IOcrService Paddle
+    {
+        get
+        {
+            if (_defaultInstance == null)
+            {
+                lock (_defaultLock)
+                {
+                    _defaultInstance ??= new OcrFactory(
+                        Microsoft.Extensions.Logging.Abstractions.NullLogger<BgiOnnxFactory>.Instance,
+                        new BgiOnnxFactory(),
+                        new Core.Adapters.MacCoreRuntimeAdapter(
+                            new GameTask.AutoPick.AutoPickConfig(),
+                            PaddleOcrModelConfig.V5,
+                            "zh-Hans"));
+                }
+            }
+            return _defaultInstance.PaddleOcr;
+        }
+    }
     private IOcrService PaddleOcr => _paddleOcrService ??= Create(OcrEngineTypes.Paddle);
 
     private IOcrService? _paddleOcrService;
     private readonly ILogger<BgiOnnxFactory> _logger;
+    private readonly BgiOnnxFactory _onnxFactory;
     private readonly PaddleOcrModelConfig _paddleModel;
     private readonly string _gameCultureInfoName;
 
     /// <summary>
     ///  OCR 工厂
     /// </summary>
-    public OcrFactory(ILogger<BgiOnnxFactory> logger, IOcrRuntimeConfigProvider runtimeConfig)
+    public OcrFactory(ILogger<BgiOnnxFactory> logger, BgiOnnxFactory onnxFactory, IOcrRuntimeConfigProvider runtimeConfig)
     {
         ArgumentNullException.ThrowIfNull(runtimeConfig);
+        ArgumentNullException.ThrowIfNull(onnxFactory);
         _logger = logger;
+        _onnxFactory = onnxFactory;
         _paddleModel = LoadPaddleModel(runtimeConfig);
         _gameCultureInfoName = LoadGameCultureInfoName(runtimeConfig);
     }
@@ -101,33 +128,33 @@ public class OcrFactory : IDisposable
         return _paddleModel switch
         {
             PaddleOcrModelConfig.V4Auto =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfoV4(GetCultureInfo()) ??
                     PaddleOcrService.PaddleOcrModelType.V4),
             PaddleOcrModelConfig.V5Auto =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfo(GetCultureInfo()) ??
                     PaddleOcrService.PaddleOcrModelType.V5),
             PaddleOcrModelConfig.V5 =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V5),
             PaddleOcrModelConfig.V6 =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V6),
             PaddleOcrModelConfig.V4 =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V4),
             PaddleOcrModelConfig.V4En =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V4En),
             PaddleOcrModelConfig.V5Korean =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V5Korean),
             PaddleOcrModelConfig.V5Latin =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V5Latin),
             PaddleOcrModelConfig.V5Eslav =>
-                new PaddleOcrService(App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+                new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V5Eslav),
             _ => throw new ArgumentOutOfRangeException(nameof(_paddleModel),
                 _paddleModel, "不支持的 Paddle OCR 模型配置")

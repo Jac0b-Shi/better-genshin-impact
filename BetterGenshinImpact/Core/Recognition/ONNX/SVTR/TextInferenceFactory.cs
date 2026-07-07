@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.Core.Recognition.OpenCv;
 using OpenCvSharp;
 
@@ -6,13 +7,14 @@ namespace BetterGenshinImpact.Core.Recognition.ONNX.SVTR;
 
 public class TextInferenceFactory
 {
-    public static readonly Lazy<ITextInference> Pick = new(() => Create(OcrEngineTypes.YapModel));
+    public static readonly Lazy<ITextInference> Pick = new(() => Create(OcrEngineTypes.YapModel, new BgiOnnxFactory()));
 
-    public static ITextInference Create(OcrEngineTypes type)
+    public static ITextInference Create(OcrEngineTypes type, BgiOnnxFactory onnxFactory)
     {
+        ArgumentNullException.ThrowIfNull(onnxFactory);
         return type switch
         {
-            OcrEngineTypes.YapModel => new PickTextInference(),
+            OcrEngineTypes.YapModel => new PickTextInference(onnxFactory),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
         };
     }
