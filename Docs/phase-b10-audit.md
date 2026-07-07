@@ -1793,3 +1793,105 @@ After the `#if !BGI_PLATFORM_MAC` guard is applied:
 | WPF build — new errors | — | **Zero** (same 4 pre-existing) ✅ |
 | Shim count | 12 | **11** ✅ |
 | TaskControl chain status | CaptureToRectArea deleted, Sleep migrated, Logger guarded | **Complete** ✅ |
+
+---
+
+## 13. B10.10 Audit: ThemedMessageBox
+
+### 13.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/ThemedMessageBox.cs` |
+| Lines | 21 |
+| Namespace | `BetterGenshinImpact.View.Windows` |
+| Type kind | `public static class ThemedMessageBox` |
+| Members | `IUserInteractionService? UserInteraction { get; set; }` (mutable static, nullable), `Error(string)`, `Warning(string)` |
+| Mechanism | `UserInteraction?.ShowError(message)` — null-safe no-op when UserInteraction is null |
+| WPF authoritative type | `BetterGenshinImpact/View/Windows/ThemedMessageBox.xaml.cs` — `partial class ThemedMessageBox : FluentWindow` (full WPF UI window) |
+| Origin | Created in commit `32590fc` (macOS port) |
+
+### 13.2 Reference classification
+
+| Layer | References | Notes |
+|-------|-----------|-------|
+| Textual refs | ~50 across WPF + 3 in Core-linked files | |
+| Core-preprocessed | **3** — all in `AutoPickTrigger.cs` (linked) | `ThemedMessageBox.Error(...)` in ReadJson/ReadText helpers |
+| Supported-runtime reachable | **3** — called when pick list files fail to load (error dialogs) | On macOS, the null-conditional operator silently no-ops |
+| Verification | **Zero** | |
+
+### 13.3 Consumer detail
+
+| # | File | Line | Call | macOS effect |
+|---|------|------|------|-------------|
+| 1 | `AutoPickTrigger.cs` | 131 | `ThemedMessageBox.Error("读取拾取黑/白名单失败...")` | No-op (`UserInteraction` is null) |
+| 2 | `AutoPickTrigger.cs` | 151 | `ThemedMessageBox.Error("读取拾取黑/白名单失败...")` | No-op |
+| 3 | `AutoPickTrigger.cs` | 171 | `ThemedMessageBox.Error("读取拾取黑/白名单失败...")` | No-op |
+
+All 3 calls are in `catch` blocks for JSON/text file loading failures. The shim's null-safe `?.ShowError()` is already safe — no crashes, no behavioral impact.
+
+### 13.4 Architecture classification
+
+| Check | Answer |
+|-------|--------|
+| Static gateway? | **Yes** — `UserInteraction` is a mutable static property |
+| Null!/no-op default? | **Yes** — null default means silent no-op on macOS |
+| Core consumers with runtime reachability? | **3** — error dialogs, safe no-op |
+| Verification refs? | Zero |
+| WPF authoritative type? | `ThemedMessageBox : FluentWindow` — full WPF window, not shared source |
+| Can shim be deleted? | Not until AutoPickTrigger's 3 `ThemedMessageBox.Error()` calls are removed or guarded |
+
+**Category D/B temporary shim.** Three compiled consumers prevent deletion. The null-safe `?.ShowError()` pattern means the shim is already safe — it just silently drops UI dialogs on macOS.
+
+### 13.5 Options
+
+**A — Guard AutoPickTrigger.Error calls with `#if !BGI_PLATFORM_MAC`:**
+- Removes the 3 Error dialog calls from Core
+- WPF continues using authoritative ThemedMessageBox
+- Risk: macOS loses diagnostic popups on file loading failures (already getting no-op)
+- Needs `using BetterGenshinImpact.View.Windows` guarded or conditional
+
+**B — Replace with logger:**
+- `ThemedMessageBox.Error(...)` → `_logger.LogError(...)`
+- AutoPickTrigger already has `ILogger<AutoPickTrigger>` at line 27
+- Risk: lowest — replaces UI popup with log message, better than silent no-op
+
+**C — Keep temporarily (Category D):**
+- No change
+- Shim already null-safe, no crash risk
+
+**Recommendation: Option B** — AutoPickTrigger already has `_logger`. Replace the 3 `ThemedMessageBox.Error(...)` calls with `_logger.LogError(...)`.
+- Core: gets structured log instead of silent no-op (improvement)
+- WPF: loses UI popup, gets structured log (acceptable — callers already log the exception)
+- Risk: lowest — no new dependency, no shared source issue (AutoPickTrigger is Core-linked)
+
+### 13.6 Minimal implementation plan
+
+#### B10.10.1: Replace ThemedMessageBox.Error calls in AutoPickTrigger
+
+3 call sites, all in `catch` blocks:
+
+```csharp
+// Before:
+ThemedMessageBox.Error("读取拾取黑/白名单失败...");
+// After:
+_logger.LogError("读取拾取黑/白名单失败: {Path}", jsonFilePath);
+```
+
+Same for both ReadJson and ReadText variants. AutoPickTrigger already has `_logger` at line 27.
+
+#### B10.10.2: Delete ThemedMessageBox shim
+
+After B10.10.1:
+- Delete `BetterGenshinImpact.Core/Shim/ThemedMessageBox.cs`
+- Remove csproj entry
+- Core build 0 errors
+- Verification 112/112
+- Shim count: 11 → **10**
+
+### 13.7 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
