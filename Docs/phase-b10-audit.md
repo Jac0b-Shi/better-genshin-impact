@@ -1895,3 +1895,19 @@ After B10.10.1:
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+### 13.8 B10.10.1 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `ThemedMessageBox.Error(...)` in AutoPickTrigger | 3 calls (lines 131, 151, 171) | **Removed** ✅ |
+| Replacement | — | Existing `_logger.LogError(e, ...)` at same lines ✅ |
+| `using BetterGenshinImpact.View.Windows` in AutoPickTrigger | Present | **Removed** (unused) ✅ |
+| Core shim `Shim/ThemedMessageBox.cs` | Exists (21 lines) | **Deleted** ✅ |
+| Core csproj entry | `<Compile Include="Shim/ThemedMessageBox.cs" />` | **Removed** ✅ |
+| Core-preprocessed ThemedMessageBox refs | 3 | **Zero** ✅ |
+| Verification refs | Zero | **Zero** ✅ |
+| WPF authoritative `ThemedMessageBox : FluentWindow` | — | **Unchanged** ✅ |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| Shim count | 11 | **10** ✅ |
