@@ -2325,3 +2325,76 @@ No migration needed. MacSystemInfo is a valid platform implementation. The file 
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 20. B10.16 Audit: App.cs
+
+### 20.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/App.cs` |
+| Lines | 20 |
+| Namespace | `BetterGenshinImpact` |
+| Type kind | `public static class App` |
+| WPF authoritative | `BetterGenshinImpact/App.xaml.cs` — `partial class App : Application` |
+
+| Member | Implementation | Core consumer count |
+|--------|---------------|-------------------|
+| `Initialize(ILoggerFactory)` | Sets logger factory | 1 (Verification) |
+| `GetLogger<T>()` | Creates logger from factory or NullLoggerFactory | 4 (AutoPickTrigger, AutoPickAssets, MatchTemplateHelper, DeviceIdHelper) |
+| `GetService<T>()` | **Throws `NotSupportedException`** | 1 (BaseTaskParam — WPF-only, not linked) |
+| `ServiceProvider` | **Throws `NotSupportedException`** | 2 (OcrFactory.Paddle, PickTextInference) |
+
+### 20.2 Reference classification
+
+| Member | Core-preprocessed | Runtime reachable on macOS | Risk |
+|--------|-----------------|---------------------------|------|
+| `GetLogger<T>()` | ✅ 4 callers | ✅ Used throughout pipeline | **Low** — returns NullLogger when not initialized |
+| `ServiceProvider` | ✅ 2 callers | ✅ **OcrFactory.Paddle** called from `ImageRegion.Find()` OCR path | **HIGH** — throws `NotSupportedException`, crashes AutoPick OCR |
+| `GetService<T>()` | ❌ BaseTaskParam not linked in Core | ❌ | None in Core |
+
+### 20.3 Critical finding: ServiceProvider throws
+
+`App.ServiceProvider` and `App.GetService<T>()` both throw `NotSupportedException`. The shim comment says `"App.ServiceProvider not available in Core."` However:
+
+1. `OcrFactory.Paddle` (line 18) accesses `App.ServiceProvider.GetRequiredService<OcrFactory>()` — this is called from **shared source** `ImageRegion.cs:210,310,439` in the OCR processing path.
+2. `PickTextInference.cs:28` accesses `App.ServiceProvider.GetRequiredService<BgiOnnxFactory>()` — this is called during Yap OCR initialization.
+
+**If the macOS AutoPick OCR path calls `ImageRegion.Find()` with an OCR recognition type, it will crash at runtime.** The B9 tests bypass this through injected `IOcrRuntimeConfigProvider`, but the production ImageRegion code still uses the static `OcrFactory.Paddle` gateway.
+
+### 20.4 Verification
+
+Verification calls `App.Initialize(loggerFactory)` during setup, which sets the logger factory. The `ServiceProvider` path is not tested in Verification (OcrFactory tests use direct injection).
+
+### 20.5 Classification
+
+| Member | Classification | Rationale |
+|--------|---------------|-----------|
+| `Initialize` | **D** — needed for logger setup | Required by Verification |
+| `GetLogger<T>()` | **D** — functional | Returns NullLogger when factory not set |
+| `GetService<T>()` | **A** — dead member in Core | Zero linked consumers |
+| `ServiceProvider` | **D** — latent crash risk | Called from OcrFactory path — `NotSupportedException` is a hidden defect |
+
+### 20.6 Recommendation
+
+**Category D — keep temporarily.** The `ServiceProvider` throwing is a latent crash risk that should be addressed, but the fix involves either:
+- Injecting dependencies into OcrFactory (bypassing `App.ServiceProvider`)
+- Making `ServiceProvider` return a minimal DI container for Core
+- Guarding `OcrFactory.Paddle` with `#if` to prevent runtime crash
+
+This is a higher-priority issue than other Category D shims because it's not just dead code — it's a potential runtime failure. However, fixing it is beyond a simple "delete shim" change.
+
+| Priority zone | Shim | Risk |
+|---------------|------|------|
+| 🔴 **Crash risk** | `App.cs` (ServiceProvider) | OcrFactory crashes on macOS OCR path |
+| 🟡 Dead code | DrawableStubs, PlatformServices.Input | Compiled but unreachable |
+| 🟢 Functional | Global, MacSystemInfo, BvStubs.ImRead | Working correctly |
+
+### 20.7 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
