@@ -5,6 +5,9 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition.OCR.Paddle;
 using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
+#if !BGI_PLATFORM_MAC
+using Microsoft.Extensions.DependencyInjection;
+#endif
 using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.Core.Recognition.OCR;
@@ -13,33 +16,13 @@ public class OcrFactory : IDisposable
 {
     // public static IOcrService Media = Create(OcrEngineTypes.Media);
 
-    private static OcrFactory? _defaultInstance;
-    private static readonly object _defaultLock = new();
-
+#if !BGI_PLATFORM_MAC
     /// <summary>
-    /// Default static Paddle OCR service. Uses a lazily-created default OcrFactory.
-    /// For custom configuration, construct OcrFactory directly with constructor injection.
+    /// WPF-only: resolves Paddle OCR service via the Windows DI container.
+    /// Not available in Core — use constructor injection with IOcrRuntimeConfigProvider.
     /// </summary>
-    public static IOcrService Paddle
-    {
-        get
-        {
-            if (_defaultInstance == null)
-            {
-                lock (_defaultLock)
-                {
-                    _defaultInstance ??= new OcrFactory(
-                        Microsoft.Extensions.Logging.Abstractions.NullLogger<BgiOnnxFactory>.Instance,
-                        new BgiOnnxFactory(),
-                        new Core.Adapters.MacCoreRuntimeAdapter(
-                            new GameTask.AutoPick.AutoPickConfig(),
-                            PaddleOcrModelConfig.V5,
-                            "zh-Hans"));
-                }
-            }
-            return _defaultInstance.PaddleOcr;
-        }
-    }
+    public static IOcrService Paddle => global::BetterGenshinImpact.App.ServiceProvider.GetRequiredService<OcrFactory>().PaddleOcr;
+#endif
     private IOcrService PaddleOcr => _paddleOcrService ??= Create(OcrEngineTypes.Paddle);
 
     private IOcrService? _paddleOcrService;

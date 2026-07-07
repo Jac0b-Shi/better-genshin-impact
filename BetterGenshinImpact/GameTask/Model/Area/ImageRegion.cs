@@ -207,8 +207,12 @@ public class ImageRegion : Region
                 roi = new Mat(SrcMat, ro.RegionOfInterest);
             }
 
+#if !BGI_PLATFORM_MAC
             var result = OcrFactory.Paddle.OcrResult(roi);
             var text = NormalizeOcrText(result.Text);
+#else
+            var text = NormalizeOcrText(string.Empty);
+#endif
             // 替换可能出错的文本
             foreach (var entry in ro.ReplaceDictionary)
             {
@@ -307,8 +311,12 @@ public class ImageRegion : Region
                 }
             }
 
+#if !BGI_PLATFORM_MAC
             var result = OcrFactory.Paddle.OcrResult(roi);
             var text = NormalizeOcrText(result.Text);
+#else
+            var text = NormalizeOcrText(string.Empty);
+#endif
 
             if (!string.IsNullOrEmpty(text))
             {
@@ -436,6 +444,7 @@ public class ImageRegion : Region
                 roi = new Mat(SrcMat, ro.RegionOfInterest);
             }
 
+#if !BGI_PLATFORM_MAC
             var result = OcrFactory.Paddle.OcrResult(roi);
 
             if (result.Regions.Length > 0)
@@ -479,6 +488,9 @@ public class ImageRegion : Region
                 failAction?.Invoke();
                 return [];
             }
+#else
+            return [];
+#endif
         }
         else
         {
