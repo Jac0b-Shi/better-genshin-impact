@@ -12,9 +12,6 @@ public static class App
     public static ILogger<T> GetLogger<T>() =>
         (_factory ?? NullLoggerFactory.Instance).CreateLogger<T>();
 
-    public static T? GetService<T>() where T : class =>
-        throw new NotSupportedException($"App.GetService<{typeof(T).Name}>() not supported in Core.");
-
     public static IServiceProvider ServiceProvider =>
         throw new NotSupportedException("App.ServiceProvider not available in Core.");
 }
