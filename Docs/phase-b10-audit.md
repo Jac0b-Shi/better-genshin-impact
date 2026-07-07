@@ -1665,3 +1665,17 @@ After B10.9.1–3, Core-preprocessed references to TaskControl are zero:
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+### 12.11 B10.9.1 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `TaskControl.CaptureToRectArea()` in shim | Present (empty Mat placeholder) | **Removed** ✅ |
+| Core consumers of `CaptureToRectArea()` | Zero | **Zero** ✅ |
+| Verification consumers | Zero | **Zero** ✅ |
+| WPF authoritative `CaptureToRectArea()` | — | **Unchanged** ✅ |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| Logger / Sleep in shim | Retained | **Retained** (Category D) ✅ |
+| Shim count | 13 | **12** ✅ |
+| B10.9.1 status | — | **Complete** ✅ |
