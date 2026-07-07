@@ -2269,3 +2269,59 @@ Region.cs and DesktopRegion.cs are authoritative WPF sources, linked in Core. An
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 19. B10.15 Audit: MacSystemInfo
+
+### 19.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/MacSystemInfo.cs` |
+| Lines | 51 |
+| Namespace | `BetterGenshinImpact.GameTask` |
+| Type kind | `public class MacSystemInfo : ISystemInfo` |
+| Comment | `"TEMPORARY VERIFICATION SHIM: macOS ISystemInfo implementation. NOT a long-term architecture."` |
+
+**MacSystemInfo is NOT a compatibility shim for a WPF type — it is the authoritative macOS implementation of `ISystemInfo`.** The WPF equivalent is `BetterGenshinImpact/GameTask/Model/SystemInfo.cs` which implements the same `ISystemInfo` interface for Windows.
+
+| Member | Type | Core runtime reachable? | Notes |
+|--------|------|------------------------|-------|
+| `DisplaySize` | `Size` | ✅ Used by ISystemInfo consumers | 1920x1080 default |
+| `GameScreenSize` | `BgiRect` | ✅ | 1920x1080 default |
+| `AssetScale` | `double` | ✅ | 1.0 default |
+| `ScaleTo1080PRatio` | `double` | ✅ | 1.0 default |
+| `CaptureAreaRect` | `BgiRect` | ✅ | Mutable, set by GameWindowMetrics |
+| `GameProcess` | `Process?` | ✅ | Returns `null` — no process handle on macOS |
+| `DesktopRectArea` | `DesktopRegion` | ✅ | Created via `new DesktopRegion()` |
+
+### 19.2 References
+
+| Source | Reference type | Count |
+|--------|---------------|-------|
+| Self-definition | `class MacSystemInfo : ISystemInfo` | 1 |
+| Verification `Program.cs` | `new MacSystemInfo()` construction | 1 |
+| `ISystemInfo` interface consumers | Polymorphic usage via interface | ~15+ across Core pipeline |
+
+### 19.3 Classification
+
+**Not a shim — this is the macOS platform implementation of `ISystemInfo`.**
+
+The file is physically located in `Shim/` but serves a fundamentally different role from the other shims. It provides real platform-specific data (default resolution, scaling, no process handle). It cannot be deleted because:
+1. It implements `ISystemInfo` which is required throughout the Core pipeline
+2. No alternative macOS ISystemInfo implementation exists
+3. Verification explicitly creates it
+
+**Category: Platform adapter (not a shim).** Should be moved out of `Shim/` directory in a future cleanup, but functionality is correct and required.
+
+### 19.4 Implementation plan
+
+No migration needed. MacSystemInfo is a valid platform implementation. The file name and directory are misleading but the code is correct.
+
+### 19.5 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
