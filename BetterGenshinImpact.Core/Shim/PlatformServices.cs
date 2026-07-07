@@ -8,5 +8,4 @@ namespace BetterGenshinImpact;
 public static class PlatformServices
 {
     public static IInputBackend Input { get; set; } = null!;
-    public static IUserInteractionService? UserInteraction { get; set; }
 }
