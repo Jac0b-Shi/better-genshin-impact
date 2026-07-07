@@ -1457,9 +1457,22 @@ var text = NormalizeOcrText(result.Text);
 | WPF `StringUtils` partial class keyword may cause confusion if another partial exists | **Low** — only one WPF file uses `partial`; no other partial found | No action needed |
 | TryExtractPositiveInt references RegexHelper — prevents linking upstream StringUtils into Core | **Low** — we chose conditional inline, not linking | Correct by design |
 
-### 11.10 Baseline validation
+### 11.11 B10.8 Implementation Result
 
-```
-dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
-```
+| Metric | Before | After |
+|--------|--------|-------|
+| `NormalizeOcrText` helper | — | Added as `private static` in ImageRegion with `#if BGI_PLATFORM_MAC` ✅ |
+| ImageRegion line 209 call | `StringUtils.RemoveAllSpace(result.Text)` | `NormalizeOcrText(result.Text)` ✅ |
+| ImageRegion line 309 call | `StringUtils.RemoveAllSpace(result.Text)` | `NormalizeOcrText(result.Text)` ✅ |
+| Core behavior (`BGI_PLATFORM_MAC` branch) | shim: 4-char removal | 4 explicit `Replace` calls — same ✅ |
+| WPF behavior (`#else` branch) | authoritative `StringUtils.RemoveAllSpace`: 2-char removal | Same — calls into authoritative source ✅ |
+| WPF authoritative `StringUtils.cs` | — | **Unchanged** ✅ |
+| Core shim `Shim/StringUtils.cs` | Exists (8 lines) | **Deleted** ✅ |
+| Core csproj entry | `<Compile Include="Shim/StringUtils.cs" />` | **Removed** ✅ |
+| Unused extension methods | `IsNullOrEmpty`, `IsNotNullOrEmpty` | Removed with shim (zero consumers) ✅ |
+| Core-preprocessed StringUtils dependency | 2 refs (via shim) | **Zero** (textual `#else` ref preprocessed out) ✅ |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| WPF build — new errors from this change | — | **Zero** — only same 4 pre-existing errors remain ✅ |
+| Shim count | 14 | **13** ✅ |
+| B10.8 status | — | **Complete** ✅ |

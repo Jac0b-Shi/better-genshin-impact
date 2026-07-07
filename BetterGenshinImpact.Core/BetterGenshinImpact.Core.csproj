@@ -171,7 +171,6 @@
     <Compile Include="Shim/Global.cs" />
     <Compile Include="Shim/MacSystemInfo.cs" />
     <Compile Include="Shim/PlatformServices.cs" />
-    <Compile Include="Shim/StringUtils.cs" />
     <Compile Include="Shim/TaskControl.cs" />
     <Compile Include="Shim/ThemedMessageBox.cs" />
   </ItemGroup>

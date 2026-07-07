@@ -206,7 +206,7 @@ public class ImageRegion : Region
             }
 
             var result = OcrFactory.Paddle.OcrResult(roi);
-            var text = StringUtils.RemoveAllSpace(result.Text);
+            var text = NormalizeOcrText(result.Text);
             // 替换可能出错的文本
             foreach (var entry in ro.ReplaceDictionary)
             {
@@ -306,7 +306,7 @@ public class ImageRegion : Region
             }
 
             var result = OcrFactory.Paddle.OcrResult(roi);
-            var text = StringUtils.RemoveAllSpace(result.Text);
+            var text = NormalizeOcrText(result.Text);
 
             if (!string.IsNullOrEmpty(text))
             {
@@ -489,5 +489,19 @@ public class ImageRegion : Region
         _cacheImage?.Dispose();
         _cacheGreyMat?.Dispose();
         SrcMat.Dispose();
+    }
+
+    private static string NormalizeOcrText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+#if BGI_PLATFORM_MAC
+        return text
+            .Replace(" ", "")
+            .Replace("\t", "")
+            .Replace("\n", "")
+            .Replace("\r", "");
+#else
+        return StringUtils.RemoveAllSpace(text);
+#endif
     }
 }
