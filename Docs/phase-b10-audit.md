@@ -1776,3 +1776,20 @@ After the `#if !BGI_PLATFORM_MAC` guard is applied:
 |------|----------|------------|
 | Losing diagnostic log on macOS reduces debuggability | **Low** — edge case error that doesn't affect core behavior | Acceptable for B10 phase; can be addressed by full DI injection later |
 | WPF behavior unaffected | ✅ Verifiable by inspection — `#if !BGI_PLATFORM_MAC` ensures WPF continues using authoritative TaskControl.Logger | Not a risk |
+
+### 12.14 B10.9.4 Implementation Result
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `ImageRegion.cs` Logger call | Unconditional `TaskControl.Logger.LogError(...)` | Guarded with `#if !BGI_PLATFORM_MAC` ✅ |
+| Core behavior | NullLogger — silent discard | Removed via `#if` — no TaskControl dependency ✅ |
+| WPF behavior | Authoritative `TaskControl.Logger.LogError(...)` | Same — `#else` preserves original ✅ |
+| Core shim `Shim/TaskControl.cs` | Exists (11 lines → 8 → removed CaptureToRectArea → removed) | **Deleted** ✅ |
+| Core csproj entry | `<Compile Include="Shim/TaskControl.cs" />` | **Removed** ✅ |
+| Core-preprocessed TaskControl refs | 2 (Sleep + Logger) → 1 (Logger only) | **Zero** ✅ |
+| WPF authoritative `TaskControl.cs` | — | **Unchanged** ✅ |
+| Core build | 0 errors | **0 errors** ✅ |
+| Core Verification | 112/112 | **112/112** ✅ |
+| WPF build — new errors | — | **Zero** (same 4 pre-existing) ✅ |
+| Shim count | 12 | **11** ✅ |
+| TaskControl chain status | CaptureToRectArea deleted, Sleep migrated, Logger guarded | **Complete** ✅ |
