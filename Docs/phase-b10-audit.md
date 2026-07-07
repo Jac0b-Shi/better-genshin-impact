@@ -2023,3 +2023,74 @@ After B14.8.1:
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 15. B10.12 Audit: DrawableStubs
+
+### 15.1 Current shim
+
+| Aspect | Detail |
+|--------|--------|
+| File | `BetterGenshinImpact.Core/Shim/DrawableStubs.cs` |
+| Lines | 41 |
+| Namespace | `BetterGenshinImpact.View.Drawable` |
+| Types | `RectDrawable`, `LineDrawable`, `DrawContent`, `DrawableRect`, `VisionContext` |
+| Comment | `"Temporary stub types for WPF overlay drawing consumed by linked Region.cs / ImageRegion.cs. Cannot be deleted until drawing guards (#if BGI_FULL_WINDOWS) or upstream changes."` |
+
+| Type | Shim members | WPF authoritative |
+|------|-------------|-------------------|
+| `RectDrawable` | `Name` property only | Full class with properties + static extension class |
+| `LineDrawable` | `Name` property only | Full class with properties |
+| `DrawContent` | `List<object>?`, no-op methods | Full class with draw operations |
+| `DrawableRect` | Simple constructor stub | Full WPF overlay type |
+| `VisionContext` | Singleton + `DrawContent` property | WPF overlay context |
+
+### 15.2 Reference closure
+
+| Type | Core-preprocessed refs | Source files |
+|------|----------------------|-------------|
+| `RectDrawable` | ✅ Region.cs (constructors, ToRectDrawable), ImageRegion.cs (method calls) | Shared linked sources |
+| `LineDrawable` | ✅ Region.cs (ToLineDrawable) | Shared linked source |
+| `DrawContent` | ✅ Region.cs (constructor, field), ImageRegion.cs (PutRect/RemoveRect) | Shared linked sources |
+| `DrawableRect` | ❌ Only used in WPF GameCaptureRegion inside `#if BGI_FULL_WINDOWS` | Excluded from Core |
+| `VisionContext` | ✅ Region.cs:70 (fallback default when drawContent is null) | Shared linked source |
+
+**Verification refs:** Zero.
+
+### 15.3 Trial deletion result
+
+| Error | File | Message |
+|-------|------|---------|
+| CS0234 | `ImageRegion.cs` | `'View' namespace not found` |
+| CS0234 | `Region.cs` | `'View' namespace not found` |
+| CS0234 | `GameCaptureRegion.cs` | `'View' namespace not found` |
+| CS0246 | `Region.cs:62` | `DrawContent` type not found |
+| CS0246 | `ImageRegion.cs:57` | `DrawContent` type not found |
+
+**Cannot delete — types required at compile time for shared source Region.cs, ImageRegion.cs, GameCaptureRegion.cs.**
+
+### 15.4 Architecture classification
+
+**Category D — keep temporarily.** These are compile-time type stubs for the WPF overlay drawing system. The types are deeply integrated into the `Region` class hierarchy (constructor parameter, field, method return types). Unlike StringUtils (simple inline replacement), these types:
+- Form part of Region's public API (constructor params, return types)
+- Are used across the entire Region hierarchy
+- Cannot be guarded with `#if BGI_PLATFORM_MAC` without changing the public API of Region (breaking both targets)
+
+The comment's assessment is accurate: "Cannot be deleted until drawing guards or upstream changes."
+
+### 15.5 Recommendation
+
+**Keep as Category D.** No actionable migration plan in current B10 scope. The `#if BGI_FULL_WINDOWS` approach would require:
+1. Defining `BGI_FULL_WINDOWS` in WPF csproj (currently not defined anywhere)
+2. Guarding all drawing-related methods in Region/ImageRegion
+3. Preserving Region public API for geometry methods but removing drawing methods
+
+This is a larger refactor outside B10's scope.
+
+### 15.6 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
