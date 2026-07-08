@@ -2844,33 +2844,59 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 
 ---
 
-## 25. B10.18.2 Audit: AutoPickAssets Logger
+## 25. B10.18.2 Audit Correction: AutoPickAssets Logger Construction Chain
 
 ### 25.1 Type shape
 
 | Aspect | Detail |
 |--------|--------|
 | Class | `public class AutoPickAssets : BaseAssets<AutoPickAssets>` |
-| Constructor params | Currently only `ISystemInfo` via private ctor |
+| Instance members | Private ctor `(ISystemInfo)`; `Configure(IAutoPickConfigProvider)` |
 | `App.GetLogger` ref | Line 15: `ILogger<AutoPickAssets> _logger = App.GetLogger<AutoPickAssets>()` |
-| Logger usage | 3 calls in `Configure()`: `LogDebug`, `LogError`, `LogInformation` (diagnostic only) |
-| Core-preprocessed | ✅ Yes — file is linked in Core csproj |
+| Logger usage | 3 calls in `Configure()`: `LogDebug`, `LogError`, `LogInformation` (diagnostic only — surrounding catch performs required fallback, migration must not alter that) |
+| Core-preprocessed | ✅ Yes — linked file in Core csproj |
 
-### 25.2 Construction chain
+### 25.2 All construction paths
 
-`AutoPickAssets.Initialize(systemInfo, configProvider)` → `new AutoPickAssets(systemInfo)` → `Configure(configProvider)`.
+| # | Path | Entry point | Constructor | Compiled in? | Runtime reachable? |
+|---|------|------------|-------------|-------------|-------------------|
+| 1 | Production (Core) | `MacAutoPickComposition.Compose()` → `AutoPickAssets.Initialize(systemInfo, configProvider)` | `private AutoPickAssets(ISystemInfo)` | ✅ Core + WPF | ✅ macOS AutoPick |
+| 2 | Production (WPF) | `GameTaskManager.LoadInitialTriggers()` → `AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider)` | Same as #1 | ✅ WPF | ✅ WPF |
+| 3 | Verification | `Program.cs` (9 call sites) → `AutoPickAssets.Initialize(systemInfo, provider)` | Same as #1 | ✅ Test | ✅ Test |
+| 4 | Legacy parameterless | `#if BGI_FULL_WINDOWS private AutoPickAssets()` | Parameterless | ❌ `BGI_FULL_WINDOWS` defined in neither csproj | ❌ Never compiled |
+| 5 | Inherited singleton | `BaseAssets<AutoPickAssets>.Instance` / `Singleton<AutoPickAssets>.Instance` | `Activator.CreateInstance(typeof(T), true)` → private parameterless | ✅ Compiled | ❌ **No callers in codebase** |
 
-Unlike `MatchTemplateHelper` (static utility), `AutoPickAssets` has an explicit instance construction path. The private constructor already receives `ISystemInfo`. Adding `ILogger<AutoPickAssets>` as a required parameter is the correct dependency injection approach.
+**Path 4 is never compiled** — `BGI_FULL_WINDOWS` is not defined in any csproj (confirmed in B10.7 audit).
 
-### 25.3 Implementation plan
+**Path 5 has zero textual references** — `rg "BaseAssets<AutoPickAssets>.Instance|Singleton<AutoPickAssets>.Instance"` returns nothing. The inherited `Singleton<T>.Instance` path exists in compiled code but is never invoked. `AutoPickAssets` uses `new static Instance` to hide it with a throw-before-init guard.
 
-1. Add `ILogger<AutoPickAssets> logger` parameter to private `AutoPickAssets(ISystemInfo, ILogger<AutoPickAssets>)`
-2. Remove field initializer `= App.GetLogger<AutoPickAssets>()`
-3. Update `Initialize()` to receive and pass `ILogger<AutoPickAssets>`
-4. Update Verification `Initialize` calls to provide a logger (use `NullLogger<AutoPickAssets>.Instance` for test convenience)
-5. Core-preprocessed `App.GetLogger` refs: 2 → 1
+**Conclusion: the only reachable construction path is `Initialize(ISystemInfo, IAutoPickConfigProvider)` → private `AutoPickAssets(ISystemInfo)` → `Configure()`.** Adding `ILogger<AutoPickAssets>` to this chain affects only this path.
 
-### 25.4 Baseline validation
+### 25.3 Initialize callers
+
+| Caller | Project | Provides ISystemInfo? | Provides config? | After migration: logger source |
+|--------|---------|----------------------|-------------------|-------------------------------|
+| `MacAutoPickComposition.Compose()` | Core (macOS) | ✅ From Compose param | ✅ From Compose param | `ILoggerFactory.CreateLogger<AutoPickAssets>()` or `NullLogger` if not wired |
+| `GameTaskManager.LoadInitialTriggers()` | WPF | ✅ `TaskContext.Instance().SystemInfo` | ✅ From param | WPF DI: `ILogger<AutoPickAssets>` via `App.GetLogger` equivalent |
+| `Verification Program.cs` (9 sites) | Test | ✅ `new MacSystemInfo()` | ✅ `MacCoreRuntimeAdapter` | `NullLogger<AutoPickAssets>.Instance` |
+
+### 25.4 Implementation plan
+
+1. **AutoPickAssets.cs**: Remove field initializer. Add `ILogger<AutoPickAssets> logger` to private constructor. Store as `_logger`.
+2. **Initialize()**: Add `ILogger<AutoPickAssets> logger` parameter. Pass to constructor.
+3. **MacAutoPickComposition.cs**: Pass `ILogger<AutoPickAssets>` to `Initialize()` — created from composition's `ILoggerFactory` or `NullLogger<AutoPickAssets>.Instance`.
+4. **GameTaskManager.cs** (WPF): Pass `ILogger<AutoPickAssets>` to `Initialize()` — from App or DI.
+5. **Verification Program.cs** (9 sites): Pass `NullLogger<AutoPickAssets>.Instance` — no behavioral change.
+6. **MacAutoPickComposition.ResetForVerification()**: Same logger parameter.
+7. **Core-preprocessed App.GetLogger refs**: 2 → 1 (AutoPickTrigger remains).
+
+### 25.5 Migration rules
+
+- Logger calls (lines 184, 185, 196) are diagnostic only; the **surrounding catch block performs required fallback** (write-back PickKey="F", reset to FRo). Migration must NOT alter catch-block behavior.
+- The legacy `#if BGI_FULL_WINDOWS` parameterless constructor (path 4) is never compiled — remove it.
+- `BGI_FULL_WINDOWS` is undefined in both projects — no `#define` exists.
+
+### 25.6 Baseline validation
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
