@@ -2708,9 +2708,9 @@ This exhibits three patterns rejected throughout B10:
 
 | Member | Classification | Action |
 |--------|---------------|--------|
-| `Initialize(ILoggerFactory)` | **D** — required by Verification | Keep |
-| `GetLogger<T>()` | **D — static logging gateway (architecture blocker)** | Keep temporarily; exit condition: constructor injection for 3 consumers |
-| `ServiceProvider` | **D** — WPF-only in `#if` guard | Keep |
+| `Initialize(ILoggerFactory)` | **D** — part of static logging gateway | Keep; exit condition: remove together with GetLogger<T> after consumer migration |
+| `GetLogger<T>()` | **D — static logging gateway (architecture blocker)** | Keep temporarily; exit condition: migrate AutoPickTrigger, AutoPickAssets, MatchTemplateHelper to explicit ILogger<T> injection, then remove `_factory`, `Initialize()`, and `GetLogger<T>()` from Core App.cs |
+| `ServiceProvider` | **D** — WPF-only in `#if` guard | Keep; separate concern from GetLogger<T> |
 
 ### 23.4 CoreExtensions physical ownership
 
@@ -2756,7 +2756,7 @@ WPF does **not** compile or link this file. No "shared source" relationship. The
 | Core build 0 errors? | ✅ **Yes** |
 | Verification 112/112? | ✅ **Yes** |
 | No fake success / empty fallback? | ✅ **Yes** |
-| No unrecorded service locator / static gateway? | ❌ **No** — App.GetLogger<T> is an unrecorded static gateway |
+| No unresolved Core-reachable service locator / static gateway? | ❌ **No** — App.GetLogger<T> is a recorded but unresolved Core-reachable static gateway |
 
 **B10 closure: Not approved.** Three blockers prevent closure:
 1. **App.GetLogger<T>** — static logging gateway with silent fallback, 3 production consumers, no composition Initialize()
