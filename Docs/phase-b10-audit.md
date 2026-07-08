@@ -2498,3 +2498,31 @@ public PickTextInference(BgiOnnxFactory onnxFactory)
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+### 21.9 B10.16.4 Implementation Result
+
+| Phase | Status |
+|-------|--------|
+| `daffbca` (first attempt) | **Rejected** — introduced `_defaultInstance` static singleton + internal `new MacCoreRuntimeAdapter` + `OcrFactory.Paddle` static default graph |
+| `4131cd5` (correction 1) | **Rejected** — removed singleton but replaced `App.ServiceProvider` calls with `NormalizeOcrText(string.Empty)` and `return []` fake OCR results |
+| `e1e38e7` (correction 2 — final) | **Approved** — removed fake results, guarded 3 OCR branches with `#if !BGI_PLATFORM_MAC` |
+
+**Final state (e1e38e7):**
+
+| Component | Status |
+|-----------|--------|
+| `OcrFactory` instance constructor | `OcrFactory(ILogger, BgiOnnxFactory, IOcrRuntimeConfigProvider)` — retained ✅ |
+| `PickTextInference` constructor | `PickTextInference(BgiOnnxFactory)` — retained ✅ |
+| `TextInferenceFactory.Create(type, onnxFactory)` | Retained — no static `Pick` lazy ✅ |
+| `OcrFactory.Paddle` static in Core | **Removed** — excluded via `#if !BGI_PLATFORM_MAC` ✅ |
+| `OcrFactory.Paddle` static for WPF | Preserved in `#if !BGI_PLATFORM_MAC` branch (backward-compatible) ✅ |
+| `ImageRegion.Find()` OCR branches | 3 blocks (`OcrMatch`, `Ocr+ColorRangeAndOcr`, `Ocr`) excluded from Core via `#if !BGI_PLATFORM_MAC` ✅ |
+| Core OCR fallback | No fake results — unsupported recognition types fall through to `throw new Exception(...)` ✅ |
+| `App.ServiceProvider` in Core-preprocessed files | **Zero** (WPF `#if` branch only) ✅ |
+| `_defaultInstance` / `_defaultLock` / `new MacCoreRuntimeAdapter` | **Not present** ✅ |
+| `NormalizeOcrText(string.Empty)` / `return []` fakes | **Not present** ✅ |
+| WPF OCR behavior | **Unchanged** — same `OcrFactory.Paddle` code path ✅ |
+| Supported AutoPick OCR on Core | Uses B9 injected `IAutoPickTextRecognizer` — no dependency on static OCR gateway ✅ |
+| Core build | 0 errors ✅ |
+| Verification | 112/112 ✅ |
+| B10.16.4 status | **Complete** ✅ |
