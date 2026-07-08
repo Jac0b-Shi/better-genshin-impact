@@ -1,7 +1,9 @@
-﻿using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+#if !BGI_PLATFORM_MAC
+using Microsoft.Extensions.Logging;
+#endif
 
 namespace BetterGenshinImpact.Core.Recognition.OpenCv;
 
@@ -11,7 +13,9 @@ namespace BetterGenshinImpact.Core.Recognition.OpenCv;
 /// </summary>
 public class MatchTemplateHelper
 {
+#if !BGI_PLATFORM_MAC
     private static readonly ILogger<MatchTemplateHelper> _logger = App.GetLogger<MatchTemplateHelper>();
+#endif
 
     /// <summary>
     ///  模板匹配
@@ -55,8 +59,10 @@ public class MatchTemplateHelper
         }
         catch (Exception ex)
         {
+#if !BGI_PLATFORM_MAC
             _logger.LogError(ex.Message);
             _logger.LogDebug(ex, ex.Message);
+#endif
             return default;
         }
     }
@@ -98,8 +104,10 @@ public class MatchTemplateHelper
         }
         catch (Exception ex)
         {
+#if !BGI_PLATFORM_MAC
             _logger.LogError(ex.Message);
             _logger.LogDebug(ex, ex.Message);
+#endif
             return points;
         }
     }
