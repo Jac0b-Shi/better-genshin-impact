@@ -2841,3 +2841,38 @@ This is target-specific removal of non-functional diagnostics, not constructor i
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
 ```
+
+---
+
+## 25. B10.18.2 Audit: AutoPickAssets Logger
+
+### 25.1 Type shape
+
+| Aspect | Detail |
+|--------|--------|
+| Class | `public class AutoPickAssets : BaseAssets<AutoPickAssets>` |
+| Constructor params | Currently only `ISystemInfo` via private ctor |
+| `App.GetLogger` ref | Line 15: `ILogger<AutoPickAssets> _logger = App.GetLogger<AutoPickAssets>()` |
+| Logger usage | 3 calls in `Configure()`: `LogDebug`, `LogError`, `LogInformation` (diagnostic only) |
+| Core-preprocessed | ✅ Yes — file is linked in Core csproj |
+
+### 25.2 Construction chain
+
+`AutoPickAssets.Initialize(systemInfo, configProvider)` → `new AutoPickAssets(systemInfo)` → `Configure(configProvider)`.
+
+Unlike `MatchTemplateHelper` (static utility), `AutoPickAssets` has an explicit instance construction path. The private constructor already receives `ISystemInfo`. Adding `ILogger<AutoPickAssets>` as a required parameter is the correct dependency injection approach.
+
+### 25.3 Implementation plan
+
+1. Add `ILogger<AutoPickAssets> logger` parameter to private `AutoPickAssets(ISystemInfo, ILogger<AutoPickAssets>)`
+2. Remove field initializer `= App.GetLogger<AutoPickAssets>()`
+3. Update `Initialize()` to receive and pass `ILogger<AutoPickAssets>`
+4. Update Verification `Initialize` calls to provide a logger (use `NullLogger<AutoPickAssets>.Instance` for test convenience)
+5. Core-preprocessed `App.GetLogger` refs: 2 → 1
+
+### 25.4 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
