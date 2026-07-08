@@ -2526,3 +2526,66 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 | Core build | 0 errors ✅ |
 | Verification | 112/112 ✅ |
 | B10.16.4 status | **Complete** ✅ |
+
+---
+
+## 22. B10.17 Audit: BgiOnnxFactory / BgiOnnxModel
+
+### 22.1 Current shims
+
+| File | Lines | Members | Comment |
+|------|-------|---------|---------|
+| `Shim/BgiOnnxFactory.cs` | 22 | 6 `GetPpOcr*` methods + `GetSVTRPickModel` + `CreateInferenceSession` | `"TEMPORARY VERIFICATION SHIM: ONNX model factory."` |
+| `Shim/BgiOnnxModel.cs` | 83 | 12 `static readonly BgiOnnxModel` instances for various OCR/Yap models | `"Cross-platform ONNX model registry."` |
+
+### 22.2 Authoritative sources
+
+| Type | WPF authoritative | Shim relationship |
+|------|------------------|-------------------|
+| `BgiOnnxFactory` | `Core/Recognition/ONNX/BgiOnnxFactory.cs` (585 lines — CUDA, TensorRT, GPU providers, session caching, YOLO predictors) | CPU-only subset |
+| `BgiOnnxModel` | Same as shim — identical model definitions (shared source) | Same physical file used by both |
+
+`BgiOnnxModel.cs` is authoritative in the WPF tree and linked via Core csproj — both compile the same file. `BgiOnnxFactory` has separate WPF (585 lines, GPU) and Core (22 lines, CPU) implementations.
+
+### 22.3 Reference classification
+
+| Member | Core-preprocessed refs | Runtime reachable on macOS? |
+|--------|----------------------|---------------------------|
+| `CreateInferenceSession(model, ocr)` | **3** — `Rec.cs`, `Det.cs`, `PickTextInference.cs` | ✅ Paddle + Yap OCR loading |
+| `GetPpOcrV3DetModel()` | **0** | ❌ WPF-only API |
+| `GetPpOcrV4DetModel()` | **0** | ❌ WPF-only API |
+| `GetPpOcrV3RecModel()` | **0** | ❌ WPF-only API |
+| `GetPpOcrV4RecModel()` | **0** | ❌ WPF-only API |
+| `GetPpOcrV5RecModel()` | **0** | ❌ WPF-only API |
+| `GetSVTRPickModel()` | **0** | ❌ WPF-only API |
+| `BgiOnnxModel` static instances | **Lots** — used by PaddleOcrService, OcrFactory, Det, Rec, PickTextInference | ✅ ONNX model path registry |
+
+### 22.4 Trial deletion
+
+Removing both shims + csproj entries produced errors in OcrFactory, PaddleOcrService, and other Core-linked files — as expected, since `BgiOnnxFactory` is referenced by type in constructor signatures throughout the OCR pipeline.
+
+### 22.5 Classification
+
+**Both are platform implementations, not shims.** Like MacSystemInfo, they provide real macOS-compatible functionality:
+
+- `BgiOnnxFactory` (Core) — CPU-only ONNX Runtime session creation. The 6 `GetPpOcr*` methods are dead members (zero Core consumers) but the class itself is required for `CreateInferenceSession`.
+- `BgiOnnxModel` — model path registry (same physical file, both targets).
+
+The `"TEMPORARY VERIFICATION SHIM"` comment on `BgiOnnxFactory` is inaccurate — it has real production consumers and is the macOS ONNX runtime implementation.
+
+### 22.6 Member-level dead code
+
+The 6 `GetPpOcr*` and `GetSVTRPickModel` methods have zero Core consumers. They can be removed from the Core `BgiOnnxFactory` without affecting any Core-linked file. They only exist as WPF API compatibility.
+
+### 22.7 Implementation plan
+
+Minimal: delete the 7 dead methods from `Shim/BgiOnnxFactory.cs` (GetPpOcrV3DetModel, GetPpOcrV4DetModel, GetPpOcrV3RecModel, GetPpOcrV4RecModel, GetPpOcrV5RecModel, GetSVTRPickModel). Keep `CreateInferenceSession`. Verification: Core build 0 errors, 112/112.
+
+No migration needed for `BgiOnnxModel` — it's the authoritative source for both targets.
+
+### 22.8 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/112 ✅
+```
