@@ -2579,7 +2579,7 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 
 **Zero `.onnx` model files exist in the repository** (confirmed by `find . -type f -name '*.onnx'`). Model files are external artifacts not committed to git. Neither `.gitignore` nor csproj ItemGroups reference model files.
 
-`CreateInferenceSession(model.ModelRelativePath)` is called from 3 Core-linked files (Rec.cs:22, Det.cs:14, PickTextInference.cs:28). Each call will fail at runtime with `FileNotFoundException` unless model files are placed at the expected paths relative to the process working directory.
+`CreateInferenceSession(model.ModelRelativePath)` is called from 3 Core-linked files (Rec.cs:22, Det.cs:14, PickTextInference.cs:28). Each call will fail during `InferenceSession` construction when the model path cannot be resolved. The exact exception type has not been validated in the current verification suite.
 
 | Factor | Current state |
 |--------|---------------|
@@ -2588,7 +2588,7 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 | Verification covers model loading? | **No** — 112/112 tests validate wiring only; zero `InferenceSession` creations in Verification |
 | Core OCR production readiness | **Blocked** — model files must be deployed at expected relative paths |
 
-**Existing 112/112 verification coverage is not evidence that model loading works.** Verification tests construct `OcrFactory` and `PickTextInference` but don't call `CreateInferenceSession`.
+**Existing 112/112 verification coverage is not evidence that model loading works.** Verification constructs `OcrFactory` for configuration/wiring checks only. It does not access `OcrFactory.PaddleOcr`, does not construct `PickTextInference`, and performs zero `InferenceSession` creations.
 
 ### 22.4 BgiOnnxFactory: member classification
 
@@ -2624,7 +2624,7 @@ Model files are external to the repository. Before the ONNX OCR pipeline can fun
 2. Confirm the process working directory allows relative path resolution (or switch to `Global.Absolute`)
 3. Add model-loading coverage to Verification
 
-These steps are outside current B10 scope. Documented as a known gap, not a defect.
+These steps are outside current B10 scope. Documented as a known runtime blocker deferred outside the narrow B10.17 dead-member cleanup scope.
 
 ### 22.7 Baseline validation
 
