@@ -2802,17 +2802,38 @@ All 4 calls are catch-block diagnostics. No business logic or control flow impac
 
 ### 24.4 Recommended plan
 
-Since the class is a static utility with zero instance construction:
+Since the class is a static utility with zero instance construction, target-specific preprocessing is the correct approach. Three changes, all applying the same `#if !BGI_PLATFORM_MAC` guard:
 
-1. Guard the 4 log lines with `#if !BGI_PLATFORM_MAC`
-2. Remove the `_logger` field entirely
-3. Remove unused `using Microsoft.Extensions.Logging;`
+**1. Logger field — guard with #if:**
+```csharp
+#if !BGI_PLATFORM_MAC
+private static readonly ILogger<MatchTemplateHelper> _logger =
+    App.GetLogger<MatchTemplateHelper>();
+#endif
+```
+
+**2. Each of the 4 log lines — guard with #if:**
+```csharp
+#if !BGI_PLATFORM_MAC
+_logger.LogError(ex.Message);
+_logger.LogDebug(ex, ex.Message);
+#endif
+```
+The `catch` block's control flow (exception handling, return) is unchanged — only the diagnostic log is omitted in Core.
+
+**3. The `using Microsoft.Extensions.Logging;` import — guard with #if:**
+```csharp
+#if !BGI_PLATFORM_MAC
+using Microsoft.Extensions.Logging;
+#endif
+```
+Alternatively keep it global if no compilation warning arises.
 
 **Result:**
-- **Core**: no logger at all (acceptable — edge-case diagnostics, no crash risk, no hidden NullLogger)
-- **WPF**: retains `App.GetLogger<MatchTemplateHelper>()` via `#else` — production logging preserved
+- **Core preprocessing**: zero `App.GetLogger` refs, no logger field, no NullLogger, no hidden provider. The catch blocks continue to execute normally; only 4 non-functional diagnostic log calls are omitted.
+- **WPF build**: original `App.GetLogger<MatchTemplateHelper>()` behavior preserved; all 4 log calls remain.
 
-This is not constructor injection (the class has no constructor). But it removes the `App.GetLogger` dependency from Core preprocessing cleanly, without creating a hidden static NullLogger.
+This is target-specific removal of non-functional diagnostics, not constructor injection or a general logger architecture solution.
 
 ### 24.5 Baseline validation
 
