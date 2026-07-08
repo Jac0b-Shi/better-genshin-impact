@@ -2531,59 +2531,61 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 112/1
 
 ## 22. B10.17 Audit: BgiOnnxFactory / BgiOnnxModel
 
-### 22.1 Current shims
+### 22.1 Physical sources
 
-| File | Lines | Members | Comment |
-|------|-------|---------|---------|
-| `Shim/BgiOnnxFactory.cs` | 22 | 6 `GetPpOcr*` methods + `GetSVTRPickModel` + `CreateInferenceSession` | `"TEMPORARY VERIFICATION SHIM: ONNX model factory."` |
-| `Shim/BgiOnnxModel.cs` | 83 | 12 `static readonly BgiOnnxModel` instances for various OCR/Yap models | `"Cross-platform ONNX model registry."` |
+| File | Core path | WPF authoritative path | Relationship |
+|------|-----------|------------------------|--------------|
+| `BgiOnnxFactory.cs` | `Shim/BgiOnnxFactory.cs` (22 lines) | `Core/Recognition/ONNX/BgiOnnxFactory.cs` (585 lines) | Separate CPU implementation for Core |
+| `BgiOnnxModel.cs` | `Shim/BgiOnnxModel.cs` (83 lines) | `Core/Recognition/ONNX/BgiOnnxModel.cs` (171 lines) | **Different files, different implementations** |
 
-### 22.2 Authoritative sources
+**Neither is a linked shared source.** Both Core files are independent copies/subset implementations.
 
-| Type | WPF authoritative | Shim relationship |
-|------|------------------|-------------------|
-| `BgiOnnxFactory` | `Core/Recognition/ONNX/BgiOnnxFactory.cs` (585 lines — CUDA, TensorRT, GPU providers, session caching, YOLO predictors) | CPU-only subset |
-| `BgiOnnxModel` | Same as shim — identical model definitions (shared source) | Same physical file used by both |
+### 22.2 BgiOnnxModel: critical differences
 
-`BgiOnnxModel.cs` is authoritative in the WPF tree and linked via Core csproj — both compile the same file. `BgiOnnxFactory` has separate WPF (585 lines, GPU) and Core (22 lines, CPU) implementations.
+| Aspect | Core shim | WPF authoritative |
+|--------|-----------|-------------------|
+| Property setters | `{ get; set; }` — public mutable | `{ get; private init; }` — immutable after construction |
+| `ModalPath` | `=> ModelRelativePath` (raw relative) | `=> Global.Absolute(ModelRelativePath)` |
+| `CachePath` | `=> CacheRelativePath` (raw relative) | `=> Global.Absolute(CacheRelativePath)` |
+| `RegisteredModels` | **Not present** | Static registry, model caching, `Register()` method |
+| `IsModelExist()` | **Not present** | File existence check via `ModalPath` |
+| Model paths | `Assets\Model\PaddleOcr\ppocr_det_v4.onnx` (flat, CamelCase Ocr) | `Assets\Model\PaddleOCR\Det\V4\PP-OCRv4...\slim.onnx` (nested, mixed case) |
+| Model set | OCR + Yap only (8 models) | Full: OCR + Yap + Fish + Tree + World + Mine + Avatar + QClassify + Vad (17 models) |
 
-### 22.3 Reference classification
+**The WPF `BgiOnnxFactory.CreateInferenceSession` uses `model.ModalPath` (which calls `Global.Absolute`). The Core shim uses `model.ModelRelativePath` directly.** This means Core's `CreateInferenceSession` resolves model paths relative to the process working directory, not the project root. Whether this works depends on where the process is launched — a potential runtime defect if model files are not at the expected relative location.
 
-| Member | Core-preprocessed refs | Runtime reachable on macOS? |
-|--------|----------------------|---------------------------|
-| `CreateInferenceSession(model, ocr)` | **3** — `Rec.cs`, `Det.cs`, `PickTextInference.cs` | ✅ Paddle + Yap OCR loading |
-| `GetPpOcrV3DetModel()` | **0** | ❌ WPF-only API |
-| `GetPpOcrV4DetModel()` | **0** | ❌ WPF-only API |
-| `GetPpOcrV3RecModel()` | **0** | ❌ WPF-only API |
-| `GetPpOcrV4RecModel()` | **0** | ❌ WPF-only API |
-| `GetPpOcrV5RecModel()` | **0** | ❌ WPF-only API |
-| `GetSVTRPickModel()` | **0** | ❌ WPF-only API |
-| `BgiOnnxModel` static instances | **Lots** — used by PaddleOcrService, OcrFactory, Det, Rec, PickTextInference | ✅ ONNX model path registry |
+### 22.3 BgiOnnxFactory: member classification
 
-### 22.4 Trial deletion
+| Member | Core-preprocessed refs | Runtime reachable on macOS? | Classification |
+|--------|----------------------|---------------------------|----------------|
+| `CreateInferenceSession(model, ocr)` | **3** (Rec.cs, Det.cs, PickTextInference.cs) | ✅ Paddle + Yap OCR | **Live** — CPU ONNX session factory |
+| `GetPpOcrV3DetModel()` | **0** | ❌ | **Dead** — WPF-only API |
+| `GetPpOcrV4DetModel()` | **0** | ❌ | **Dead** |
+| `GetPpOcrV3RecModel()` | **0** | ❌ | **Dead** |
+| `GetPpOcrV4RecModel()` | **0** | ❌ | **Dead** |
+| `GetPpOcrV5RecModel()` | **0** | ❌ | **Dead** |
+| `GetSVTRPickModel()` | **0** | ❌ | **Dead** |
 
-Removing both shims + csproj entries produced errors in OcrFactory, PaddleOcrService, and other Core-linked files — as expected, since `BgiOnnxFactory` is referenced by type in constructor signatures throughout the OCR pipeline.
+**6 dead members** (not 7). Only `CreateInferenceSession` is live.
 
-### 22.5 Classification
+### 22.4 Classification
 
-**Both are platform implementations, not shims.** Like MacSystemInfo, they provide real macOS-compatible functionality:
+| File | Classification | Rationale |
+|------|---------------|-----------|
+| `BgiOnnxFactory` | **Core/macOS ONNX runtime implementation** | CPU-only `CreateInferenceSession` with real production consumers. Not a shim — provides macOS ONNX Runtime capability. Move-out-of-Shim candidate. |
+| `BgiOnnxModel` | **Core model registry / compatibility copy** | Reduced subset of WPF model registry. Different paths, no `Global.Absolute`, no `RegisteredModels`. Not a shim but not identical to authoritative source. Category D pending path/model reconciliation. |
 
-- `BgiOnnxFactory` (Core) — CPU-only ONNX Runtime session creation. The 6 `GetPpOcr*` methods are dead members (zero Core consumers) but the class itself is required for `CreateInferenceSession`.
-- `BgiOnnxModel` — model path registry (same physical file, both targets).
+### 22.5 Implementation plan
 
-The `"TEMPORARY VERIFICATION SHIM"` comment on `BgiOnnxFactory` is inaccurate — it has real production consumers and is the macOS ONNX runtime implementation.
+#### B10.17.1: Delete 6 dead getters from BgiOnnxFactory
 
-### 22.6 Member-level dead code
+Remove `GetPpOcrV3DetModel`, `GetPpOcrV4DetModel`, `GetPpOcrV3RecModel`, `GetPpOcrV4RecModel`, `GetPpOcrV5RecModel`, `GetSVTRPickModel`. Keep `CreateInferenceSession`. Core build 0 errors, Verification 112/112.
 
-The 6 `GetPpOcr*` and `GetSVTRPickModel` methods have zero Core consumers. They can be removed from the Core `BgiOnnxFactory` without affecting any Core-linked file. They only exist as WPF API compatibility.
+#### BgiOnnxModel: keep (no immediate action)
 
-### 22.7 Implementation plan
+Model path reconciliation (`ModalPath` vs raw `ModelRelativePath`) is tied to the `Global.Absolute` path resolution strategy, which is a separate concern. No action in current B10 scope.
 
-Minimal: delete the 7 dead methods from `Shim/BgiOnnxFactory.cs` (GetPpOcrV3DetModel, GetPpOcrV4DetModel, GetPpOcrV3RecModel, GetPpOcrV4RecModel, GetPpOcrV5RecModel, GetSVTRPickModel). Keep `CreateInferenceSession`. Verification: Core build 0 errors, 112/112.
-
-No migration needed for `BgiOnnxModel` — it's the authoritative source for both targets.
-
-### 22.8 Baseline validation
+### 22.6 Baseline validation
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
