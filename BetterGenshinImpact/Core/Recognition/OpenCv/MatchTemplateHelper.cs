@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,12 @@ namespace BetterGenshinImpact.Core.Recognition.OpenCv;
 /// </summary>
 public class MatchTemplateHelper
 {
-    private static readonly ILogger<MatchTemplateHelper> _logger = App.GetLogger<MatchTemplateHelper>();
+    private static readonly ILogger<MatchTemplateHelper> _logger =
+#if BGI_PLATFORM_MAC
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<MatchTemplateHelper>.Instance;
+#else
+        App.GetLogger<MatchTemplateHelper>();
+#endif
 
     /// <summary>
     ///  模板匹配
