@@ -54,7 +54,7 @@ internal class GameTaskManager
 
         TriggerDictionary.TryAdd("RecognitionTest", new TestTrigger());
         TriggerDictionary.TryAdd("GameLoading", new GameLoadingTrigger());
-        TriggerDictionary.TryAdd("AutoPick", new AutoPick.AutoPickTrigger(null, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, paddleRecognizer, yapRecognizer));
+        TriggerDictionary.TryAdd("AutoPick", new AutoPick.AutoPickTrigger(null, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, App.GetLogger<AutoPick.AutoPickTrigger>(), paddleRecognizer, yapRecognizer));
         TriggerDictionary.TryAdd("QuickTeleport", new QuickTeleport.QuickTeleportTrigger());
         TriggerDictionary.TryAdd("AutoSkip", new AutoSkip.AutoSkipTrigger());
         TriggerDictionary.TryAdd("AutoFish", new AutoFishing.AutoFishingTrigger());
@@ -106,7 +106,7 @@ internal class GameTaskManager
         {
             case "AutoPick":
                 triggerName = "AutoPick";
-                trigger = new AutoPick.AutoPickTrigger(externalConfig as AutoPickExternalConfig, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, paddleRecognizer, yapRecognizer);
+                trigger = new AutoPick.AutoPickTrigger(externalConfig as AutoPickExternalConfig, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, App.GetLogger<AutoPick.AutoPickTrigger>(), paddleRecognizer, yapRecognizer);
                 break;
             case "AutoSkip":
                 triggerName = "AutoSkip";

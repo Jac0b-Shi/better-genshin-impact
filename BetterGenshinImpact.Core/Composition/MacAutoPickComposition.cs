@@ -40,6 +40,7 @@ public sealed class MacAutoPickComposition
         IInputBackend inputBackend,
         ISystemInfo systemInfo,
         ILogger<AutoPickAssets> autoPickAssetsLogger,
+        ILogger<AutoPickTrigger> autoPickTriggerLogger,
         IPaddleAutoPickTextRecognizer paddleRecognizer,
         IYapAutoPickTextRecognizer yapRecognizer,
         AutoPickExternalConfig? externalConfig = null)
@@ -52,6 +53,7 @@ public sealed class MacAutoPickComposition
         ArgumentNullException.ThrowIfNull(inputBackend);
         ArgumentNullException.ThrowIfNull(systemInfo);
         ArgumentNullException.ThrowIfNull(autoPickAssetsLogger);
+        ArgumentNullException.ThrowIfNull(autoPickTriggerLogger);
         ArgumentNullException.ThrowIfNull(paddleRecognizer);
         ArgumentNullException.ThrowIfNull(yapRecognizer);
 
@@ -64,7 +66,7 @@ public sealed class MacAutoPickComposition
         try
         {
             AutoPickAssets.Initialize(systemInfo, configProvider, autoPickAssetsLogger);
-            var trigger = new AutoPickTrigger(externalConfig, runtimeState, configProvider, inputBackend, systemInfo, paddleRecognizer, yapRecognizer);
+            var trigger = new AutoPickTrigger(externalConfig, runtimeState, configProvider, inputBackend, systemInfo, autoPickTriggerLogger, paddleRecognizer, yapRecognizer);
             trigger.Init();
 
             lock (StateLock)

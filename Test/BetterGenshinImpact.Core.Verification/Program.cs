@@ -183,6 +183,7 @@ Console.WriteLine();
 Console.WriteLine("AutoPickTrigger: IAutoPickRuntimeState injection");
 var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();
 var defaultLogger = NullLogger<AutoPickAssets>.Instance;
+var triggerLogger = NullLogger<AutoPickTrigger>.Instance;
 
 // Initialize AutoPickAssets before any trigger creation (trigger ctor accesses Instance)
 AutoPickAssets.DestroyInstance();
@@ -206,14 +207,14 @@ var testConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAda
 var testPaddle = new FakePaddleAutoPickTextRecognizer();
 var testYap = new FakeYapAutoPickTextRecognizer();
 var state0B5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
-var t0 = new AutoPickTrigger(null, state0B5, testConfigProvider, b5Recorder, b5SystemInfo, testPaddle, testYap);
+var t0 = new AutoPickTrigger(null, state0B5, testConfigProvider, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var actualStop0 = (int)(stopCountProp?.GetValue(t0) ?? throw new InvalidOperationException());
 Assert("StopCount=0 from state", actualStop0 == 0, $"got {actualStop0}");
 
 // Test 2: injection with StopCount=2
 var b5Recorder2 = new RecordingInputBackend();
 var stateForB5 = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(2);
-var t2 = new AutoPickTrigger(null, stateForB5, testConfigProvider, b5Recorder2, b5SystemInfo, testPaddle, testYap);
+var t2 = new AutoPickTrigger(null, stateForB5, testConfigProvider, b5Recorder2, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var actualStop2 = (int)(stopCountProp?.GetValue(t2) ?? throw new InvalidOperationException());
 Assert("StopCount=2 from state", actualStop2 == 2, $"got {actualStop2}");
 
@@ -221,7 +222,7 @@ Assert("StopCount=2 from state", actualStop2 == 2, $"got {actualStop2}");
 var b5Recorder3 = new RecordingInputBackend();
 try
 {
-    _ = new AutoPickTrigger(null, null!, testConfigProvider, b5Recorder3, b5SystemInfo, testPaddle, testYap);
+    _ = new AutoPickTrigger(null, null!, testConfigProvider, b5Recorder3, b5SystemInfo, triggerLogger, testPaddle, testYap);
     Assert("AutoPickTrigger should reject null runtimeState", false, "constructor accepted null");
 }
 catch (ArgumentNullException)
@@ -229,14 +230,14 @@ catch (ArgumentNullException)
     Assert("AutoPickTrigger rejects null runtimeState", true, "");
 }
 // externalConfig null is still accepted (externalConfig remains nullable)
-var tExtNull = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder3, b5SystemInfo, testPaddle, testYap);
+var tExtNull = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder3, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var extNull = extField?.GetValue(tExtNull);
 Assert("AutoPickTrigger accepts null externalConfig", extNull == null, "got non-null");
 
 // Test 4: externalConfig-only preserves _externalConfig with valid runtimeState
 var b5Recorder4 = new RecordingInputBackend();
 var external = new AutoPickExternalConfig { ForceInteraction = true };
-var t3 = new AutoPickTrigger(external, defaultRuntimeState, testConfigProvider, b5Recorder4, b5SystemInfo, testPaddle, testYap);
+var t3 = new AutoPickTrigger(external, defaultRuntimeState, testConfigProvider, b5Recorder4, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var ext3 = extField?.GetValue(t3);
 Assert("externalConfig-only preserves _externalConfig",
     ReferenceEquals(ext3, external), "different reference");
@@ -245,7 +246,7 @@ Assert("externalConfig-only sees StopCount from injected state", actualStop3 == 
 
 // Test 5: combined externalConfig + runtimeState
 var b5Recorder5 = new RecordingInputBackend();
-var t4 = new AutoPickTrigger(external, stateForB5, testConfigProvider, b5Recorder5, b5SystemInfo, testPaddle, testYap);
+var t4 = new AutoPickTrigger(external, stateForB5, testConfigProvider, b5Recorder5, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var ext4 = extField?.GetValue(t4);
 Assert("Combined ctor preserves _externalConfig",
     ReferenceEquals(ext4, external), "different reference");
@@ -253,10 +254,10 @@ var actualStop4 = (int)(stopCountProp?.GetValue(t4) ?? throw new InvalidOperatio
 Assert("Combined ctor preserves StopCount from state", actualStop4 == 2, $"got {actualStop4}");
 
 // Test 6: null inputBackend → ArgumentNullException
-try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, null!, b5SystemInfo, testPaddle, testYap); Assert("null inputBackend should throw", false, ""); }
+try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, null!, b5SystemInfo, triggerLogger, testPaddle, testYap); Assert("null inputBackend should throw", false, ""); }
 catch (ArgumentNullException) { Assert("null inputBackend → ArgumentNullException", true, ""); }
 // Also verify null configProvider throws
-try { _ = new AutoPickTrigger(null, defaultRuntimeState, null!, b5Recorder, b5SystemInfo, testPaddle, testYap); Assert("null configProvider should throw", false, ""); }
+try { _ = new AutoPickTrigger(null, defaultRuntimeState, null!, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap); Assert("null configProvider should throw", false, ""); }
 catch (ArgumentNullException) { Assert("null configProvider → ArgumentNullException", true, ""); }
 
 // ==== B6: AutoPickAssets.Initialize lifecycle ====
@@ -372,7 +373,7 @@ var b7Recorder = new RecordingInputBackend();
 MacAutoPickComposition? comp7;
 {
     comp7 = (MacAutoPickComposition)composeMethod.Invoke(null,
-        [b7Provider, b7State, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, b7ExtConfig])!;
+        [b7Provider, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, b7ExtConfig])!;
     Assert("B7.1 Compose succeeds", comp7.Trigger != null, "trigger is null");
 }
 
@@ -394,7 +395,7 @@ Assert("B7.5 _configProvider preserved",
 // B7.6: Double Compose throws (Composed state)
 try
 {
-    composeMethod.Invoke(null, [b7Provider, b7State, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+    composeMethod.Invoke(null, [b7Provider, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
     Assert("B7.6 Double Compose should throw", false, "no exception");
 }
 catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException ioe)
@@ -410,7 +411,7 @@ var disabledCfg = new AutoPickConfig { PickKey = "F", Enabled = false };
 var disabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     disabledCfg, PaddleOcrModelConfig.V5, "zh-Hans");
 var disabledState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [disabledProv, disabledState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [disabledProv, disabledState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 Assert("B7.7 Init reads Enabled from provider (false)",
     comp7.Trigger.IsEnabled == false, $"got {comp7.Trigger.IsEnabled}");
 
@@ -420,7 +421,7 @@ var reProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
 var reState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(1);
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [reProv, reState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [reProv, reState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 Assert("B7.8 After ResetForVerification, Compose succeeds",
     comp7.Trigger != null && comp7.Trigger.IsEnabled == true, $"trigger null or IsEnabled != true");
 
@@ -429,7 +430,7 @@ resetForVerification.Invoke(null, null);
 var blOffCfg = new AutoPickConfig { PickKey = "F", Enabled = true, BlackListEnabled = false };
 var blOffProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     blOffCfg, PaddleOcrModelConfig.V5, "zh-Hans");
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [blOffProv, reState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [blOffProv, reState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 var blList = (System.Collections.Generic.HashSet<string>)b7BlackListField.GetValue(comp7.Trigger)!;
 Assert("B7.9 BlackListEnabled=false: _blackList empty", blList.Count == 0, $"got {blList.Count}");
 
@@ -438,7 +439,7 @@ resetForVerification.Invoke(null, null);
 var wlOffCfg = new AutoPickConfig { PickKey = "F", Enabled = true, WhiteListEnabled = false };
 var wlOffProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     wlOffCfg, PaddleOcrModelConfig.V5, "zh-Hans");
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [wlOffProv, reState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [wlOffProv, reState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 var wlList = (System.Collections.Generic.HashSet<string>)b7WhiteListField.GetValue(comp7.Trigger)!;
 Assert("B7.10 WhiteListEnabled=false: _whiteList empty", wlList.Count == 0, $"got {wlList.Count}");
 
@@ -446,7 +447,7 @@ Assert("B7.10 WhiteListEnabled=false: _whiteList empty", wlList.Count == 0, $"go
 resetForVerification.Invoke(null, null);
 try
 {
-    composeMethod.Invoke(null, [null!, b7State, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+    composeMethod.Invoke(null, [null!, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
     Assert("B7.11 null provider should throw", false, "no exception");
 }
 catch (TargetInvocationException ex) when (ex.InnerException is ArgumentNullException)
@@ -457,7 +458,7 @@ catch (TargetInvocationException ex) when (ex.InnerException is ArgumentNullExce
 var b711Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [b711Prov, b7State, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [b711Prov, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 Assert("B7.11 After null provider: valid Compose succeeds",
     comp7.Trigger != null, "trigger null — state was poisoned");
 
@@ -465,7 +466,7 @@ Assert("B7.11 After null provider: valid Compose succeeds",
 resetForVerification.Invoke(null, null);
 try
 {
-    composeMethod.Invoke(null, [b7Provider, null!, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+    composeMethod.Invoke(null, [b7Provider, null!, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
     Assert("B7.12 null runtimeState should throw", false, "no exception");
 }
 catch (TargetInvocationException ex) when (ex.InnerException is ArgumentNullException)
@@ -475,7 +476,7 @@ catch (TargetInvocationException ex) when (ex.InnerException is ArgumentNullExce
 var b712Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
-comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [b712Prov, b7State, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+comp7 = (MacAutoPickComposition)composeMethod.Invoke(null, [b712Prov, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 Assert("B7.12 After null state: valid Compose succeeds",
     comp7.Trigger != null, "trigger null");
 
@@ -495,7 +496,7 @@ void ConcurrentCompose()
     barrier.SignalAndWait();
     try
     {
-        composeMethod.Invoke(null, [concProv, concState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+        composeMethod.Invoke(null, [concProv, concState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
         Interlocked.Increment(ref successCount);
     }
     catch (TargetInvocationException ex)
@@ -522,7 +523,7 @@ var throwingProvider = new ThrowingAutoPickConfigProvider();
 var validState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
 try
 {
-    composeMethod.Invoke(null, [throwingProvider, validState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+    composeMethod.Invoke(null, [throwingProvider, validState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
     Assert("B7.14 Failed compose should throw", false, "no exception");
 }
 catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException ioe)
@@ -533,7 +534,7 @@ catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperation
 // Retry with valid provider should give "Restart the process"
 try
 {
-    composeMethod.Invoke(null, [concProv, concState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null]);
+    composeMethod.Invoke(null, [concProv, concState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null]);
     Assert("B7.14 Retry after Failed should throw", false, "no exception");
 }
 catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException ioe)
@@ -547,7 +548,7 @@ resetForVerification.Invoke(null, null);
 var b715Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
-var b715Comp = (MacAutoPickComposition)composeMethod.Invoke(null, [b715Prov, concState, b7Recorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+var b715Comp = (MacAutoPickComposition)composeMethod.Invoke(null, [b715Prov, concState, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 Assert("B7.15 From Failed: after ResetForVerification, Compose succeeds",
     b715Comp.Trigger != null, "trigger null");
 Console.WriteLine();
@@ -623,7 +624,7 @@ var inputField = typeof(AutoPickTrigger)
 
 // Recreate trigger with fresh recorder to verify field injection
 var b811Recorder = new RecordingInputBackend();
-var b811Trigger = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b811Recorder, b5SystemInfo, testPaddle, testYap);
+var b811Trigger = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b811Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var injectedBackend = inputField.GetValue(b811Trigger);
 Assert("B8.1.1 _inputBackend field set",
     ReferenceEquals(injectedBackend, b811Recorder), "different reference");
@@ -638,7 +639,7 @@ var b811Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
 var b811State = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
 var b811ComposeRecorder = new RecordingInputBackend();
 var b811Comp = (MacAutoPickComposition)composeMethod.Invoke(null,
-    [b811Prov, b811State, b811ComposeRecorder, b5SystemInfo, defaultLogger, testPaddle, testYap, null])!;
+    [b811Prov, b811State, b811ComposeRecorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, null])!;
 var compInput = inputField.GetValue(b811Comp.Trigger);
 Assert("B8.1.1 Compose preserves _inputBackend",
     ReferenceEquals(compInput, b811ComposeRecorder), "different reference");
@@ -665,7 +666,7 @@ var assetsBefore = AutoPickAssets.Instance;
 
 // Real AddTrigger call (not pseudo-trigger via new ctor)
 GameTaskManager.ClearTriggers();
-var added = GameTaskManager.AddTrigger("AutoPick", null, defaultRuntimeState, b82Recorder, b5SystemInfo, testConfigProvider, testPaddle, testYap);
+var added = GameTaskManager.AddTrigger("AutoPick", null, defaultRuntimeState, b82Recorder, b5SystemInfo, testConfigProvider, triggerLogger, testPaddle, testYap);
 Assert("B8.2 Core shim AddTrigger returns true", added, "returned false");
 Assert("B8.2 Core shim TriggerDictionary contains AutoPick",
     GameTaskManager.TriggerDictionary?.ContainsKey("AutoPick") == true, "not found");
@@ -687,7 +688,7 @@ var b83ConfigProviderField = typeof(AutoPickTrigger)
 // A. Provider field wiring
 var b83Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
-var b83Trigger = new AutoPickTrigger(null, defaultRuntimeState, b83Prov, b5Recorder, b5SystemInfo, testPaddle, testYap);
+var b83Trigger = new AutoPickTrigger(null, defaultRuntimeState, b83Prov, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 var wiredProv = b83ConfigProviderField.GetValue(b83Trigger);
 Assert("B8.3A _configProvider field wired",
     ReferenceEquals(wiredProv, b83Prov), "different reference");
@@ -697,13 +698,13 @@ Assert("B8.3A _configProvider field wired",
 // C. Init reads Enabled from provider
 var b83DisabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = false }, PaddleOcrModelConfig.V5, "zh-Hans");
-var b83DisabledTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83DisabledProv, b5Recorder, b5SystemInfo, testPaddle, testYap);
+var b83DisabledTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83DisabledProv, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 b83DisabledTrigger.Init();
 Assert("B8.3C Init reads Enabled=false", !b83DisabledTrigger.IsEnabled, $"got {b83DisabledTrigger.IsEnabled}");
 
 var b83EnabledProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
-var b83EnabledTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83EnabledProv, b5Recorder, b5SystemInfo, testPaddle, testYap);
+var b83EnabledTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83EnabledProv, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 b83EnabledTrigger.Init();
 Assert("B8.3C Init reads Enabled=true", b83EnabledTrigger.IsEnabled, $"got {b83EnabledTrigger.IsEnabled}");
 
@@ -711,7 +712,7 @@ Assert("B8.3C Init reads Enabled=true", b83EnabledTrigger.IsEnabled, $"got {b83E
 var b83BlOffProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true, WhiteListEnabled = false, BlackListEnabled = false },
     PaddleOcrModelConfig.V5, "zh-Hans");
-var b83BlOffTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83BlOffProv, b5Recorder, b5SystemInfo, testPaddle, testYap);
+var b83BlOffTrigger = new AutoPickTrigger(null, defaultRuntimeState, b83BlOffProv, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap);
 b83BlOffTrigger.Init();
 var b83WLField = typeof(AutoPickTrigger).GetField("_whiteList", BindingFlags.NonPublic | BindingFlags.Instance)!;
 var b83BLField = typeof(AutoPickTrigger).GetField("_blackList", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -755,9 +756,9 @@ Assert("B9.2 _yapRecognizer reference",
 // (confirmed by rg at commit time — file path not available at runtime)
 
 // null recognizer test
-try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder, b5SystemInfo, null!, testYap); Assert("null paddle should throw", false, ""); }
+try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder, b5SystemInfo, triggerLogger, null!, testYap); Assert("null paddle should throw", false, ""); }
 catch (ArgumentNullException) { Assert("B9.2 null paddle → ArgumentNullException", true, ""); }
-try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder, b5SystemInfo, testPaddle, null!); Assert("null yap should throw", false, ""); }
+try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, null!); Assert("null yap should throw", false, ""); }
 catch (ArgumentNullException) { Assert("B9.2 null yap → ArgumentNullException", true, ""); }
 
 // Unsupported placeholders throw

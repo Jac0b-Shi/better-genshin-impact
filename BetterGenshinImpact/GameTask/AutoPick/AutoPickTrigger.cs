@@ -23,7 +23,7 @@ namespace BetterGenshinImpact.GameTask.AutoPick;
 
 public partial class AutoPickTrigger : ITaskTrigger
 {
-    private readonly ILogger<AutoPickTrigger> _logger = App.GetLogger<AutoPickTrigger>();
+    private readonly ILogger<AutoPickTrigger> _logger;
 
     public string Name => "自动拾取";
     public bool IsEnabled { get; set; }
@@ -69,6 +69,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         IAutoPickConfigProvider configProvider,
         IInputBackend inputBackend,
         ISystemInfo systemInfo,
+        ILogger<AutoPickTrigger> logger,
         IPaddleAutoPickTextRecognizer paddleRecognizer,
         IYapAutoPickTextRecognizer yapRecognizer)
     {
@@ -76,6 +77,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         ArgumentNullException.ThrowIfNull(configProvider);
         ArgumentNullException.ThrowIfNull(inputBackend);
         ArgumentNullException.ThrowIfNull(systemInfo);
+        ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(paddleRecognizer);
         ArgumentNullException.ThrowIfNull(yapRecognizer);
         _autoPickAssets = AutoPickAssets.Instance;
@@ -84,6 +86,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         _configProvider = configProvider;
         _inputBackend = inputBackend;
         _systemInfo = systemInfo;
+        _logger = logger;
         _paddleRecognizer = paddleRecognizer;
         _yapRecognizer = yapRecognizer;
         // _pickRo is set in Init() after AutoPickAssets.EnsureConfigured

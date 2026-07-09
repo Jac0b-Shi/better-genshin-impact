@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Platform.Abstractions;
+using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Collections.Concurrent;
 
@@ -48,16 +49,18 @@ public static class GameTaskManager
     }
 
     public static bool AddTrigger(string name, object? externalConfig, IAutoPickRuntimeState runtimeState, IInputBackend inputBackend, ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider,
+        ILogger<AutoPick.AutoPickTrigger> autoPickTriggerLogger,
         IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer)
     {
         ArgumentNullException.ThrowIfNull(runtimeState);
+        ArgumentNullException.ThrowIfNull(autoPickTriggerLogger);
         TriggerDictionary ??= new ConcurrentDictionary<string, ITaskTrigger>();
 
         ITaskTrigger? trigger = null;
         if (name == "AutoPick")
         {
             trigger = new AutoPick.AutoPickTrigger(
-                externalConfig as AutoPickExternalConfig, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, paddleRecognizer, yapRecognizer);
+                externalConfig as AutoPickExternalConfig, runtimeState, autoPickConfigProvider, inputBackend, systemInfo, autoPickTriggerLogger, paddleRecognizer, yapRecognizer);
         }
 
         if (trigger == null) return false;
