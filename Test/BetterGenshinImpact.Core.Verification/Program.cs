@@ -141,10 +141,13 @@ Console.WriteLine();
 Console.WriteLine("OcrFactory: IOcrRuntimeConfigProvider injection");
 var onnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(
     System.IO.Path.GetTempPath());
+var ocrResourceResolver = new BetterGenshinImpact.Core.Adapters.OcrResourcePathResolver(
+    System.IO.Path.GetTempPath());
 using var ocrFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
     new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
-    adapter);
+    adapter,
+    ocrResourceResolver);
 
 // Use reflection to verify injected values were adopted
 var modelField = typeof(BetterGenshinImpact.Core.Recognition.OCR.OcrFactory)
@@ -161,7 +164,8 @@ var deadProvider = new DeadProvider();
 using var fallbackFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
     new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
-    deadProvider);
+    deadProvider,
+    ocrResourceResolver);
 var fallbackModel = (PaddleOcrModelConfig)(modelField?.GetValue(fallbackFactory) ?? throw new InvalidOperationException());
 var fallbackCultureField = typeof(BetterGenshinImpact.Core.Recognition.OCR.OcrFactory)
     .GetField("_gameCultureInfoName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -176,7 +180,8 @@ var whiteProvider = new CultureOnlyProvider("   ");
 using var whitespaceFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
     new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
-    whiteProvider);
+    whiteProvider,
+    ocrResourceResolver);
 var whiteCulture = (string)(fallbackCultureField?.GetValue(whitespaceFactory) ?? throw new InvalidOperationException());
 Assert("Whitespace culture falls back to default", whiteCulture == expectedCulture, $"got {whiteCulture}");
 Console.WriteLine();

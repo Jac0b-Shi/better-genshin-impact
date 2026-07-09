@@ -233,7 +233,7 @@ public class PaddleOcrService : IOcrService, IDisposable
                     if (name.Equals("en"))
                     {
 #if BGI_PLATFORM_MAC
-                        throw new NotSupportedException("V4En model not available on Core");
+                        return V5;
 #else
                         return V4En;
 #endif
@@ -253,15 +253,26 @@ public class PaddleOcrService : IOcrService, IDisposable
         }
     }
 
-    public PaddleOcrService(BgiOnnxFactory bgiOnnxFactory, PaddleOcrModelType modelType, IOcrResourcePathResolver? resourceResolver = null)
+    public PaddleOcrService(BgiOnnxFactory bgiOnnxFactory, PaddleOcrModelType modelType
+#if !BGI_PLATFORM_MAC
+        , IOcrResourcePathResolver? resourceResolver = null
+#else
+        , IOcrResourcePathResolver resourceResolver
+#endif
+        )
     {
         var (modelsDet, modelsRec) = modelType.Build(bgiOnnxFactory, resourceResolver);
         _localDetModel = modelsDet;
         _localRecModel = modelsRec;
 
-        // 预热模型
-        using var preHeatImageMat = Bv.ImRead(modelType.PreHeatImagePath) ??
-                                    throw new FileNotFoundException($"预热图片未找到: {modelType.PreHeatImagePath}");
+        // 预热模型 — use resolver for preheat path in Core
+#if BGI_PLATFORM_MAC
+        var preHeatPath = resourceResolver.ResolveSidecarPath(@"Assets\Model\PaddleOCR\test_pp_ocr.png");
+#else
+        var preHeatPath = modelType.PreHeatImagePath;
+#endif
+        using var preHeatImageMat = Bv.ImRead(preHeatPath) ??
+                                    throw new FileNotFoundException($"预热图片未找到: {preHeatPath}");
         // Debug输出结果
         var preHeatResult = RunAll(preHeatImageMat, 1);
         Debug.WriteLine(

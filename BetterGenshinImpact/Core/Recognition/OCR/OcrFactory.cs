@@ -35,7 +35,13 @@ public class OcrFactory : IDisposable
     /// <summary>
     ///  OCR 工厂
     /// </summary>
-    public OcrFactory(ILogger<BgiOnnxFactory> logger, BgiOnnxFactory onnxFactory, IOcrRuntimeConfigProvider runtimeConfig, IOcrResourcePathResolver? resourceResolver = null)
+    public OcrFactory(ILogger<BgiOnnxFactory> logger, BgiOnnxFactory onnxFactory, IOcrRuntimeConfigProvider runtimeConfig
+#if !BGI_PLATFORM_MAC
+        , IOcrResourcePathResolver? resourceResolver = null
+#else
+        , IOcrResourcePathResolver resourceResolver
+#endif
+        )
     {
         ArgumentNullException.ThrowIfNull(runtimeConfig);
         ArgumentNullException.ThrowIfNull(onnxFactory);
@@ -115,36 +121,36 @@ public class OcrFactory : IDisposable
             PaddleOcrModelConfig.V4Auto =>
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfoV4(GetCultureInfo()) ??
-                    PaddleOcrService.PaddleOcrModelType.V4),
+                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V5Auto =>
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfo(GetCultureInfo()) ??
-                    PaddleOcrService.PaddleOcrModelType.V5),
+                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V5 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5),
+                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V6 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V6),
+                    PaddleOcrService.PaddleOcrModelType.V6, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V4 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V4),
+                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V4En =>
 #if BGI_PLATFORM_MAC
-                throw new NotSupportedException("V4En PaddleOCR model is not available on Core"),
+                throw new NotSupportedException("V4En PaddleOCR model type is not registered in Core"),
 #else
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V4En),
+                    PaddleOcrService.PaddleOcrModelType.V4En, resourceResolver: _resourceResolver),
 #endif
             PaddleOcrModelConfig.V5Korean =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Korean),
+                    PaddleOcrService.PaddleOcrModelType.V5Korean, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V5Latin =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Latin),
+                    PaddleOcrService.PaddleOcrModelType.V5Latin, resourceResolver: _resourceResolver),
             PaddleOcrModelConfig.V5Eslav =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Eslav),
+                    PaddleOcrService.PaddleOcrModelType.V5Eslav, resourceResolver: _resourceResolver),
             _ => throw new ArgumentOutOfRangeException(nameof(_paddleModel),
                 _paddleModel, "不支持的 Paddle OCR 模型配置")
         };
