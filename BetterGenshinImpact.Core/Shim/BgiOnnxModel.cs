@@ -24,60 +24,60 @@ public class BgiOnnxModel
     public static readonly BgiOnnxModel PaddleOcrDetV4 = new()
     {
         Name = "PaddleOcrDetV4",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_det_v4.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Det\V4\ppocr_det_v4.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrDetV5 = new()
     {
         Name = "PaddleOcrDetV5",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_det_v5.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Det\V5\ppocr_det_v5.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrDetV6 = new()
     {
         Name = "PaddleOcrDetV6",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_det_v6.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Det\V6\ppocr_det_v6.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV4 = new()
     {
         Name = "PaddleOcrRecV4",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v4.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V4\ppocr_rec_v4.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV4En = new()
     {
         Name = "PaddleOcrRecV4En",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v4_en.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V4En\ppocr_rec_v4_en.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV5 = new()
     {
         Name = "PaddleOcrRecV5",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v5.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V5\ppocr_rec_v5.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV5Latin = new()
     {
         Name = "PaddleOcrRecV5Latin",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v5_latin.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V5Latin\ppocr_rec_v5_latin.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV5Eslav = new()
     {
         Name = "PaddleOcrRecV5Eslav",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v5_eslav.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V5Eslav\ppocr_rec_v5_eslav.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV5Korean = new()
     {
         Name = "PaddleOcrRecV5Korean",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v5_korean.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V5Korean\ppocr_rec_v5_korean.onnx"
     };
 
     public static readonly BgiOnnxModel PaddleOcrRecV6 = new()
     {
         Name = "PaddleOcrRecV6",
-        ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_rec_v6.onnx"
+        ModelRelativePath = @"Assets\Model\PaddleOCR\Rec\V6\ppocr_rec_v6.onnx"
     };
 }

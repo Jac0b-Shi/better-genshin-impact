@@ -193,9 +193,9 @@ var normResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(n
 var normResult = normResolver.ResolveModelPath(new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel
 {
     Name = "Test",
-    ModelRelativePath = @"Assets\Model\PaddleOcr\ppocr_det_v5.onnx"
+    ModelRelativePath = @"Assets\Model\PaddleOCR\Det\V5\ppocr_det_v5.onnx"
 });
-var normExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(normRoot, "Assets", "Model", "PaddleOcr", "ppocr_det_v5.onnx"));
+var normExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(normRoot, "Assets", "Model", "PaddleOCR", "Det", "V5", "ppocr_det_v5.onnx"));
 Assert("IOnnxModelPathResolver normalizes backslashes", normResult == normExpected, $"expected {normExpected}, got {normResult}");
 try { _ = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(""); Assert("empty root should reject", false, "accepted empty"); }
 catch (ArgumentException) { Assert("ModelRootPathResolver rejects empty root", true, ""); }
@@ -207,7 +207,7 @@ Console.WriteLine("OcrResourcePathResolver: sidecar path resolution");
 var ocrRoot = System.IO.Path.GetTempPath();
 var ocrResolver = new BetterGenshinImpact.Core.Adapters.OcrResourcePathResolver(ocrRoot);
 var ocrResult = ocrResolver.ResolveModelPath(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5);
-var ocrExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(ocrRoot, "Assets", "Model", "PaddleOcr", "ppocr_det_v5.onnx"));
+var ocrExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(ocrRoot, "Assets", "Model", "PaddleOCR", "Det", "V5", "ppocr_det_v5.onnx"));
 Assert("OcrResourcePathResolver resolves model path", ocrResult == ocrExpected, $"expected {ocrExpected}, got {ocrResult}");
 var ocrDir = ocrResolver.ResolveModelDirectory(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5);
 var ocrDirExpected = System.IO.Path.GetDirectoryName(ocrExpected);
