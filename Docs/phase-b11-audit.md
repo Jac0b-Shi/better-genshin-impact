@@ -195,7 +195,8 @@ No change to existing 112/112 assertions. Add a new test verifying that `IOnnxMo
 - Model loading coverage in Verification (beyond resolver unit test)
 - macOS bundle resource strategy
 - WPF model path alignment (`PaddleOcr` vs `PaddleOCR/Det|Rec/V{n}/...` directory structure)
-- `BgiOnnxFactory` signature change propagation to all 3 `CreateInferenceSession` callers (Det.cs, Rec.cs, PickTextInference.cs) — requires factory injection into those types
+
+**Not deferred** — `BgiOnnxFactory` signature change propagation to Det.cs, Rec.cs, PickTextInference.cs is **in B11.1.1 implementation scope**. If `BgiOnnxFactory` gains a required `IOnnxModelPathResolver` constructor, all construction/call sites must be updated in the same commit.
 
 ### 1.12 Baseline validation
 
