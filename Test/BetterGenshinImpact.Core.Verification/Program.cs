@@ -196,6 +196,20 @@ try { _ = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(""); Asser
 catch (ArgumentException) { Assert("ModelRootPathResolver rejects empty root", true, ""); }
 try { _ = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver("   "); Assert("whitespace root should reject", false, "accepted whitespace"); }
 catch (ArgumentException) { Assert("ModelRootPathResolver rejects whitespace root", true, ""); }
+
+// ==== OcrResourcePathResolver ====
+Console.WriteLine("OcrResourcePathResolver: sidecar path resolution");
+var ocrRoot = System.IO.Path.GetTempPath();
+var ocrResolver = new BetterGenshinImpact.Core.Adapters.OcrResourcePathResolver(ocrRoot);
+var ocrResult = ocrResolver.ResolveModelPath(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5);
+var ocrExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(ocrRoot, "Assets", "Model", "PaddleOcr", "ppocr_det_v5.onnx"));
+Assert("OcrResourcePathResolver resolves model path", ocrResult == ocrExpected, $"expected {ocrExpected}, got {ocrResult}");
+var ocrDir = ocrResolver.ResolveModelDirectory(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5);
+var ocrDirExpected = System.IO.Path.GetDirectoryName(ocrExpected);
+Assert("OcrResourcePathResolver resolves model directory", ocrDir == ocrDirExpected, $"expected {ocrDirExpected}, got {ocrDir}");
+var sidecarResult = ocrResolver.ResolveSidecarPath(@"Assets\Model\PaddleOCR\inference.yml");
+var sidecarExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(ocrRoot, "Assets", "Model", "PaddleOCR", "inference.yml"));
+Assert("OcrResourcePathResolver normalizes sidecar backslash path", sidecarResult == sidecarExpected, $"expected {sidecarExpected}, got {sidecarResult}");
 Console.WriteLine();
 
 // ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====

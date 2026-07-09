@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition.OCR.Engine;
 using BetterGenshinImpact.Core.Recognition.ONNX;
@@ -37,11 +38,26 @@ public class PaddleOcrService : IOcrService, IDisposable
         String PreHeatImagePath
     )
     {
+#if !BGI_PLATFORM_MAC
         public static string TestImagePath = Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr.png");
 
         public static string TestNumberImagePath =
             Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr_number.png");
+#endif
 
+        private static IReadOnlyList<string> LoadLabelsFromModel(IOcrResourcePathResolver resolver, BgiOnnxModel recModel)
+        {
+            const string modelConfigFileName = "inference.yml";
+            var configFilePath = Path.Combine(
+                resolver.ResolveModelDirectory(recModel),
+                modelConfigFileName);
+            if (!File.Exists(configFilePath))
+                throw new FileNotFoundException(
+                    $"PaddleOCR config file {modelConfigFileName} not found: {configFilePath}");
+            return ParseInferenceYml(configFilePath);
+        }
+
+#if !BGI_PLATFORM_MAC
         private static readonly Func<BgiOnnxModel, IReadOnlyList<string>> DefaultRecLabelFunc =
             recModel =>
             {
@@ -50,40 +66,12 @@ public class PaddleOcrService : IOcrService, IDisposable
                     Path.GetDirectoryName(recModel.ModalPath) ??
                     throw new InvalidOperationException("Cannot get model directory"),
                     modelConfigFileName);
-
                 if (!File.Exists(configFilePath))
                     throw new FileNotFoundException(
                         $"PaddleOCR config file {modelConfigFileName} not found: {configFilePath}");
-
-                using var reader = new StreamReader(configFilePath);
-                var parser = new Parser(reader);
-
-                // Traverse YAML to find PostProcess:character_dict
-                while (parser.MoveNext())
-                {
-                    if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "PostProcess" }) continue;
-                    parser.MoveNext(); // Should be MappingStart
-                    while (parser.MoveNext())
-                    {
-                        if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "character_dict" }) continue;
-                        parser.MoveNext(); // Should be SequenceStart
-                        var result = new List<string>();
-                        while (parser.MoveNext())
-                        {
-                            switch (parser.Current)
-                            {
-                                case SequenceEnd:
-                                    return result;
-                                case YamlDotNet.Core.Events.Scalar charScalar:
-                                    result.Add(charScalar.Value);
-                                    break;
-                            }
-                        }
-                    }
-                }
-
-                throw new InvalidOperationException("未在 YAML 的 PostProcess 部分找到 character_dict。");
+                return ParseInferenceYml(configFilePath);
             };
+#endif
 
 
         private static PaddleOcrModelType Create(
@@ -100,15 +88,28 @@ public class PaddleOcrService : IOcrService, IDisposable
                 detectionVersion,
                 recognitionModel,
                 recognitionVersion,
+#if !BGI_PLATFORM_MAC
                 recLabel ?? (() => DefaultRecLabelFunc(recognitionModel)),
-                preHeatImagePath ?? TestImagePath);
+                preHeatImagePath ?? TestImagePath
+#else
+                recLabel ?? (() => throw new NotSupportedException("Core PaddleOCR label loading requires IOcrResourcePathResolver")),
+                preHeatImagePath ?? ""
+#endif
+                );
         }
 
-        public (Det, Rec) Build(BgiOnnxFactory onnxFactory)
+        public (Det, Rec) Build(BgiOnnxFactory onnxFactory, IOcrResourcePathResolver? resourceResolver = null)
         {
             return (
                 new Det(DetectionModel, DetectionVersion, onnxFactory),
-                new Rec(RecognitionModel, RecLabel(), RecognitionVersion, onnxFactory));
+#if BGI_PLATFORM_MAC
+                resourceResolver is null
+                    ? throw new ArgumentNullException(nameof(resourceResolver))
+                    : new Rec(RecognitionModel, LoadLabelsFromModel(resourceResolver, RecognitionModel), RecognitionVersion, onnxFactory)
+#else
+                new Rec(RecognitionModel, RecLabel(), RecognitionVersion, onnxFactory)
+#endif
+                );
         }
 
         public static readonly PaddleOcrModelType V4 = Create(
@@ -117,12 +118,14 @@ public class PaddleOcrService : IOcrService, IDisposable
             BgiOnnxModel.PaddleOcrRecV4,
             OcrVersionConfig.PpOcrV4);
 
+#if !BGI_PLATFORM_MAC
         public static readonly PaddleOcrModelType V4En = Create(
             BgiOnnxModel.PaddleOcrDetV4,
             OcrVersionConfig.PpOcrV4,
             BgiOnnxModel.PaddleOcrRecV4En,
             OcrVersionConfig.PpOcrV4,
             TestNumberImagePath);
+#endif
 
         public static readonly PaddleOcrModelType V5 = Create(
             BgiOnnxModel.PaddleOcrDetV5,
@@ -229,7 +232,11 @@ public class PaddleOcrService : IOcrService, IDisposable
                 {
                     if (name.Equals("en"))
                     {
+#if BGI_PLATFORM_MAC
+                        throw new NotSupportedException("V4En model not available on Core");
+#else
                         return V4En;
+#endif
                     }
                     else if (name.Equals("zh-hant") || name.Equals("zh-tw") || name.Equals("zh-hk"))
                     {
@@ -246,9 +253,9 @@ public class PaddleOcrService : IOcrService, IDisposable
         }
     }
 
-    public PaddleOcrService(BgiOnnxFactory bgiOnnxFactory, PaddleOcrModelType modelType)
+    public PaddleOcrService(BgiOnnxFactory bgiOnnxFactory, PaddleOcrModelType modelType, IOcrResourcePathResolver? resourceResolver = null)
     {
-        var (modelsDet, modelsRec) = modelType.Build(bgiOnnxFactory);
+        var (modelsDet, modelsRec) = modelType.Build(bgiOnnxFactory, resourceResolver);
         _localDetModel = modelsDet;
         _localRecModel = modelsRec;
 
@@ -360,5 +367,36 @@ public class PaddleOcrService : IOcrService, IDisposable
         {
             return (this._localDetModel.GetConfigName, this._localRecModel.GetConfigName);
         }
+    }
+
+    private static IReadOnlyList<string> ParseInferenceYml(string configFilePath)
+    {
+        using var reader = new StreamReader(configFilePath);
+        var parser = new Parser(reader);
+
+        while (parser.MoveNext())
+        {
+            if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "PostProcess" }) continue;
+            parser.MoveNext();
+            while (parser.MoveNext())
+            {
+                if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "character_dict" }) continue;
+                parser.MoveNext();
+                var result = new List<string>();
+                while (parser.MoveNext())
+                {
+                    switch (parser.Current)
+                    {
+                        case SequenceEnd:
+                            return result;
+                        case YamlDotNet.Core.Events.Scalar charScalar:
+                            result.Add(charScalar.Value);
+                            break;
+                    }
+                }
+            }
+        }
+
+        throw new InvalidOperationException("未在 YAML 的 PostProcess 部分找到 character_dict。");
     }
 }

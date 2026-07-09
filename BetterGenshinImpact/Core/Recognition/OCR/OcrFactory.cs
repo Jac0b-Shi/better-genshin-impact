@@ -28,18 +28,20 @@ public class OcrFactory : IDisposable
     private IOcrService? _paddleOcrService;
     private readonly ILogger<BgiOnnxFactory> _logger;
     private readonly BgiOnnxFactory _onnxFactory;
+    private readonly IOcrResourcePathResolver? _resourceResolver;
     private readonly PaddleOcrModelConfig _paddleModel;
     private readonly string _gameCultureInfoName;
 
     /// <summary>
     ///  OCR 工厂
     /// </summary>
-    public OcrFactory(ILogger<BgiOnnxFactory> logger, BgiOnnxFactory onnxFactory, IOcrRuntimeConfigProvider runtimeConfig)
+    public OcrFactory(ILogger<BgiOnnxFactory> logger, BgiOnnxFactory onnxFactory, IOcrRuntimeConfigProvider runtimeConfig, IOcrResourcePathResolver? resourceResolver = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeConfig);
         ArgumentNullException.ThrowIfNull(onnxFactory);
         _logger = logger;
         _onnxFactory = onnxFactory;
+        _resourceResolver = resourceResolver;
         _paddleModel = LoadPaddleModel(runtimeConfig);
         _gameCultureInfoName = LoadGameCultureInfoName(runtimeConfig);
     }
@@ -128,8 +130,12 @@ public class OcrFactory : IDisposable
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V4),
             PaddleOcrModelConfig.V4En =>
+#if BGI_PLATFORM_MAC
+                throw new NotSupportedException("V4En PaddleOCR model is not available on Core"),
+#else
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V4En),
+#endif
             PaddleOcrModelConfig.V5Korean =>
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.V5Korean),
