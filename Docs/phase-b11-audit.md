@@ -264,42 +264,65 @@ public static string TestImagePath = Global.Absolute(...) ?? "";
 
 This is a `static` field initializer. It runs when `PaddleOcrService` is first accessed. On Core, `Global.Absolute` probes the directory tree. This is the same static path dependency pattern B10 eliminated everywhere else.
 
-### 2.5 Resolution options
+### 2.5 Design constraints
+
+| Constraint | Rationale |
+|------------|-----------|
+| `IOnnxModelPathResolver` must stay ONNX-model-only | Sidecar files (inference.yml, labels, PNG) are not ONNX models. Adding `ResolveSidecarPath` pollutes the interface contract. |
+| `BgiOnnxModel.ModalPath` must NOT use resolver | `BgiOnnxModel` is a static registry with no resolver instance. Making `ModalPath` use a resolver would require static resolver / service locator — the pattern B11 eliminates. |
+| `DefaultRecLabelFunc` must stop deriving paths from `recModel.ModalPath` | ModalPath is raw relative in Core. The `inference.yml` path must come from a resolver, not from the model registry property. |
+| Static `TestImagePath` / `TestNumberImagePath` must be instance-resolved | Static field initializers with `Global.Absolute` are the pattern B10 removed. These must become lazy/instance-resolved via a resolver. |
+| `PaddleOcrModelType.Build(...)` must accept resource resolver | The factory that creates `Det`/`Rec` pairs needs the resolver to pass to `Rec` for label/config resolution. |
+
+### 2.6 Resolution options
 
 | Option | Description | Impact |
 |--------|-------------|--------|
-| **A** — Extend `IOnnxModelPathResolver` | Add `ResolveSidecarPath(string relativePath)` method for non-ONNX resources | Covers all PaddleOCR resources in one interface |
-| **B** — New `IOcrResourcePathResolver` | Separate interface for OCR-specific non-model resources | More specific, but partial overlap with existing resolver |
-| **C** — Fix `ModalPath` + `CachePath` in Core shim | Change to use `Global.Absolute` (matching WPF) | Re-introduces static path dependency; rejected per B11 direction |
+| **A** — New `IOcrResourcePathResolver` interface | Separate interface for PaddleOCR-specific resources: `ResolveModelPath`, `ResolveModelDirectory`, `ResolveSidecarPath` | Clean separation; implementation can reuse normalization logic |
+| **B** — Extend `IOnnxModelPathResolver` | Add `ResolveSidecarPath` | ❌ Interface pollution — ONNX model resolver shouldn't know about inference.yml |
+| **C** — Fix `ModalPath` + `CachePath` in Core shim with `Global.Absolute` | Rejected per B11 direction | Re-introduces static path dependency |
 
-**Recommendation: Option A** — extend `IOnnxModelPathResolver` with `ResolveSidecarPath(string relativePath)`.
+**Recommendation: Option A** — new `IOcrResourcePathResolver` interface with `IOcrResourcePathResolver : IOnnxModelPathResolver` or standalone.
 
-### 2.6 Recommended plan (B11.2.1)
+### 2.7 Recommended plan (B11.2.1)
 
-1. **Add to `IOnnxModelPathResolver`:**
+1. Define `IOcrResourcePathResolver`:
    ```csharp
-   string ResolveSidecarPath(string relativePath);
-   ```
-2. **Implement in `ModelRootPathResolver`:**
-   ```csharp
-   public string ResolveSidecarPath(string relativePath)
+   public interface IOcrResourcePathResolver
    {
-       var normalized = NormalizePath(relativePath);
-       return Path.GetFullPath(Path.Combine(_modelRoot, normalized));
+       string ResolveModelPath(BgiOnnxModel model);
+       string ResolveModelDirectory(BgiOnnxModel model);
+       string ResolveSidecarPath(string relativePath);
    }
    ```
-3. **Fix Core `BgiOnnxModel.ModalPath`** to use the same `IOnnxModelPathResolver` or delegate to sidecar resolution — whichever matches the existing call patterns.
-4. **Replace `Global.Absolute` calls** in `PaddleOcrService.cs` with resolver-based path resolution.
-5. **Convert static fields** (`TestImagePath`, `TestNumberImagePath`) to lazy/delayed resolution.
+   This can be a standalone interface (not extending `IOnnxModelPathResolver`). The `ModelRootPathResolver`-like implementation can be reused via shared normalization logic.
 
-### 2.7 Remaining blockers after B11.2.1
+2. Implement `OcrResourcePathResolver` using same model-root + path-normalization pattern from `ModelRootPathResolver`.
+
+3. Do NOT touch `BgiOnnxModel.ModalPath` / `CachePath`. They remain WPF compatibility properties. Core consumers must stop accessing them for runtime path resolution.
+
+4. Replace `DefaultRecLabelFunc` closure with `RecLabel(resolver, recModel)` that uses `resolver.ResolveModelDirectory(recModel)` + `inference.yml`.
+
+5. Convert static `TestImagePath` / `TestNumberImagePath` to instance lazy resolution via resolver.
+
+6. `PaddleOcrModelType.Build(...)` — add `IOcrResourcePathResolver resourceResolver` parameter; pass to `Rec` and `PaddleOcrService`.
+
+7. `OcrFactory.CreatePaddleOcrInstance()` — obtain resolver from constructor or composition; pass through `Build`.
+
+8. `PaddleOcrService` constructor — accept `IOcrResourcePathResolver`; replace `Global.Absolute` calls.
+
+### 2.8 No Global.Absolute, no ModalPath-based inference.yml
+
+All sidecar paths must go through `IOcrResourcePathResolver`. No cwd fallback, no static resolver, no `BgiOnnxModel.ModalPath` property used for runtime path resolution.
+
+### 2.9 Remaining blockers after B11.2.1
 
 - `.onnx` model files still absent from repository
 - Real `InferenceSession` loading test still deferred
 - macOS bundle resource strategy not addressed
 - Core OCR production-ready remains **False**
 
-### 2.8 Baseline validation
+### 2.10 Baseline validation
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
