@@ -177,4 +177,11 @@
     <Compile Include="Shim/PlatformServices.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="Artifacts/ModelArtifactManifest.cs" />
+    <None Include="Manifest/model-artifacts.manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

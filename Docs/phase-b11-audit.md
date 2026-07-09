@@ -254,7 +254,38 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/1
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/121 ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/118 ✅
+```
+
+---
+
+## 5. B11.5 Artifact Manifest
+
+### 5.1 Implementation (commit + correction)
+
+| Aspect | Detail |
+|--------|--------|
+| Manifest file | `BetterGenshinImpact.Core/Manifest/model-artifacts.manifest.json` |
+| Manifest classes | `BetterGenshinImpact.Core/Artifacts/ModelArtifactManifest.cs` — `ModelArtifactManifest`, `ModelArtifactEntry`, `SidecarArtifactEntry` |
+| Model artifacts | 11 ONNX entries (1 Yap + 3 Det + 7 Rec) |
+| Sidecar artifacts | 2 preheat PNGs |
+| Rec sidecars | 7 `inference.yml` placeholders (one per Rec model directory) |
+| Path convention | Forward slash `/` in manifest; normalized to platform separator in tests |
+| Real artifacts delivered? | **No** |
+| `File.Exists` validation? | **No** |
+| `InferenceSession` created? | **No** |
+| Verification | 9 new assertions: parse, counts, slash, case, resolver alignment, preheat path |
+| Assertion count | 121 → **130** |
+
+### 5.2 Next phase
+
+**B11.6** — Download script / bundle packaging strategy, or **B11.5.1** if manifest needs correction.
+
+### 5.3 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 130/130 ✅
 ```
 
 ---

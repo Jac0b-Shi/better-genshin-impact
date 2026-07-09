@@ -226,6 +226,39 @@ Assert("RecV5 path uses PaddleOCR", recPathNorm.Contains("/PaddleOCR/"), recPath
 Assert("RecV5 path does not use PaddleOcr", !recPathNorm.Contains("/PaddleOcr/"), recPathNorm);
 Console.WriteLine();
 
+// ==== B11.5 Artifact manifest ====
+Console.WriteLine("B11.5: Artifact manifest path validation");
+var manifestPath = System.IO.Path.Combine(
+    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+    "Manifest",
+    "model-artifacts.manifest.json");
+var manifestJson = System.IO.File.ReadAllText(manifestPath);
+var manifest = System.Text.Json.JsonSerializer.Deserialize<BetterGenshinImpact.Core.Artifacts.ModelArtifactManifest>(manifestJson)!;
+Assert("B11.5 Manifest parses successfully", manifest != null, "null");
+Assert("B11.5 Manifest version is 1", manifest.Version == 1, $"got {manifest.Version}");
+Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
+Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
+var recWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
+Assert("B11.5 Rec entries with inference.yml is 7", recWithSidecar.Count == 7, $"got {recWithSidecar.Count}");
+var firstOnnx = manifest.Artifacts[0];
+Assert("B11.5 Manifest paths use forward slash", !firstOnnx.RelativePath.Contains('\\'), firstOnnx.RelativePath);
+var allPaddleOk = manifest.Artifacts.TrueForAll(a =>
+    !a.RelativePath.Contains("PaddleOcr") || a.RegistryKey == "YapModelTraining");
+Assert("B11.5 Manifest paths use PaddleOCR not PaddleOcr", allPaddleOk, "found PaddleOcr in manifest");
+// Verify resolver produces same path as manifest for PaddleOcrRecV5
+var manifestRecV5 = manifest.Artifacts.Find(a => a.RegistryKey == "PaddleOcrRecV5")!;
+var recV5Resolved = ocrResolver.ResolveModelPath(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5);
+var recV5ManifestPath = System.IO.Path.GetFullPath(
+    System.IO.Path.Combine(ocrRoot, manifestRecV5.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+Assert("B11.5 Resolved RecV5 matches manifest", recV5Resolved == recV5ManifestPath, $"resolved={recV5Resolved} manifest={recV5ManifestPath}");
+// Verify preheat sidecar path
+var preheatEntry = manifest.SidecarArtifacts.Find(s => s.Id == "PaddleOCR.Preheat.Default")!;
+var preheatResolved = ocrResolver.ResolveSidecarPath(preheatEntry.RelativePath);
+var preheatExpected = System.IO.Path.GetFullPath(
+    System.IO.Path.Combine(ocrRoot, preheatEntry.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+Assert("B11.5 Preheat path matches manifest", preheatResolved == preheatExpected, $"resolved={preheatResolved} manifest={preheatExpected}");
+Console.WriteLine();
+
 // ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====
 Console.WriteLine("AutoPickTrigger: IAutoPickRuntimeState injection");
 var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();

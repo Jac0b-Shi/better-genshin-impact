@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "modelRootContract": "modelRoot/Assets/Model",
+  "artifacts": [
+    {
+      "id": "YapModelTraining",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Yap/model_training.onnx",
+      "registryKey": "YapModelTraining",
+      "requiredFor": ["PickTextInference", "AutoPick.Yap"],
+      "sidecars": []
+    },
+    {
+      "id": "PaddleOcrDetV4",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Det/V4/ppocr_det_v4.onnx",
+      "registryKey": "PaddleOcrDetV4",
+      "requiredFor": ["PaddleOCR.Det.V4"],
+      "sidecars": []
+    },
+    {
+      "id": "PaddleOcrDetV5",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Det/V5/ppocr_det_v5.onnx",
+      "registryKey": "PaddleOcrDetV5",
+      "requiredFor": ["PaddleOCR.Det.V5"],
+      "sidecars": []
+    },
+    {
+      "id": "PaddleOcrDetV6",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Det/V6/ppocr_det_v6.onnx",
+      "registryKey": "PaddleOcrDetV6",
+      "requiredFor": ["PaddleOCR.Det.V6"],
+      "sidecars": []
+    },
+    {
+      "id": "PaddleOcrRecV4",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V4/ppocr_rec_v4.onnx",
+      "registryKey": "PaddleOcrRecV4",
+      "requiredFor": ["PaddleOCR.Rec.V4"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV4En",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V4En/ppocr_rec_v4_en.onnx",
+      "registryKey": "PaddleOcrRecV4En",
+      "requiredFor": ["PaddleOCR.Rec.V4En"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4En/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV5",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V5/ppocr_rec_v5.onnx",
+      "registryKey": "PaddleOcrRecV5",
+      "requiredFor": ["PaddleOCR.Rec.V5"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV5Latin",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V5Latin/ppocr_rec_v5_latin.onnx",
+      "registryKey": "PaddleOcrRecV5Latin",
+      "requiredFor": ["PaddleOCR.Rec.V5Latin"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Latin/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV5Eslav",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V5Eslav/ppocr_rec_v5_eslav.onnx",
+      "registryKey": "PaddleOcrRecV5Eslav",
+      "requiredFor": ["PaddleOCR.Rec.V5Eslav"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Eslav/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV5Korean",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V5Korean/ppocr_rec_v5_korean.onnx",
+      "registryKey": "PaddleOcrRecV5Korean",
+      "requiredFor": ["PaddleOCR.Rec.V5Korean"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Korean/inference.yml"]
+    },
+    {
+      "id": "PaddleOcrRecV6",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/PaddleOCR/Rec/V6/ppocr_rec_v6.onnx",
+      "registryKey": "PaddleOcrRecV6",
+      "requiredFor": ["PaddleOCR.Rec.V6"],
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V6/inference.yml"]
+    }
+  ],
+  "sidecarArtifacts": [
+    {
+      "id": "PaddleOCR.Preheat.Default",
+      "relativePath": "Assets/Model/PaddleOCR/test_pp_ocr.png",
+      "requiredFor": ["PaddleOcrService.Preheat"]
+    },
+    {
+      "id": "PaddleOCR.Preheat.Number",
+      "relativePath": "Assets/Model/PaddleOCR/test_pp_ocr_number.png",
+      "requiredFor": ["PaddleOcrService.Preheat.V4En"]
+    }
+  ]
+}
