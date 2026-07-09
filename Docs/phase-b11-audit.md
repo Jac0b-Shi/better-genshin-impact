@@ -322,9 +322,42 @@ All sidecar paths must go through `IOcrResourcePathResolver`. No cwd fallback, n
 - macOS bundle resource strategy not addressed
 - Core OCR production-ready remains **False**
 
-### 2.10 Baseline validation
+### 2.10 B11.2.1 Implementation Result (commits cc27535 → 1ec429e → 6f12bb4)
+
+| Component | Status |
+|-----------|--------|
+| `IOcrResourcePathResolver` interface | Added to `Core/Abstractions/Runtime/` ✅ |
+| `OcrResourcePathResolver` implementation | Added to `Adapters/` — root validation, path normalization ✅ |
+| `OcrFactory` constructor | Core required `IOcrResourcePathResolver` (`#if BGI_PLATFORM_MAC`); WPF optional ✅ |
+| `PaddleOcrService` constructor | Core required `IOcrResourcePathResolver` (`#if BGI_PLATFORM_MAC`); WPF optional ✅ |
+| `PaddleOcrModelType.Build()` | Core required resolver; WPF optional ✅ |
+| `OcrFactory.CreatePaddleOcrInstance()` | All 9 model branches pass `resourceResolver: _resourceResolver` ✅ |
+| Preheat path resolution | Core uses `modelType.PreHeatImageRelativePath` via resolver; WPF unchanged ✅ |
+| PaddleOCR labels | Core uses `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath` ✅ |
+| `V4En` model type availability | Core registered with `preHeatImageRelativePath` (not disabled) ✅ |
+| `FromCultureInfoV4` English path | Returns `V4En` (same as WPF) — not downgraded to V5 ✅ |
+| `TestImagePath` / `TestNumberImagePath` static fields | `#if !BGI_PLATFORM_MAC` guarded ✅ |
+| `DefaultRecLabelFunc` | `#if !BGI_PLATFORM_MAC` guarded ✅ |
+| `BgiOnnxModel.ModalPath` / `CachePath` | Unchanged — treated as WPF compatibility properties ✅ |
+| Core `Global.Absolute` usage for PaddleOCR resources | Removed from Core preprocessing path ✅ |
+| Verification resolver tests | OcrResourcePathResolver tests added (model path, directory, sidecar) ✅ |
+| Assertion count | 115 → **118** (+3 resolver tests) |
+| Core build | 0 errors ✅ |
+| WPF build — new errors | **Zero** (same pre-existing TaskTriggerDispatcher errors) ✅ |
+
+### 2.11 Remaining blockers
+
+| Blocker | Detail |
+|---------|--------|
+| `.onnx` model files absent from repository | External artifacts — not committed, not deployed |
+| Real `InferenceSession` loading test | Verification creates no `InferenceSession`; wiring-only |
+| Sidecar resource files absent | inference.yml, label files, preheat images not present in repo |
+| macOS bundle resource strategy | Not addressed |
+| Core OCR production-ready | **False** — model files + sidecar files + bundle strategy unresolved |
+
+### 2.12 Baseline validation
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 115/115 ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/118 ✅
 ```
