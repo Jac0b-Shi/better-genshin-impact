@@ -227,3 +227,81 @@ No change to existing 112/112 assertions. Add a new test verifying that `IOnnxMo
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 115/115 ✅
 ```
+
+---
+
+## 2. B11.2 Audit: PaddleOCR Sidecar Resource Path Resolution
+
+### 2.1 Problem
+
+B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathResolver`, but PaddleOCR has additional resource files loaded outside the ONNX session path. These still use `Global.Absolute()` or raw `ModelRelativePath` — unnormalized, unresolved on macOS.
+
+### 2.2 Sidecar resource inventory
+
+| Resource | Path expression | Code location | Resolved by | Core-safe? |
+|----------|----------------|---------------|-------------|------------|
+| Test preheat image | `Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr.png")` | `PaddleOcrService.cs:40` — `static` field | `Global.Absolute` | ❌ Static, cwd-probing |
+| Test number image | `Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr_number.png")` | `PaddleOcrService.cs:42-43` — `static` field | `Global.Absolute` | ❌ Same |
+| `inference.yml` config | `Path.GetDirectoryName(recModel.ModalPath)` → `inference.yml` | `PaddleOcrService.cs:48-50` — `DefaultRecLabelFunc` | `recModel.ModalPath` (raw `ModelRelativePath` in Core) | ❌ Raw relative |
+| Character label files | Derived from `inference.yml` or model directory | Same function | Same as above | ❌ |
+| OCR model files (`.onnx`) | `BgiOnnxFactory.CreateInferenceSession(model)` via `IOnnxModelPathResolver` | `Det.cs`, `Rec.cs`, `PickTextInference.cs` | ✅ Fixed in B11.1.1 | ✅ |
+
+### 2.3 Core BgiOnnxModel ModalPath still raw
+
+```csharp
+// Shim/BgiOnnxModel.cs:
+public string ModalPath => ModelRelativePath;          // ← raw, unresolved
+public string CachePath => CacheRelativePath;          // ← raw, unresolved
+```
+
+`DefaultRecLabelFunc` calls `Path.GetDirectoryName(recModel.ModalPath)` to find the model's directory, then reads `inference.yml` from it. In Core, `ModalPath` is `Assets\Model\PaddleOcr\ppocr_rec_v5.onnx` → directory = `Assets\Model\PaddleOcr\` → `inference.yml` would be `Assets\Model\PaddleOcr\inference.yml` — a relative path that only works if cwd matches.
+
+### 2.4 TestImagePath is a static field — initialized once at class load
+
+```csharp
+public static string TestImagePath = Global.Absolute(...) ?? "";
+```
+
+This is a `static` field initializer. It runs when `PaddleOcrService` is first accessed. On Core, `Global.Absolute` probes the directory tree. This is the same static path dependency pattern B10 eliminated everywhere else.
+
+### 2.5 Resolution options
+
+| Option | Description | Impact |
+|--------|-------------|--------|
+| **A** — Extend `IOnnxModelPathResolver` | Add `ResolveSidecarPath(string relativePath)` method for non-ONNX resources | Covers all PaddleOCR resources in one interface |
+| **B** — New `IOcrResourcePathResolver` | Separate interface for OCR-specific non-model resources | More specific, but partial overlap with existing resolver |
+| **C** — Fix `ModalPath` + `CachePath` in Core shim | Change to use `Global.Absolute` (matching WPF) | Re-introduces static path dependency; rejected per B11 direction |
+
+**Recommendation: Option A** — extend `IOnnxModelPathResolver` with `ResolveSidecarPath(string relativePath)`.
+
+### 2.6 Recommended plan (B11.2.1)
+
+1. **Add to `IOnnxModelPathResolver`:**
+   ```csharp
+   string ResolveSidecarPath(string relativePath);
+   ```
+2. **Implement in `ModelRootPathResolver`:**
+   ```csharp
+   public string ResolveSidecarPath(string relativePath)
+   {
+       var normalized = NormalizePath(relativePath);
+       return Path.GetFullPath(Path.Combine(_modelRoot, normalized));
+   }
+   ```
+3. **Fix Core `BgiOnnxModel.ModalPath`** to use the same `IOnnxModelPathResolver` or delegate to sidecar resolution — whichever matches the existing call patterns.
+4. **Replace `Global.Absolute` calls** in `PaddleOcrService.cs` with resolver-based path resolution.
+5. **Convert static fields** (`TestImagePath`, `TestNumberImagePath`) to lazy/delayed resolution.
+
+### 2.7 Remaining blockers after B11.2.1
+
+- `.onnx` model files still absent from repository
+- Real `InferenceSession` loading test still deferred
+- macOS bundle resource strategy not addressed
+- Core OCR production-ready remains **False**
+
+### 2.8 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 115/115 ✅
+```
