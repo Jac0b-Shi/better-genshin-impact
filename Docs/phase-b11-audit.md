@@ -225,8 +225,36 @@ No change to existing 112/112 assertions. Add a new test verifying that `IOnnxMo
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/118 ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
+
+### 6.11 B11.6.1 Provenance Audit Result
+
+See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-provenance.md)
+
+| Aspect | Verdict |
+|--------|---------|
+| YapModelTraining source/license | **Blocked** — unknown provenance |
+| PaddleOCR ONNX (10) | Apache 2.0 license — redistribution with attribution allowed |
+| Preheat PNG provenance | **Unresolved** — copyright status unverified |
+| inference.yml compatibility | Presumed compatible (upstream parser tested), unverified |
+| Immutable source archive | **Unavailable** — upstream distributes only via installer .exe |
+| Archive-to-member mapping | Deferred until source lock is created |
+| Source topology | Single-archive presumed (all from upstream release); Yap is separate unknown source |
+| **Overall** | **NO-GO** — cannot proceed to downloader implementation |
+
+**Blockers preventing B11.6.2+**:
+1. No immutable, standalone artifact archive URL from upstream
+2. YapModelTraining source/license unknown
+3. Preheat PNG copyright unverified
+4. Model SHA-256 not recorded
+
+**Conditions for unblocking** (from B11.6.1 audit):
+- Download upstream release installer and extract all model files
+- Identify Yap model training provenance and license
+- Verify preheat PNG source
+- Verify inference.yml inline character_dict for all 7 Rec models
+- Create `model-artifacts.source-lock.json` with `sources[]` array (multi-source if needed)
 
 ---
 
