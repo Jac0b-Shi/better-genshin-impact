@@ -1,6 +1,6 @@
 # B11 Audit: Platform Capability Wiring
 
-**Status:** B11.1–B11.5 implemented and locally verified; B11.6 artifact delivery/packaging remains open.
+**Status:** B11.1–B11.4 complete; B11.5 reopened (Yap runtime dictionary omitted from manifest); B11.2.2 open (Yap dictionary path uses Global.Absolute); B11.6.1 provenance NO-GO. Core OCR production-ready remains false.
 **Predecessor:** B10 structural shim cleanup complete
 
 ---
@@ -228,42 +228,18 @@ dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero 
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
 
-### 6.11 B11.6.1 Provenance Audit Result
 
-See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-provenance.md)
+### 2.4 Implementation result (B11.2.1)
 
-| Aspect | Verdict |
-|--------|---------|
-| Total physical files | **21** (not 20) — missing `index_2_word.json` in B11.5 manifest |
-| Yap ONNX + JSON source | Authoritative source found: `Alex-Beng/Yap` commit `c5c9990` (GPL-3.0); byte identity with BetterGI **unverified** |
-| PaddleOCR ONNX (10) | Apache-2.0 candidate; exact bytes/conversion chain **unverified** |
-| Preheat PNGs | **Unresolved** — copyright unverified |
-| inference.yml content | **Unresolved** — must verify inline `character_dict` |
-| Delivery container | BetterGI 0.62.0 installer (454 MB); member tree **not inspected** |
-| Source topology | Multi-provenance likely; single-archive not confirmed |
-| **Overall** | **NO-GO** |
-
-**Blockers** (from detailed audit):
-1. BetterGI installer member tree not inspected
-2. Yap model SHA-256 not compared with BetterGI
-3. GPL-3.0 coverage of Yap model weights unclarified
-4. `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2 needed)
-5. B11.5 manifest missing `index_2_word.json` (B11.5.1 needed)
-6. Preheat PNG provenance unknown
-7. inference.yml format unverified
-8. Paddle→ONNX conversion pipeline undocumented
-
-### 6.12 Phases opened by audit
-
-| Phase | Reason |
-|-------|--------|
-| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 |
-| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency |
-
-Both phases are audit-only at this stage — no production code changes until artifact provenance allows downloader/source-lock implementation.
+- `IOcrResourcePathResolver` interface + `OcrResourcePathResolver` implementation added
+- PaddleOCR labels use `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath`
+- Core preheat uses `ResolveSidecarPath(modelType.PreHeatImageRelativePath)`
+- WPF static `TestImagePath`/`TestNumberImagePath` guarded with `#if !BGI_PLATFORM_MAC`
+- V4En restored; `FromCultureInfoV4` English returns V4En (not V5)
+- No real artifact files delivered
+- Core OCR production-ready remains false
 
 ---
-
 ## 2. B11.2 Audit: PaddleOCR Sidecar Resource Path Resolution
 
 ### 2.1 Problem
@@ -292,17 +268,10 @@ B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathReso
 | Preheat path model-specific via `PreHeatImageRelativePath` | Each model variant has its own preheat image |
 | V4En available in Core | Not disabled — model selection preserved |
 
-### 2.4 Implementation result (B11.2.1)
-
-- `IOcrResourcePathResolver` interface + `OcrResourcePathResolver` implementation added
-- PaddleOCR labels use `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath`
-- Core preheat uses `ResolveSidecarPath(modelType.PreHeatImageRelativePath)`
-- WPF static `TestImagePath`/`TestNumberImagePath` guarded with `#if !BGI_PLATFORM_MAC`
-- V4En restored; `FromCultureInfoV4` English returns V4En (not V5)
-- No real artifact files delivered
-- Core OCR production-ready remains false
-
----
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
+```
 
 ## 3. B11.3 Audit: Model Artifact Contract and macOS Bundle Strategy
 
@@ -324,12 +293,14 @@ B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathReso
 
 **Case convention:** `PaddleOCR` (uppercase C).
 
-**ONNX models (11):** 1 Yap + 3 Det + 7 Rec. Paths align to `PaddleOCR/Det|Rec/V{n}/`.
+**ONNX models (11 + 1 Yap JSON):** 1 Yap ONNX + 1 Yap JSON + 3 Det + 7 Rec. Paths align to `PaddleOCR/Det|Rec/V{n}/`.
 
 **Sidecar resources:**
 - 7 × `inference.yml` (one per Rec model directory)
+- 1 × `index_2_word.json` (Yap runtime dictionary)
 - 2 × preheat PNG (`test_pp_ocr.png`, `test_pp_ocr_number.png`)
 - **No external dictionary files.** `PostProcess.character_dict` is an inline YAML sequence.
+- Total physical files: **21**
 
 ### 3.4 Required artifact tree
 
@@ -339,9 +310,11 @@ B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathReso
     Model/
       Yap/
         model_training.onnx
-      PaddleOCR/
-        test_pp_ocr.png
-        test_pp_ocr_number.png
+        index_2_word.json
+  index_2_word.json
+PaddleOCR/
+  test_pp_ocr.png
+  test_pp_ocr_number.png
         Det/ V4/ppocr_det_v4.onnx
             V5/ppocr_det_v5.onnx
             V6/ppocr_det_v6.onnx
@@ -437,11 +410,20 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 | `File.Exists` / `InferenceSession`? | **No** |
 | Core OCR production-ready | **False** |
 
-### 5.3 Next phase
+### 5.3 State before B11.5.1 reopening
 
-**B11.6** — Download script / bundle packaging strategy.
+The B11.5 manifest was validated at 288/288, but this only covers 20 of the 21 required physical files. The Yap runtime dictionary (`Assets/Model/Yap/index_2_word.json`) was not modeled in the manifest.
 
-### 5.4 Baseline validation
+### 5.4 B11.5.1 Reopening
+
+- Manifest currently models **20** physical files
+- Missing: `Assets/Model/Yap/index_2_word.json`
+- Destination contract is therefore incomplete
+- 288/288 validated the incomplete manifest only
+- B11.5 is **reopened** for correction
+- Next implementation must add Yap JSON entry and update Verification count
+
+### 5.5 Baseline validation (historical — pre-reopening)
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
@@ -454,16 +436,14 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/2
 
 ### 6.1 Current status
 
-All B11.1–B11.5 infrastructure is complete:
-- **Path resolution**: `IOnnxModelPathResolver` + `IOcrResourcePathResolver` — full path normalization
-- **Registry alignment**: 11 ONNX paths match per-model `PaddleOCR/Det|Rec/V{n}/` layout
-- **Manifest contract**: `model-artifacts.manifest.json` defines expected artifact tree (288/288 validation)
+B11.1–B11.4 and the PaddleOCR portion of B11.5 are implemented. B11.5 is reopened because the Yap runtime dictionary (`index_2_word.json`) was omitted from the manifest. B11.2.2 remains open because `PickTextInference` still resolves that dictionary through `Global.Absolute`.
 
 **Core OCR not production-ready** — artifact files are not tracked in the repository and have not been delivered to a configured `modelRoot`. The key blockers are:
 
 | Blocker | Detail |
 |---------|--------|
 | `.onnx` model files absent | 11 ONNX files required — not delivered to a configured modelRoot |
+| `index_2_word.json` absent | Yap runtime dictionary — not in manifest, not in repo |
 | `inference.yml` sidecars absent | 7 Rec label configs required — not delivered |
 | Preheat PNG images absent | 2 PNG files required — not delivered |
 | Real InferenceSession test | Deferred — requires validated artifact set |
@@ -669,11 +649,21 @@ When B11.6.2 download script is implemented, it must satisfy:
 
 ### 6.8 Phase sequence (corrected)
 
+Two independent workstreams:
+
+**Immediate internal correctness (no artifact dependency):**
+| Phase | Scope |
+|-------|-------|
+| B11.5.1 | Add `Assets/Model/Yap/index_2_word.json` to manifest; update counts 20→21; update Verification |
+| B11.2.2 | Remove `Global.Absolute` from `PickTextInference` Core path; use explicit resolver or minimal required path |
+
+**Provenance-gated delivery work (requires artifact source-lock):**
 | Phase | Scope | Artifacts needed? |
 |-------|-------|-------------------|
-| **B11.6.1** | **Provenance and source-lock audit** — find authoritative sources, verify license/redistribution, map archive members, record immutable URL and checksum. Downloader design only until values verified. | **At inspection time only** |
-| B11.6.2 | Implement `download-artifacts.sh` — consumes source-lock; `--model-root` required; SHA-256 verification; atomic install; no default root | No (script logic; tested against mock archive) |
-| B11.6.3 | Add opt-in .NET artifact validator — verify 11 ONNX + 7 inference.yml + 2 PNG exist under modelRoot; no InferenceSession yet | Yes |
+| B11.6.1.x | Release/container inspection — extract model files from upstream release, verify SHA-256 | Yes |
+| Source lock | Create `model-artifacts.source-lock.json` with `sources[]` array | Yes |
+| B11.6.2 | Implement `download-artifacts.sh` — consumes source-lock; `--model-root` required; SHA-256 verification; atomic install | No (script logic) |
+| B11.6.3 | Add opt-in .NET artifact validator — verify 11 ONNX + 1 Yap JSON + 7 inference.yml + 2 PNG = 21 files; no InferenceSession yet | Yes |
 | B11.6.4 | macOS bundle post-build copy step | Yes (from modelRoot staging) |
 | B11.6.5 | Swift host passes `Bundle.main.resourceURL`/`BetterGI` as model root | No (path string only) |
 | B11.6.6 | Gated real `InferenceSession` smoke test | Yes |
@@ -687,8 +677,43 @@ When B11.6.2 download script is implemented, it must satisfy:
 - `character_dict_path` support (not currently implemented)
 
 ### 6.10 Baseline (pre-implementation)
+### 6.11 B11.6.1 Provenance Audit Result
 
-```
-dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
-```
+See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-provenance.md)
+
+| Aspect | Verdict |
+|--------|---------|
+| Total physical files | **21** (not 20) — missing `index_2_word.json` in B11.5 manifest |
+| Yap ONNX + JSON source | Authoritative source found: `Alex-Beng/Yap` commit `c5c9990` (GPL-3.0); byte identity with BetterGI **unverified** |
+| PaddleOCR ONNX (10) | Apache-2.0 candidate; exact bytes/conversion chain **unverified** |
+| Preheat PNGs | **Unresolved** — copyright unverified |
+| inference.yml content | **Unresolved** — must verify inline `character_dict` |
+| Delivery container | BetterGI 0.62.0 installer (454 MB); member tree **not inspected** |
+| Source topology | Multi-provenance likely; single-archive not confirmed |
+| **Overall** | **NO-GO** |
+
+**Blockers** (all unresolved):
+- [ ] BetterGI installer member tree not inspected
+- [ ] Yap model SHA-256 not compared with BetterGI
+- [ ] GPL-3.0 coverage of Yap model weights unclarified
+- [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2)
+- [ ] B11.5 manifest missing `index_2_word.json` (B11.5.1)
+- [ ] Preheat PNG provenance unknown
+- [ ] inference.yml format unverified
+- [ ] Paddle→ONNX conversion pipeline undocumented
+
+### 6.12 Phase ordering
+
+**B11.5.1 and B11.2.2 do not depend on artifact provenance** and should be completed before any source-lock or downloader implementation.
+
+### 6.12 Phases opened by audit
+
+| Phase | Reason |
+|-------|--------|
+| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 |
+| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency |
+
+Both phases are audit-only at this stage — no production code changes until artifact provenance allows downloader/source-lock implementation.
+
+---
+
