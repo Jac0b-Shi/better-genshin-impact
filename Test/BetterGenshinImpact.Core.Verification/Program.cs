@@ -308,6 +308,8 @@ foreach (var entry in recEntries)
     var sidecarDir = sidecar.Substring(0, sidecar.LastIndexOf('/'));
     var modelDir = entry.RelativePath.Substring(0, entry.RelativePath.LastIndexOf('/'));
     Assert($"B11.5 {entry.Id} sidecar in model dir", sidecarDir == modelDir, $"sidecar in {sidecarDir}, model dir {modelDir}");
+    var sidecarName = sidecar.Replace('\\', '/').Split('/').Last();
+    Assert($"B11.5 {entry.Id} sidecar is inference.yml", sidecarName == "inference.yml", $"got {sidecarName}");
     var scResolved = ocrResolver.ResolveSidecarPath(sidecar);
     var scExpected = System.IO.Path.GetFullPath(
         System.IO.Path.Combine(ocrRoot, sidecar.Replace('/', System.IO.Path.DirectorySeparatorChar)));
