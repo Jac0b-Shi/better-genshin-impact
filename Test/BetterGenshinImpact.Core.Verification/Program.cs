@@ -232,31 +232,90 @@ var manifestPath = System.IO.Path.Combine(
     System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
     "Manifest",
     "model-artifacts.manifest.json");
-var manifestJson = System.IO.File.ReadAllText(manifestPath);
-var manifest = System.Text.Json.JsonSerializer.Deserialize<BetterGenshinImpact.Core.Artifacts.ModelArtifactManifest>(manifestJson)!;
-Assert("B11.5 Manifest parses successfully", manifest != null, "null");
+using var manifestStream = System.IO.File.OpenRead(manifestPath);
+var manifest = BetterGenshinImpact.Core.Artifacts.ModelArtifactManifestLoader.Load(manifestStream);
+Assert("B11.5 Loader parses successfully", manifest != null, "null");
 Assert("B11.5 Manifest version is 1", manifest.Version == 1, $"got {manifest.Version}");
 Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
 Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
 var recWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
-Assert("B11.5 Rec entries with inference.yml is 7", recWithSidecar.Count == 7, $"got {recWithSidecar.Count}");
-var firstOnnx = manifest.Artifacts[0];
-Assert("B11.5 Manifest paths use forward slash", !firstOnnx.RelativePath.Contains('\\'), firstOnnx.RelativePath);
-var allPaddleOk = manifest.Artifacts.TrueForAll(a =>
-    !a.RelativePath.Contains("PaddleOcr") || a.RegistryKey == "YapModelTraining");
-Assert("B11.5 Manifest paths use PaddleOCR not PaddleOcr", allPaddleOk, "found PaddleOcr in manifest");
-// Verify resolver produces same path as manifest for PaddleOcrRecV5
-var manifestRecV5 = manifest.Artifacts.Find(a => a.RegistryKey == "PaddleOcrRecV5")!;
-var recV5Resolved = ocrResolver.ResolveModelPath(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5);
-var recV5ManifestPath = System.IO.Path.GetFullPath(
-    System.IO.Path.Combine(ocrRoot, manifestRecV5.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
-Assert("B11.5 Resolved RecV5 matches manifest", recV5Resolved == recV5ManifestPath, $"resolved={recV5Resolved} manifest={recV5ManifestPath}");
-// Verify preheat sidecar path
-var preheatEntry = manifest.SidecarArtifacts.Find(s => s.Id == "PaddleOCR.Preheat.Default")!;
-var preheatResolved = ocrResolver.ResolveSidecarPath(preheatEntry.RelativePath);
-var preheatExpected = System.IO.Path.GetFullPath(
-    System.IO.Path.Combine(ocrRoot, preheatEntry.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
-Assert("B11.5 Preheat path matches manifest", preheatResolved == preheatExpected, $"resolved={preheatResolved} manifest={preheatExpected}");
+Assert("B11.5 Rec with sidecar count 7", recWithSidecar.Count == 7, $"got {recWithSidecar.Count}");
+var recWithDynamic = manifest.Artifacts.FindAll(a => a.DynamicSidecars.Count > 0);
+Assert("B11.5 Rec dynamicSidecar count 7", recWithDynamic.Count == 7, $"got {recWithDynamic.Count}");
+// Uniqueness
+Assert("B11.5 Artifact ids unique", manifest.Artifacts.Select(a => a.Id).Distinct().Count() == 11, "duplicate ids");
+Assert("B11.5 Registry keys unique", manifest.Artifacts.Select(a => a.RegistryKey).Distinct().Count() == 11, "duplicate keys");
+Assert("B11.5 Sidecar ids unique", manifest.SidecarArtifacts.Select(s => s.Id).Distinct().Count() == 2, "duplicate sidecar ids");
+// Invariants: all paths use forward slash, not rooted, no ..
+foreach (var a in manifest.Artifacts)
+{
+    Assert($"B11.5 {a.Id} path non-empty", !string.IsNullOrEmpty(a.RelativePath), "");
+    Assert($"B11.5 {a.Id} not rooted", !System.IO.Path.IsPathRooted(a.RelativePath), $"rooted: {a.RelativePath}");
+    Assert($"B11.5 {a.Id} no backslash", !a.RelativePath.Contains('\\'), a.RelativePath);
+    Assert($"B11.5 {a.Id} no ..", !a.RelativePath.Contains(".."), a.RelativePath);
+}
+foreach (var s in manifest.SidecarArtifacts)
+{
+    Assert($"B11.5 sidecar {s.Id} non-empty", !string.IsNullOrEmpty(s.RelativePath), "");
+    Assert($"B11.5 sidecar {s.Id} not rooted", !System.IO.Path.IsPathRooted(s.RelativePath), $"rooted: {s.RelativePath}");
+    Assert($"B11.5 sidecar {s.Id} no backslash", !s.RelativePath.Contains('\\'), s.RelativePath);
+    Assert($"B11.5 sidecar {s.Id} no ..", !s.RelativePath.Contains(".."), s.RelativePath);
+}
+// Case convention: all Paddle entries use PaddleOCR, none use PaddleOcr
+foreach (var a in manifest.Artifacts)
+{
+    if (a.RegistryKey == "YapModelTraining") continue;
+    var n = a.RelativePath.Replace('\\', '/');
+    Assert($"B11.5 {a.Id} contains PaddleOCR", n.Contains("/PaddleOCR/"), n);
+    Assert($"B11.5 {a.Id} no PaddleOcr", !n.Contains("/PaddleOcr/"), n);
+}
+// All 11 registry entries match resolver
+var registryMap = new Dictionary<string, BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel>
+{
+    ["YapModelTraining"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.YapModelTraining,
+    ["PaddleOcrDetV4"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV4,
+    ["PaddleOcrDetV5"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5,
+    ["PaddleOcrDetV6"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV6,
+    ["PaddleOcrRecV4"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV4,
+    ["PaddleOcrRecV4En"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV4En,
+    ["PaddleOcrRecV5"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5,
+    ["PaddleOcrRecV5Latin"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Latin,
+    ["PaddleOcrRecV5Eslav"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Eslav,
+    ["PaddleOcrRecV5Korean"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Korean,
+    ["PaddleOcrRecV6"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV6
+};
+Assert("B11.5 Registry map has 11 entries", registryMap.Count == 11, $"got {registryMap.Count}");
+foreach (var entry in manifest.Artifacts)
+{
+    Assert($"B11.5 Registry key {entry.RegistryKey} in map", registryMap.ContainsKey(entry.RegistryKey), $"missing {entry.RegistryKey}");
+    var model = registryMap[entry.RegistryKey];
+    var resolved = ocrResolver.ResolveModelPath(model);
+    var manifestPathFull = System.IO.Path.GetFullPath(
+        System.IO.Path.Combine(ocrRoot, entry.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+    Assert($"B11.5 Resolved {entry.RegistryKey} matches manifest", resolved == manifestPathFull, $"resolved={resolved} manifest={manifestPathFull}");
+}
+// Verify dynamic sidecar contract for each Rec
+foreach (var entry in manifest.Artifacts.Where(a => a.DynamicSidecars.Count > 0))
+{
+    Assert($"B11.5 {entry.Id} dynamicSidecars count 1", entry.DynamicSidecars.Count == 1, $"got {entry.DynamicSidecars.Count}");
+    var ds0 = entry.DynamicSidecars[0];
+    Assert($"B11.5 {entry.Id} selector correct", ds0.Selector == "PostProcess.character_dict", $"got {ds0.Selector}");
+    Assert($"B11.5 {entry.Id} dynamic source matches sidecar", ds0.SourceRelativePath == entry.Sidecars[0], $"expected {entry.Sidecars[0]} got {ds0.SourceRelativePath}");
+    Assert($"B11.5 {entry.Id} baseDirectory matches model dir", ds0.BaseDirectory == entry.RelativePath.Substring(0, entry.RelativePath.LastIndexOf('/')), $"got {ds0.BaseDirectory}");
+}
+// Verify 3 Det + Yap have empty dynamicSidecars
+foreach (var entry in manifest.Artifacts.Where(a => a.RegistryKey.Contains("Det") || a.RegistryKey == "YapModelTraining"))
+{
+    Assert($"B11.5 {entry.Id} dynamicSidecars empty", entry.DynamicSidecars.Count == 0, $"got {entry.DynamicSidecars.Count}");
+}
+// Verify both preheat entries
+foreach (var sidecar in manifest.SidecarArtifacts)
+{
+    var resolved = ocrResolver.ResolveSidecarPath(sidecar.RelativePath);
+    var expected = System.IO.Path.GetFullPath(
+        System.IO.Path.Combine(ocrRoot, sidecar.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+    Assert($"B11.5 {sidecar.Id} preheat path matches", resolved == expected, $"resolved={resolved} expected={expected}");
+}
 Console.WriteLine();
 
 // ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====

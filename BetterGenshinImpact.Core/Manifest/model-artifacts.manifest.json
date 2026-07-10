@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "modelRootContract": "modelRoot/Assets/Model",
+  "modelRootContract": "The resolver modelRoot is the directory containing Assets/; artifact relativePaths are relative to modelRoot.",
   "artifacts": [
     {
       "id": "YapModelTraining",
@@ -40,7 +40,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V4/ppocr_rec_v4.onnx",
       "registryKey": "PaddleOcrRecV4",
       "requiredFor": ["PaddleOCR.Rec.V4"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V4/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V4"}]
     },
     {
       "id": "PaddleOcrRecV4En",
@@ -48,7 +49,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V4En/ppocr_rec_v4_en.onnx",
       "registryKey": "PaddleOcrRecV4En",
       "requiredFor": ["PaddleOCR.Rec.V4En"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4En/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V4En/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V4En/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V4En"}]
     },
     {
       "id": "PaddleOcrRecV5",
@@ -56,7 +58,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V5/ppocr_rec_v5.onnx",
       "registryKey": "PaddleOcrRecV5",
       "requiredFor": ["PaddleOCR.Rec.V5"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V5/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V5"}]
     },
     {
       "id": "PaddleOcrRecV5Latin",
@@ -64,7 +67,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V5Latin/ppocr_rec_v5_latin.onnx",
       "registryKey": "PaddleOcrRecV5Latin",
       "requiredFor": ["PaddleOCR.Rec.V5Latin"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Latin/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Latin/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V5Latin/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V5Latin"}]
     },
     {
       "id": "PaddleOcrRecV5Eslav",
@@ -72,7 +76,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V5Eslav/ppocr_rec_v5_eslav.onnx",
       "registryKey": "PaddleOcrRecV5Eslav",
       "requiredFor": ["PaddleOCR.Rec.V5Eslav"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Eslav/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Eslav/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V5Eslav/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V5Eslav"}]
     },
     {
       "id": "PaddleOcrRecV5Korean",
@@ -80,7 +85,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V5Korean/ppocr_rec_v5_korean.onnx",
       "registryKey": "PaddleOcrRecV5Korean",
       "requiredFor": ["PaddleOCR.Rec.V5Korean"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Korean/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V5Korean/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V5Korean/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V5Korean"}]
     },
     {
       "id": "PaddleOcrRecV6",
@@ -88,7 +94,8 @@
       "relativePath": "Assets/Model/PaddleOCR/Rec/V6/ppocr_rec_v6.onnx",
       "registryKey": "PaddleOcrRecV6",
       "requiredFor": ["PaddleOCR.Rec.V6"],
-      "sidecars": ["Assets/Model/PaddleOCR/Rec/V6/inference.yml"]
+      "sidecars": ["Assets/Model/PaddleOCR/Rec/V6/inference.yml"],
+      "dynamicSidecars": [{"sourceRelativePath": "Assets/Model/PaddleOCR/Rec/V6/inference.yml", "selector": "PostProcess.character_dict", "baseDirectory": "Assets/Model/PaddleOCR/Rec/V6"}]
     }
   ],
   "sidecarArtifacts": [

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace BetterGenshinImpact.Core.Artifacts;
@@ -37,6 +39,21 @@ public class ModelArtifactEntry
 
     [JsonPropertyName("sidecars")]
     public List<string> Sidecars { get; set; } = [];
+
+    [JsonPropertyName("dynamicSidecars")]
+    public List<DynamicSidecarRequirement> DynamicSidecars { get; set; } = [];
+}
+
+public class DynamicSidecarRequirement
+{
+    [JsonPropertyName("sourceRelativePath")]
+    public string SourceRelativePath { get; set; } = "";
+
+    [JsonPropertyName("selector")]
+    public string Selector { get; set; } = "";
+
+    [JsonPropertyName("baseDirectory")]
+    public string BaseDirectory { get; set; } = "";
 }
 
 public class SidecarArtifactEntry
@@ -49,4 +66,21 @@ public class SidecarArtifactEntry
 
     [JsonPropertyName("requiredFor")]
     public List<string> RequiredFor { get; set; } = [];
+}
+
+public static class ModelArtifactManifestLoader
+{
+    public static ModelArtifactManifest Parse(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        var manifest = JsonSerializer.Deserialize<ModelArtifactManifest>(json);
+        return manifest ?? throw new InvalidDataException("Manifest deserialized to null.");
+    }
+
+    public static ModelArtifactManifest Load(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        using var reader = new StreamReader(stream);
+        return Parse(reader.ReadToEnd());
+    }
 }
