@@ -1,6 +1,6 @@
 # B11 Audit: Platform Capability Wiring
 
-**Status:** Audit only — no code or config changes
+**Status:** B11.1–B11.5 implemented and locally verified; B11.6 artifact delivery/packaging remains open.
 **Predecessor:** B10 structural shim cleanup complete
 
 ---
@@ -230,6 +230,124 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/1
 
 ---
 
+## 2. B11.2 Audit: PaddleOCR Sidecar Resource Path Resolution
+
+### 2.1 Problem
+
+B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathResolver`, but PaddleOCR has additional resource files loaded outside the ONNX session path. These still use `Global.Absolute()` or raw `ModelRelativePath` — unnormalized, unresolved on macOS.
+
+### 2.2 Sidecar resource inventory
+
+| Resource | Path expression | Code location | Resolved by | Core-safe? |
+|----------|----------------|---------------|-------------|------------|
+| Test preheat image | `Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr.png")` | `PaddleOcrService.cs:40` — `static` field | `Global.Absolute` | ❌ Static, cwd-probing |
+| Test number image | `Global.Absolute(@"Assets\Model\PaddleOCR\test_pp_ocr_number.png")` | `PaddleOcrService.cs:42-43` — `static` field | `Global.Absolute` | ❌ Same |
+| `inference.yml` config | `Path.GetDirectoryName(recModel.ModalPath)` → `inference.yml` | `PaddleOcrService.cs:48-50` — `DefaultRecLabelFunc` | `recModel.ModalPath` (raw `ModelRelativePath` in Core) | ❌ Raw relative |
+| OCR model files (`.onnx`) | `BgiOnnxFactory.CreateInferenceSession(model)` via `IOnnxModelPathResolver` | `Det.cs`, `Rec.cs`, `PickTextInference.cs` | ✅ Fixed in B11.1.1 | ✅ |
+
+**`PostProcess.character_dict` is an inline YAML sequence inside `inference.yml`.** No external dictionary files are required. `ParseInferenceYml()` reads character labels directly from the YAML stream. `character_dict_path` is not currently implemented.
+
+### 2.3 Design decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `IOcrResourcePathResolver` separate from `IOnnxModelPathResolver` | Sidecar files (inference.yml, PNG) are not ONNX models |
+| `BgiOnnxModel.ModalPath` NOT resolver-backed | Static registry; using resolver would require service locator |
+| Core uses `ResolveModelDirectory(recModel)` + `inference.yml` | Not `recModel.ModalPath` |
+| OcrFactory / PaddleOcrService / Build require resolver in Core | Required param in `#if BGI_PLATFORM_MAC`; optional on WPF |
+| Preheat path model-specific via `PreHeatImageRelativePath` | Each model variant has its own preheat image |
+| V4En available in Core | Not disabled — model selection preserved |
+
+### 2.4 Implementation result (B11.2.1)
+
+- `IOcrResourcePathResolver` interface + `OcrResourcePathResolver` implementation added
+- PaddleOCR labels use `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath`
+- Core preheat uses `ResolveSidecarPath(modelType.PreHeatImageRelativePath)`
+- WPF static `TestImagePath`/`TestNumberImagePath` guarded with `#if !BGI_PLATFORM_MAC`
+- V4En restored; `FromCultureInfoV4` English returns V4En (not V5)
+- No real artifact files delivered
+- Core OCR production-ready remains false
+
+---
+
+## 3. B11.3 Audit: Model Artifact Contract and macOS Bundle Strategy
+
+### 3.1 Two separate problems
+
+**Problem 1 — Case convention:** Core `BgiOnnxModel` registry uses `PaddleOcr` (lowercase c); sidecar paths and WPF authoritative use `PaddleOCR` (uppercase C). On macOS case-sensitive APFS these are different directories.
+
+**Problem 2 — Layout convention:** Core registry uses flat paths. WPF authoritative uses nested paths. Case unification alone does not solve the sidecar layout.
+
+### 3.2 Layout decision: per-model directories
+
+| Option | Result |
+|--------|--------|
+| **A — Flat layout** | ❌ Rejected — multiple Rec models share one directory, breaks per-model inference.yml |
+| **B — Per-model directory layout** | ✅ **Selected** — each model in its own directory with inference.yml |
+| **C — Flat registry + resolver mapping** | ❌ Rejected — hidden mapping complexity |
+
+### 3.3 Required artifact inventory
+
+**Case convention:** `PaddleOCR` (uppercase C).
+
+**ONNX models (11):** 1 Yap + 3 Det + 7 Rec. Paths align to `PaddleOCR/Det|Rec/V{n}/`.
+
+**Sidecar resources:**
+- 7 × `inference.yml` (one per Rec model directory)
+- 2 × preheat PNG (`test_pp_ocr.png`, `test_pp_ocr_number.png`)
+- **No external dictionary files.** `PostProcess.character_dict` is an inline YAML sequence.
+
+### 3.4 Required artifact tree
+
+```
+<modelRoot>/
+  Assets/
+    Model/
+      Yap/
+        model_training.onnx
+      PaddleOCR/
+        test_pp_ocr.png
+        test_pp_ocr_number.png
+        Det/ V4/ppocr_det_v4.onnx
+            V5/ppocr_det_v5.onnx
+            V6/ppocr_det_v6.onnx
+        Rec/
+          V4/       ppocr_rec_v4.onnx + inference.yml
+          V4En/     ppocr_rec_v4_en.onnx + inference.yml
+          V5/       ppocr_rec_v5.onnx + inference.yml
+          V5Latin/  ppocr_rec_v5_latin.onnx + inference.yml
+          V5Eslav/  ppocr_rec_v5_eslav.onnx + inference.yml
+          V5Korean/ ppocr_rec_v5_korean.onnx + inference.yml
+          V6/       ppocr_rec_v6.onnx + inference.yml
+```
+
+### 3.5 Artifact source strategy
+
+| Layer | Strategy |
+|-------|----------|
+| Dev/test/CI | Download script — pinned-version archive, no check-in, no LFS |
+| macOS distribution | `.app/Contents/Resources/BetterGI/` — Swift host passes absolute path as model root |
+| Registry | Core `BgiOnnxModel.ModelRelativePath` updated to match layout |
+
+### 3.6 macOS bundle root
+
+```
+.app/Contents/Resources/BetterGI/   ← modelRoot passed to resolvers
+  Assets/Model/Yap/...
+  Assets/Model/PaddleOCR/Det|Rec/...
+```
+
+Resolver `modelRoot` is the directory containing `Assets/`.
+
+### 3.7 Validation plan
+
+- Manifest/registry string validation does not require artifacts
+- Future real file validation requires artifacts
+- Future gated InferenceSession smoke test
+- No cwd fallback
+
+---
+
 ## 4. B11.4 Registry Path Alignment
 
 ### 4.1 Implementation (commit 8225fa1 + correction)
@@ -267,7 +385,8 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 |--------|--------|-------------|
 | `bdab13b` | Initial | Manifest JSON + DTO classes + basic parse test. 11 ONNX + 2 preheat entries. 130/130. |
 | `65e814f` | Correction 1 | Added loader, 11-entry full registry validation, dynamicSidecars (incorrect — assumed external dict files). 259/259. |
-| Current | **Correction 2 (final)** | Removed false `dynamicSidecars` — `PostProcess.character_dict` is an inline YAML sequence, not external files. Added Rec sidecar contract (7 × inference.yml path validation). Loader `leaveOpen`. 281/281. |
+| `f683f87` | Correction 2 | Removed false dynamicSidecars; Rec inference.yml contract; leaveOpen stream. 281/281. |
+| `181ba56` | **Final correction** | Strict inference.yml filename assertions; documentation cleanup; restored deleted B11.2/B11.3. **288/288** |
 
 ### 5.2 Final state
 
@@ -291,5 +410,5 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 
 ```
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
-dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 281/281 ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
