@@ -232,16 +232,16 @@ var manifestPath = System.IO.Path.Combine(
     System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
     "Manifest",
     "model-artifacts.manifest.json");
-using var manifestStream = System.IO.File.OpenRead(manifestPath);
-var manifest = BetterGenshinImpact.Core.Artifacts.ModelArtifactManifestLoader.Load(manifestStream);
+using var manifestReadStream = System.IO.File.OpenRead(manifestPath);
+var manifest = BetterGenshinImpact.Core.Artifacts.ModelArtifactManifestLoader.Load(manifestReadStream);
+Assert("B11.5 Loader leaves stream open", manifestReadStream.CanRead, "stream was closed by loader");
+manifestReadStream.Close();
 Assert("B11.5 Loader parses successfully", manifest != null, "null");
 Assert("B11.5 Manifest version is 1", manifest.Version == 1, $"got {manifest.Version}");
 Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
 Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
 var recWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
 Assert("B11.5 Rec with sidecar count 7", recWithSidecar.Count == 7, $"got {recWithSidecar.Count}");
-var recWithDynamic = manifest.Artifacts.FindAll(a => a.DynamicSidecars.Count > 0);
-Assert("B11.5 Rec dynamicSidecar count 7", recWithDynamic.Count == 7, $"got {recWithDynamic.Count}");
 // Uniqueness
 Assert("B11.5 Artifact ids unique", manifest.Artifacts.Select(a => a.Id).Distinct().Count() == 11, "duplicate ids");
 Assert("B11.5 Registry keys unique", manifest.Artifacts.Select(a => a.RegistryKey).Distinct().Count() == 11, "duplicate keys");
@@ -294,19 +294,29 @@ foreach (var entry in manifest.Artifacts)
         System.IO.Path.Combine(ocrRoot, entry.RelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
     Assert($"B11.5 Resolved {entry.RegistryKey} matches manifest", resolved == manifestPathFull, $"resolved={resolved} manifest={manifestPathFull}");
 }
-// Verify dynamic sidecar contract for each Rec
-foreach (var entry in manifest.Artifacts.Where(a => a.DynamicSidecars.Count > 0))
+// Verify Rec sidecar contract: each Rec has exactly 1 inference.yml in its model directory
+var recEntries = manifest.Artifacts.Where(a => a.RegistryKey.Contains("Rec")).ToList();
+Assert("B11.5 Rec entries count is 7", recEntries.Count == 7, $"got {recEntries.Count}");
+foreach (var entry in recEntries)
 {
-    Assert($"B11.5 {entry.Id} dynamicSidecars count 1", entry.DynamicSidecars.Count == 1, $"got {entry.DynamicSidecars.Count}");
-    var ds0 = entry.DynamicSidecars[0];
-    Assert($"B11.5 {entry.Id} selector correct", ds0.Selector == "PostProcess.character_dict", $"got {ds0.Selector}");
-    Assert($"B11.5 {entry.Id} dynamic source matches sidecar", ds0.SourceRelativePath == entry.Sidecars[0], $"expected {entry.Sidecars[0]} got {ds0.SourceRelativePath}");
-    Assert($"B11.5 {entry.Id} baseDirectory matches model dir", ds0.BaseDirectory == entry.RelativePath.Substring(0, entry.RelativePath.LastIndexOf('/')), $"got {ds0.BaseDirectory}");
+    Assert($"B11.5 {entry.Id} has 1 sidecar", entry.Sidecars.Count == 1, $"got {entry.Sidecars.Count}");
+    var sidecar = entry.Sidecars[0];
+    Assert($"B11.5 {entry.Id} sidecar non-empty", !string.IsNullOrEmpty(sidecar), "");
+    Assert($"B11.5 {entry.Id} sidecar not rooted", !System.IO.Path.IsPathRooted(sidecar), $"rooted: {sidecar}");
+    Assert($"B11.5 {entry.Id} sidecar no backslash", !sidecar.Contains('\\'), sidecar);
+    Assert($"B11.5 {entry.Id} sidecar no ..", !sidecar.Contains(".."), sidecar);
+    var sidecarDir = sidecar.Substring(0, sidecar.LastIndexOf('/'));
+    var modelDir = entry.RelativePath.Substring(0, entry.RelativePath.LastIndexOf('/'));
+    Assert($"B11.5 {entry.Id} sidecar in model dir", sidecarDir == modelDir, $"sidecar in {sidecarDir}, model dir {modelDir}");
+    var scResolved = ocrResolver.ResolveSidecarPath(sidecar);
+    var scExpected = System.IO.Path.GetFullPath(
+        System.IO.Path.Combine(ocrRoot, sidecar.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+    Assert($"B11.5 {entry.Id} sidecar resolves", scResolved == scExpected, $"got {scResolved}, expected {scExpected}");
 }
-// Verify 3 Det + Yap have empty dynamicSidecars
+// Verify 3 Det + Yap have no sidecars
 foreach (var entry in manifest.Artifacts.Where(a => a.RegistryKey.Contains("Det") || a.RegistryKey == "YapModelTraining"))
 {
-    Assert($"B11.5 {entry.Id} dynamicSidecars empty", entry.DynamicSidecars.Count == 0, $"got {entry.DynamicSidecars.Count}");
+    Assert($"B11.5 {entry.Id} no sidecars", entry.Sidecars.Count == 0, $"got {entry.Sidecars.Count}");
 }
 // Verify both preheat entries
 foreach (var sidecar in manifest.SidecarArtifacts)

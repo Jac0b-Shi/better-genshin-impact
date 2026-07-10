@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -39,21 +40,6 @@ public class ModelArtifactEntry
 
     [JsonPropertyName("sidecars")]
     public List<string> Sidecars { get; set; } = [];
-
-    [JsonPropertyName("dynamicSidecars")]
-    public List<DynamicSidecarRequirement> DynamicSidecars { get; set; } = [];
-}
-
-public class DynamicSidecarRequirement
-{
-    [JsonPropertyName("sourceRelativePath")]
-    public string SourceRelativePath { get; set; } = "";
-
-    [JsonPropertyName("selector")]
-    public string Selector { get; set; } = "";
-
-    [JsonPropertyName("baseDirectory")]
-    public string BaseDirectory { get; set; } = "";
 }
 
 public class SidecarArtifactEntry
@@ -80,7 +66,7 @@ public static class ModelArtifactManifestLoader
     public static ModelArtifactManifest Load(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        using var reader = new StreamReader(stream);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
         return Parse(reader.ReadToEnd());
     }
 }

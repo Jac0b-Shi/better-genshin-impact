@@ -552,3 +552,40 @@ Each phase builds on the previous one. Registry must reflect real artifact layou
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 118/118 ✅
 ```
+
+---
+
+## 5. B11.5 Artifact Manifest
+
+### 5.1 Implementation history
+
+| Commit | Status | Key changes |
+|--------|--------|-------------|
+| `bdab13b` | Initial | Manifest JSON + DTO classes + basic parse test. 11 ONNX + 2 preheat entries. 130/130. |
+| `65e814f` | Correction 1 | Added loader, 11-entry full registry validation, dynamicSidecars (incorrect — assumed external dict files). 259/259. |
+| Current | **Correction 2 (final)** | Removed false `dynamicSidecars` — `PostProcess.character_dict` is an inline YAML sequence, not external files. Added Rec sidecar contract (7 × inference.yml path validation). Loader `leaveOpen`. 281/281. |
+
+### 5.2 Final state
+
+| Component | Status |
+|-----------|--------|
+| Manifest file | `Manifest/model-artifacts.manifest.json` ✅ |
+| Loader | `ModelArtifactManifestLoader.Load(Stream)` + `Parse(string)` — uses `leaveOpen: true` ✅ |
+| ONNX model entries | 11 (1 Yap + 3 Det + 7 Rec) — all registry keys validated against `BgiOnnxModel` ✅ |
+| Preheat sidecar entries | 2 (`test_pp_ocr.png` + `test_pp_ocr_number.png`) — both path-validated ✅ |
+| Rec sidecar contract | 7 × `inference.yml` — each in its own model directory, path-validated ✅ |
+| Character dict | Inline YAML sequence in `inference.yml` — no external dict files required ✅ |
+| Real artifacts delivered? | **No** |
+| `File.Exists` / `InferenceSession`? | **No** |
+| Core OCR production-ready | **False** |
+
+### 5.3 Next phase
+
+**B11.6** — Download script / bundle packaging strategy.
+
+### 5.4 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 281/281 ✅
+```
