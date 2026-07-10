@@ -413,3 +413,157 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
+
+---
+
+## 6. B11.6 Audit: Artifact Delivery and macOS Bundle Strategy
+
+### 6.1 Current status
+
+All B11.1–B11.5 infrastructure is complete:
+- **Path resolution**: `IOnnxModelPathResolver` + `IOcrResourcePathResolver` — full path normalization
+- **Registry alignment**: 11 ONNX paths match per-model `PaddleOCR/Det|Rec/V{n}/` layout
+- **Manifest contract**: `model-artifacts.manifest.json` defines expected artifact tree (288/288 validation)
+
+**Core OCR not production-ready** — no real artifact files exist in the repository or at any deployable path. The key blockers are:
+
+| Blocker | Detail |
+|---------|--------|
+| `.onnx` model files absent | 11 ONNX files required — 0 on disk |
+| `inference.yml` sidecars absent | 7 Rec label configs required — 0 on disk |
+| Preheat PNG images absent | 2 PNG files required — 0 on disk |
+| Real InferenceSession test | Deferred — requires artifacts to be present |
+| macOS bundle strategy | Not implemented |
+| Swift host path definition | Not defined |
+
+### 6.2 Artifact source strategy candidates
+
+#### Option A: Git LFS
+- Store artifacts in a separate LFS-enabled repository
+- Clone includes artifacts automatically (with LFS setup)
+- Single source of truth, versioned with code
+- **Pros**: Reproducible, CI-friendly, offline-capable after clone
+- **Cons**: LFS bandwidth/quota costs, larger initial clone
+- **Verdict**: Not recommended for this project — LFS is a workflow burden for occasional contributors and adds storage cost
+
+#### Option B: Pinned external artifact archive
+- Published as a release asset (e.g., GitHub Release `.tar.gz`/`.zip`)
+- Download script (`download-artifacts.ps1` / `download-artifacts.sh`) fetches and extracts to correct layout
+- Checksum verification after download
+- Script runs at dev setup and CI time
+- **Pros**: No repo bloat, CI-controllable, clear licensing boundary
+- **Cons**: External dependency availability, extra setup step for new devs
+- **Verdict**: Recommended for dev/test/CI — simple, auditable, no LFS dependency
+
+#### Option C: macOS app bundle Resources
+- Artifacts placed in `.app/Contents/Resources/BetterGI/` by a build/post-build step
+- Swift host resolves `bundleRoot` from `Bundle.main.resourceURL`
+- .NET host resolves model root from the same path passed by Swift
+- **Pros**: Self-contained app, no setup for end user
+- **Cons**: Requires packaging infrastructure
+- **Verdict**: Recommended for distribution — separate from dev/CI setup
+
+#### Option D: Three-in-one hybrid
+- **Dev**: `download-artifacts.sh` → `Assets/Model/` under a configurable `modelRoot`
+- **CI**: Same script, but CI caches `Assets/Model/` between runs
+- **macOS package**: `post-build` step copies artifact tree into `BetterGI.app/Contents/Resources/BetterGI/`
+- Each environment explicitly passes its `modelRoot` to resolvers (no cwd/static fallback)
+- **Verdict**: **Recommended** — covers all environments without straying from the resolver contract
+
+### 6.3 Recommended strategy: hybrid download + bundle copy
+
+| Layer | Mechanism | modelRoot example |
+|-------|-----------|-------------------|
+| Dev | `download-artifacts.sh --output <repo>/Assets/Model` | `<repo>/Assets/Model` |
+| CI | Same script; cache between runs | `<workspace>/Assets/Model` |
+| macOS dev app | Same script; or pre-bundled | `<repo>/Assets/Model` |
+| macOS distributed `.app` | post-build copy | `BetterGI.app/Contents/Resources/BetterGI` |
+
+**Key rules:**
+1. The resolver input `modelRoot` must contain `Assets/Model/` at its second level
+2. No environment assumes a default `modelRoot` — it's always passed explicitly
+3. No static path fallback, no `Global.Absolute`, no cwd
+4. The download script must produce the exact tree from `model-artifacts.manifest.json`
+
+### 6.4 macOS bundle root contract
+
+Recommended bundle structure:
+
+```
+BetterGI.app/
+  Contents/
+    Info.plist
+    MacOS/                         ← Swift executable
+    Resources/
+      BetterGI/                    ← modelRoot passed to resolvers
+        Assets/
+          Model/
+            Yap/model_training.onnx
+            PaddleOCR/
+              Det/{V4,V5,V6}/*.onnx
+              Rec/{V4,V4En,V5,...}/*.onnx + inference.yml
+              test_pp_ocr.png
+              test_pp_ocr_number.png
+      dotnet/                       ← .NET runtime + assemblies (if bundled)
+```
+
+Swift host startup:
+1. `Bundle.main.resourceURL` → `/path/to/BetterGI.app/Contents/Resources`
+2. Append `BetterGI` → model root
+3. Pass as string to .NET `MacAutoPickComposition` or composition root
+4. .NET side creates `ModelRootPathResolver(modelRoot)` + `OcrResourcePathResolver(modelRoot)`
+
+### 6.5 Case sensitivity requirement
+
+The download script and macOS bundle must produce `PaddleOCR` (uppercase C), not `PaddleOcr` (lowercase c). On macOS case-sensitive APFS, these differ. The resolver case guard (`/PaddleOCR/` must be present) will catch regressions.
+
+Current registry uses `PaddleOCR` — consistent with the chosen convention.
+
+### 6.6 Download script requirements (not yet implemented)
+
+A future B11.6.x implementation must:
+
+1. Read `model-artifacts.manifest.json` to know which files to fetch
+2. Accept `--output <dir>` as the model root (default not allowed)
+3. Fetch from a pinned release archive URL
+4. Verify checksum (SHA-256) after download
+5. Extract to produce the exact directory tree from the manifest
+6. Normalize paths — produce `Assets/Model/PaddleOCR/...` (forward slash, uppercase C)
+7. **Not** check files into git
+8. **Not** modify source code
+
+### 6.7 Validation plan
+
+| Phase | Validation | Artifact files required? |
+|-------|-----------|--------------------------|
+| B11.5 | Manifest `288/288` — path string validation | No |
+| B11.6.1 | `File.Exists` after download — every artifact from manifest checked | Yes |
+| B11.6.2 | `InferenceSession` smoke test (one model) | Yes |
+| B11.6.3 | macOS bundle structure verification | Yes |
+
+Validation must fail hard (`FileNotFoundException`) when artifact files are missing — no silent fallback, no placeholder return.
+
+### 6.8 Out of scope
+
+- Actual artifact download implementation (deferred to B11.6.1+)
+- macOS `.app` bundle packaging script
+- Swift host code changes
+- CI workflow definition
+- License/copyright review of model files
+- `character_dict_path` support (not currently implemented)
+
+### 6.9 Baseline (pre-implementation)
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
+```
+
+### 6.10 Next phases
+
+| Phase | Scope |
+|-------|-------|
+| B11.6.1 | Implement `download-artifacts.sh` — read manifest, fetch release archive, verify checksum, extract to layout |
+| B11.6.2 | Add `File.Exists` validation stage to Verification (opt-in, artifact-guarded) |
+| B11.6.3 | Define macOS bundle post-build copy step |
+| B11.6.x | Swift host model-root passing; real InferenceSession smoke test
