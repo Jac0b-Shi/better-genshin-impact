@@ -234,27 +234,33 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 
 | Aspect | Verdict |
 |--------|---------|
-| YapModelTraining source/license | **Blocked** — unknown provenance |
-| PaddleOCR ONNX (10) | Apache 2.0 license — redistribution with attribution allowed |
-| Preheat PNG provenance | **Unresolved** — copyright status unverified |
-| inference.yml compatibility | Presumed compatible (upstream parser tested), unverified |
-| Immutable source archive | **Unavailable** — upstream distributes only via installer .exe |
-| Archive-to-member mapping | Deferred until source lock is created |
-| Source topology | Single-archive presumed (all from upstream release); Yap is separate unknown source |
-| **Overall** | **NO-GO** — cannot proceed to downloader implementation |
+| Total physical files | **21** (not 20) — missing `index_2_word.json` in B11.5 manifest |
+| Yap ONNX + JSON source | Authoritative source found: `Alex-Beng/Yap` commit `c5c9990` (GPL-3.0); byte identity with BetterGI **unverified** |
+| PaddleOCR ONNX (10) | Apache-2.0 candidate; exact bytes/conversion chain **unverified** |
+| Preheat PNGs | **Unresolved** — copyright unverified |
+| inference.yml content | **Unresolved** — must verify inline `character_dict` |
+| Delivery container | BetterGI 0.62.0 installer (454 MB); member tree **not inspected** |
+| Source topology | Multi-provenance likely; single-archive not confirmed |
+| **Overall** | **NO-GO** |
 
-**Blockers preventing B11.6.2+**:
-1. No immutable, standalone artifact archive URL from upstream
-2. YapModelTraining source/license unknown
-3. Preheat PNG copyright unverified
-4. Model SHA-256 not recorded
+**Blockers** (from detailed audit):
+1. BetterGI installer member tree not inspected
+2. Yap model SHA-256 not compared with BetterGI
+3. GPL-3.0 coverage of Yap model weights unclarified
+4. `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2 needed)
+5. B11.5 manifest missing `index_2_word.json` (B11.5.1 needed)
+6. Preheat PNG provenance unknown
+7. inference.yml format unverified
+8. Paddle→ONNX conversion pipeline undocumented
 
-**Conditions for unblocking** (from B11.6.1 audit):
-- Download upstream release installer and extract all model files
-- Identify Yap model training provenance and license
-- Verify preheat PNG source
-- Verify inference.yml inline character_dict for all 7 Rec models
-- Create `model-artifacts.source-lock.json` with `sources[]` array (multi-source if needed)
+### 6.12 Phases opened by audit
+
+| Phase | Reason |
+|-------|--------|
+| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 |
+| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency |
+
+Both phases are audit-only at this stage — no production code changes until artifact provenance allows downloader/source-lock implementation.
 
 ---
 
