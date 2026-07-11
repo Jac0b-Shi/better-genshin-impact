@@ -753,7 +753,7 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 
 | Aspect | Verdict |
 |--------|---------|
-| Total physical files | **21** (not 20) — missing `index_2_word.json` in B11.5 manifest |
+| Destination manifest coverage | 21 physical paths modeled; historical `index_2_word.json` omission resolved by B11.5.1 (15ae5f2 + 77277dc) |
 | Yap ONNX + JSON source | Authoritative source found: `Alex-Beng/Yap` commit `c5c9990` (GPL-3.0); byte identity with BetterGI **unverified** |
 | PaddleOCR ONNX (10) | Apache-2.0 candidate; exact bytes/conversion chain **unverified** |
 | Preheat PNGs | **Unresolved** — copyright unverified |
@@ -762,24 +762,30 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 | Source topology | Multi-provenance likely; single-archive not confirmed |
 | **Overall** | **NO-GO** |
 
-**Blockers** (all unresolved):
-- [ ] BetterGI installer member tree not inspected
+**Active blockers:**
+- [ ] BetterGI installer/7z member tree not inspected
 - [ ] Yap model SHA-256 not compared with BetterGI
 - [ ] GPL-3.0 coverage of Yap model weights unclarified
 - [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2)
-- ~~B11.5 manifest missing `index_2_word.json`~~ → resolved by B11.5.1
 - [ ] Preheat PNG provenance unknown
 - [ ] inference.yml format unverified
 - [ ] Paddle→ONNX conversion pipeline undocumented
 
-### 6.12 Phases opened by audit
+**Resolved findings:**
+- B11.5 manifest omission — resolved by 15ae5f2
+- Yap same-directory relationship assertion — corrected by 77277dc
+- Destination manifest now models 21 physical paths
 
-**B11.5.1 and B11.2.2 do not depend on artifact provenance** and should be completed before any source-lock or downloader implementation.
+### 6.12 Phases opened by audit and current status
 
-| Phase | Reason | Dependencies |
-|-------|--------|-------------|
-| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 | None (manifest + Verification only) |
-| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency | None (resolver pattern already established in B11.2.1) |
+B11.5.1 did not depend on provenance and is now complete. B11.2.2 is the next immediate internal-correctness phase. Source-lock and downloader work remain blocked by provenance.
+
+| Phase | Status | Result / next action |
+|-------|--------|----------------------|
+| B11.5.1 | **Completed** | Manifest includes Yap JSON; 21 physical paths; final relationship assertion in 77277dc |
+| B11.2.2 | **Next** | Remove `Global.Absolute` from `PickTextInference` Yap dictionary loading |
+| B11.6.1.x | Blocked / pending evidence | Inspect release assets, hashes, mappings and licensing |
+| B11.6.2 | NO-GO | Do not implement downloader |
 
 ---
 
