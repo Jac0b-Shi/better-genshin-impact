@@ -1,6 +1,6 @@
 # B11 Audit: Platform Capability Wiring
 
-**Status:** B11.1–B11.5 complete (B11.5.1 added Yap dictionary to manifest); B11.2.2 remains open (Yap dictionary path uses Global.Absolute); B11.6.1 provenance NO-GO. Core OCR production-ready remains false.
+**Status:** B11.1, B11.2.1, and B11.3–B11.5.1 are complete; B11.2.2 remains open because PickTextInference still uses Global.Absolute for index_2_word.json; B11.6.1 provenance remains NO-GO. Core OCR production-ready remains false.
 **Predecessor:** B10 structural shim cleanup complete
 
 ---
@@ -417,7 +417,8 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 | `f683f87` | Correction 2 | Removed false dynamicSidecars; Rec inference.yml contract; leaveOpen stream. 281/281. |
 | `181ba56` | Final code/verification correction | Added strict `inference.yml` filename assertions; docs cleanup accidentally removed B11.2/B11.3. Local Verification: 288/288. |
 | `33f0893` | Docs closure | Restored B11.2/B11.3, corrected inline `character_dict` documentation, updated top-level status and final B11.5 record. No production-code changes. |
-| `15ae5f2` | B11.5.1 | Added `Assets/Model/Yap/index_2_word.json` to destination manifest; Yap dictionary path/resolver contract validated; physical file count 20→21. No real artifacts delivered. |
+| `15ae5f2` | B11.5.1 | Added `Assets/Model/Yap/index_2_word.json` to destination manifest; 21-file physical count; Yap path/resolver contract. No real artifacts. |
+| `77277dc` | B11.5.1 fix | Yap sidecar same-directory assertion uses model directory (not hardcoded string); Rec/Det identification via Ordinal `StartsWith`. |
 
 ### 5.2 State before B11.5.1 reopening
 
@@ -433,17 +434,11 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 | `File.Exists` / `InferenceSession`? | **No** |
 | Core OCR production-ready | **False** |
 
-### 5.3 Reopening reason
+### 5.3 Reopening reason (historical)
 
-The B11.5 manifest was validated at 288/288, but this only covers 20 of the 21 required physical files. The Yap runtime dictionary (`Assets/Model/Yap/index_2_word.json`) was not modeled in the manifest.
+Before 15ae5f2, the manifest modeled 20 physical files. The Yap runtime dictionary (`Assets/Model/Yap/index_2_word.json`) was discovered during B11.6.1 provenance audit and was not in the manifest. B11.5 was reopened. 15ae5f2 added the missing sidecar; 77277dc added the true same-directory assertion. B11.5.1 is now complete.
 
-- Manifest currently models **20** physical files
-- Missing: `Assets/Model/Yap/index_2_word.json`
-- Destination contract is therefore incomplete
-- 288/288 validated the incomplete manifest only
-- B11.5 is **reopened** for correction
-
-### 5.4 Required B11.5.1 correction (completed in 15ae5f2)
+### 5.4 Required B11.5.1 correction (completed in 15ae5f2, final assertion fix in 77277dc)
 
 - Add `Assets/Model/Yap/index_2_word.json` to destination manifest
 - Add path/resolver Verification for the Yap dictionary
@@ -456,6 +451,32 @@ The B11.5 manifest was validated at 288/288, but this only covers 20 of the 21 r
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
+
+### 5.6 B11.5.1 Final state
+
+| Component | Status |
+|-----------|--------|
+| ONNX model paths | 11 — all registry keys validated against resolver ✅ |
+| Model-bound sidecar paths | 8 (7 inference.yml + 1 Yap index_2_word.json) ✅ |
+| Global/preheat sidecars | 2 (test_pp_ocr.png, test_pp_ocr_number.png) ✅ |
+| Total physical paths | 21, all Ordinal-unique ✅ |
+| Rec sidecars in model dir | All 7 Rec verified — same-directory, filename inference.yml ✅ |
+| Yap JSON same-directory | Verified — index_2_word.json in Assets/Model/Yap alongside ONNX ✅ |
+| Real artifacts delivered? | **No** |
+| File.Exists / InferenceSession? | **No** |
+| Core OCR production-ready | **False** |
+
+### 5.7 B11.5.1 Validation result
+
+| Test | Result |
+|------|--------|
+| Core build | Passed |
+| B11.5 manifest section | All assertions passed |
+| Full Verification rerun | Incomplete — stopped by pre-existing OpenCV native loading failure later in the suite |
+| Exception | TypeInitializationException → DllNotFoundException for OpenCvSharpExtern |
+| Native library | OpenCvSharpExtern (not available on this macOS environment) |
+| Full-suite N/N | Not claimed — historical 288/288 belongs to the old 20-file baseline |
+| B11.5 section assertions | Passed before the later OpenCV failure |
 
 ---
 
@@ -470,7 +491,7 @@ B11.1–B11.4 and the PaddleOCR portion of B11.5 are implemented. B11.5.1 (15ae5
 | Blocker | Detail |
 |---------|--------|
 | `.onnx` model files absent | 11 ONNX files required — not delivered to a configured modelRoot |
-| `index_2_word.json` absent | Yap runtime dictionary — not in manifest, not in repo |
+| `index_2_word.json` not delivered | Modeled in destination manifest (B11.5.1), no real file tracked or delivered to modelRoot |
 | `inference.yml` sidecars absent | 7 Rec label configs required — not delivered |
 | Preheat PNG images absent | 2 PNG files required — not delivered |
 | Real InferenceSession test | Deferred — requires validated artifact set |
@@ -746,7 +767,7 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 - [ ] Yap model SHA-256 not compared with BetterGI
 - [ ] GPL-3.0 coverage of Yap model weights unclarified
 - [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2)
-- ~~B11.5 manifest missing `index_2_word.json`~~ → **resolved** by B11.5.1 (15ae5f2)
+- ~~B11.5 manifest missing `index_2_word.json`~~ → resolved by B11.5.1
 - [ ] Preheat PNG provenance unknown
 - [ ] inference.yml format unverified
 - [ ] Paddle→ONNX conversion pipeline undocumented
