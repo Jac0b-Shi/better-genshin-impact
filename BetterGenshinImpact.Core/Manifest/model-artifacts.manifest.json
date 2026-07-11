@@ -8,7 +8,7 @@
       "relativePath": "Assets/Model/Yap/model_training.onnx",
       "registryKey": "YapModelTraining",
       "requiredFor": ["PickTextInference", "AutoPick.Yap"],
-      "sidecars": []
+      "sidecars": ["Assets/Model/Yap/index_2_word.json"]
     },
     {
       "id": "PaddleOcrDetV4",

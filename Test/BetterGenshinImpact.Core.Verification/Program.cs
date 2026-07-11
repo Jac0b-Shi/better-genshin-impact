@@ -240,8 +240,16 @@ Assert("B11.5 Loader parses successfully", manifest != null, "null");
 Assert("B11.5 Manifest version is 1", manifest.Version == 1, $"got {manifest.Version}");
 Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
 Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
-var recWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
-Assert("B11.5 Rec with sidecar count 7", recWithSidecar.Count == 7, $"got {recWithSidecar.Count}");
+// Physical file count: 11 model ONNX + 8 model-bound sidecars + 2 preheat sidecars = 21
+var modelsWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
+Assert("B11.5 Models with sidecar count 8", modelsWithSidecar.Count == 8, $"got {modelsWithSidecar.Count}");
+var allPhysicalPaths =
+    manifest.Artifacts.Select(a => a.RelativePath)
+    .Concat(manifest.Artifacts.SelectMany(a => a.Sidecars))
+    .Concat(manifest.SidecarArtifacts.Select(s => s.RelativePath))
+    .ToList();
+Assert("B11.5 Physical paths count 21", allPhysicalPaths.Count == 21, $"got {allPhysicalPaths.Count}");
+Assert("B11.5 Physical paths unique", allPhysicalPaths.Distinct(System.StringComparer.Ordinal).Count() == 21, "duplicate paths");
 // Uniqueness
 Assert("B11.5 Artifact ids unique", manifest.Artifacts.Select(a => a.Id).Distinct().Count() == 11, "duplicate ids");
 Assert("B11.5 Registry keys unique", manifest.Artifacts.Select(a => a.RegistryKey).Distinct().Count() == 11, "duplicate keys");
@@ -315,11 +323,29 @@ foreach (var entry in recEntries)
         System.IO.Path.Combine(ocrRoot, sidecar.Replace('/', System.IO.Path.DirectorySeparatorChar)));
     Assert($"B11.5 {entry.Id} sidecar resolves", scResolved == scExpected, $"got {scResolved}, expected {scExpected}");
 }
-// Verify 3 Det + Yap have no sidecars
-foreach (var entry in manifest.Artifacts.Where(a => a.RegistryKey.Contains("Det") || a.RegistryKey == "YapModelTraining"))
+// Verify 3 Det have no sidecars
+foreach (var entry in manifest.Artifacts.Where(a => a.RegistryKey.Contains("Det")))
 {
     Assert($"B11.5 {entry.Id} no sidecars", entry.Sidecars.Count == 0, $"got {entry.Sidecars.Count}");
 }
+// Verify Yap sidecar contract
+var yapEntry = manifest.Artifacts.Single(a => a.RegistryKey == "YapModelTraining");
+Assert("B11.5 Yap entry id correct", yapEntry.Id == "YapModelTraining", $"got {yapEntry.Id}");
+Assert("B11.5 Yap sidecar count is 1", yapEntry.Sidecars.Count == 1, $"got {yapEntry.Sidecars.Count}");
+var yapSidecar = yapEntry.Sidecars[0];
+Assert("B11.5 Yap sidecar non-empty", !string.IsNullOrEmpty(yapSidecar), "");
+Assert("B11.5 Yap sidecar not rooted", !System.IO.Path.IsPathRooted(yapSidecar), $"rooted: {yapSidecar}");
+Assert("B11.5 Yap sidecar no backslash", !yapSidecar.Contains('\\'), yapSidecar);
+Assert("B11.5 Yap sidecar no ..", !yapSidecar.Contains(".."), yapSidecar);
+Assert("B11.5 Yap sidecar path correct", yapSidecar == "Assets/Model/Yap/index_2_word.json", $"got {yapSidecar}");
+var yapSidecarName = yapSidecar.Replace('\\', '/').Split('/').Last();
+Assert("B11.5 Yap sidecar filename is index_2_word.json", yapSidecarName == "index_2_word.json", $"got {yapSidecarName}");
+var yapSidecarDir = yapSidecar.Substring(0, yapSidecar.LastIndexOf('/'));
+Assert("B11.5 Yap sidecar dir matches model", yapSidecarDir == "Assets/Model/Yap", $"got {yapSidecarDir}");
+var yapScResolved = ocrResolver.ResolveSidecarPath(yapSidecar);
+var yapScExpected = System.IO.Path.GetFullPath(
+    System.IO.Path.Combine(ocrRoot, yapSidecar.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+Assert("B11.5 Yap sidecar resolves", yapScResolved == yapScExpected, $"got {yapScResolved}, expected {yapScExpected}");
 // Verify both preheat entries
 foreach (var sidecar in manifest.SidecarArtifacts)
 {
