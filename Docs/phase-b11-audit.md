@@ -229,17 +229,6 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/2
 ```
 
 
-### 2.4 Implementation result (B11.2.1)
-
-- `IOcrResourcePathResolver` interface + `OcrResourcePathResolver` implementation added
-- PaddleOCR labels use `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath`
-- Core preheat uses `ResolveSidecarPath(modelType.PreHeatImageRelativePath)`
-- WPF static `TestImagePath`/`TestNumberImagePath` guarded with `#if !BGI_PLATFORM_MAC`
-- V4En restored; `FromCultureInfoV4` English returns V4En (not V5)
-- No real artifact files delivered
-- Core OCR production-ready remains false
-
----
 ## 2. B11.2 Audit: PaddleOCR Sidecar Resource Path Resolution
 
 ### 2.1 Problem
@@ -272,6 +261,27 @@ B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathReso
 dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
+
+### 2.4 Implementation result (B11.2.1)
+
+- `IOcrResourcePathResolver` interface + `OcrResourcePathResolver` implementation added
+- PaddleOCR labels use `LoadLabelsFromModel(resolver, recModel)` — no `recModel.ModalPath`
+- Core preheat uses `ResolveSidecarPath(modelType.PreHeatImageRelativePath)`
+- WPF static `TestImagePath`/`TestNumberImagePath` guarded with `#if !BGI_PLATFORM_MAC`
+- V4En restored; `FromCultureInfoV4` English returns V4En (not V5)
+- No real artifact files delivered
+- Core OCR production-ready remains false
+
+### 2.5 Baseline validation
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
+```
+
+Note: This is the total Verification baseline (288/288) for the PaddleOCR path resolver infrastructure. The Yap dictionary contract is not yet covered by this count.
+
+---
 
 ## 3. B11.3 Audit: Model Artifact Contract and macOS Bundle Strategy
 
@@ -311,10 +321,9 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/2
       Yap/
         model_training.onnx
         index_2_word.json
-  index_2_word.json
-PaddleOCR/
-  test_pp_ocr.png
-  test_pp_ocr_number.png
+      PaddleOCR/
+        test_pp_ocr.png
+        test_pp_ocr_number.png
         Det/ V4/ppocr_det_v4.onnx
             V5/ppocr_det_v5.onnx
             V6/ppocr_det_v6.onnx
@@ -396,7 +405,7 @@ dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 121/1
 | `181ba56` | Final code/verification correction | Added strict `inference.yml` filename assertions; docs cleanup accidentally removed B11.2/B11.3. Local Verification: 288/288. |
 | `33f0893` | Docs closure | Restored B11.2/B11.3, corrected inline `character_dict` documentation, updated top-level status and final B11.5 record. No production-code changes. |
 
-### 5.2 Final state
+### 5.2 State before B11.5.1 reopening
 
 | Component | Status |
 |-----------|--------|
@@ -449,7 +458,7 @@ B11.1–B11.4 and the PaddleOCR portion of B11.5 are implemented. B11.5 is reope
 | Real InferenceSession test | Deferred — requires validated artifact set |
 | macOS bundle strategy | Not implemented |
 | Swift host path definition | Not defined |
-| Artifact provenance | Not audited — source, license, redistribution status unknown |
+| Artifact provenance | Audited in B11.6.1; unresolved; overall NO-GO |
 
 ### 6.2 modelRoot contract (corrected)
 
@@ -475,6 +484,7 @@ Download target:
   Assets/
     Model/
       Yap/model_training.onnx
+      Yap/index_2_word.json
       PaddleOCR/Det|Rec/...
 ```
 
@@ -556,28 +566,40 @@ BetterGI.app/Contents/Resources/BetterGI/   ← this IS the modelRoot
 {
   "schemaVersion": 1,
   "artifactSetVersion": "<verified upstream version>",
-  "archive": {
-    "url": "<verified immutable download URL>",
-    "sha256": "<verified lowercase hex>",
-    "format": "tar.gz | zip",
-    "contentRoot": "Assets/Model/",
-    "sizeBytes": 0
-  },
-  "contentMapping": {
-    "remapPrefix": "",
-    "type": "exact | remap | missing",
-    "remapRules": []
-  },
-  "provenance": {
-    "project": "<source project name>",
-    "release": "<upstream tag/version>",
-    "sourcePage": "<authoritative project page>",
-    "license": "<verified SPDX identifier or unverified>",
-    "licenseFileInArchive": "<path or null>",
-    "redistributionStatus": "allowed | restricted | unverified"
-  }
+  "sources": [
+    {
+      "id": "<source-id>",
+      "type": "archive|raw-file",
+      "url": "<verified immutable download URL>",
+      "sha256": "<verified lowercase hex>",
+      "format": "zip|7z|tar.gz|raw",
+      "sizeBytes": 0,
+      "provenance": {
+        "project": "<source project name>",
+        "releaseOrCommit": "<upstream tag/version/commit>",
+        "sourcePage": "<authoritative project page>",
+        "license": "<verified SPDX identifier or unverified>",
+        "redistributionStatus": "allowed | restricted | unverified"
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "destinationRelativePath": "Assets/Model/<path>",
+      "sourceId": "<source-id from sources[]>",
+      "memberPath": "<path within source archive, or full raw URL>",
+      "sha256": "<verified lowercase hex>",
+      "transformation": "none | relocate | rename"
+    }
+  ]
 }
 ```
+
+**Notes:**
+- `sources[]` is always an array, even with a single source
+- `transformation` only covers simple remap (relocate, rename). Model conversion (Paddle inference → ONNX) is NOT a transformation — it requires a separate reproducible pipeline
+- No placeholder lock file or URL may be committed
+- Pattern A (archive matches manifest layout) must be verified, not assumed
 
 **This audit only defines the schema.** Actual values will be filled in during B11.6.1 provenance audit. No placeholder URL, checksum, or license may be committed.
 
@@ -675,8 +697,13 @@ Two independent workstreams:
 - Swift host code changes (B11.6.5)
 - CI workflow definition
 - `character_dict_path` support (not currently implemented)
-
 ### 6.10 Baseline (pre-implementation)
+
+```
+dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero errors ✅
+dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
+```
+
 ### 6.11 B11.6.1 Provenance Audit Result
 
 See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-provenance.md)
@@ -702,18 +729,14 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 - [ ] inference.yml format unverified
 - [ ] Paddle→ONNX conversion pipeline undocumented
 
-### 6.12 Phase ordering
+### 6.12 Phases opened by audit
 
 **B11.5.1 and B11.2.2 do not depend on artifact provenance** and should be completed before any source-lock or downloader implementation.
 
-### 6.12 Phases opened by audit
-
-| Phase | Reason |
-|-------|--------|
-| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 |
-| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency |
-
-Both phases are audit-only at this stage — no production code changes until artifact provenance allows downloader/source-lock implementation.
+| Phase | Reason | Dependencies |
+|-------|--------|-------------|
+| **B11.5.1** | Reopen manifest: add `Assets/Model/Yap/index_2_word.json` to artifact list + sidecar contract; update counts 20→21 | None (manifest + Verification only) |
+| **B11.2.2** | Yap sidecar path resolution: remove `Global.Absolute` from `PickTextInference.cs` Core path; use explicit resolver or minimal required path dependency | None (resolver pattern already established in B11.2.1) |
 
 ---
 
