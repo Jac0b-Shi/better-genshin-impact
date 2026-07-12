@@ -28,7 +28,7 @@ public class PickTextInference : ITextInference
         "Assets/Model/Yap/index_2_word.json";
 
     private readonly InferenceSession _session;
-    private Dictionary<int, string> _wordDictionary = null!;
+    private readonly Dictionary<int, string> _wordDictionary;
 
 #if BGI_PLATFORM_MAC
     public PickTextInference(BgiOnnxFactory onnxFactory, IOcrResourcePathResolver resourceResolver)
@@ -36,23 +36,23 @@ public class PickTextInference : ITextInference
         ArgumentNullException.ThrowIfNull(onnxFactory);
         ArgumentNullException.ThrowIfNull(resourceResolver);
         _session = onnxFactory.CreateInferenceSession(BgiOnnxModel.YapModelTraining, true);
-        LoadWordDictionary(resourceResolver.ResolveSidecarPath(YapDictionaryRelativePath));
+        _wordDictionary = LoadWordDictionary(resourceResolver.ResolveSidecarPath(YapDictionaryRelativePath));
     }
 #else
     public PickTextInference(BgiOnnxFactory onnxFactory)
     {
         ArgumentNullException.ThrowIfNull(onnxFactory);
         _session = onnxFactory.CreateInferenceSession(BgiOnnxModel.YapModelTraining, true);
-        LoadWordDictionary(Global.Absolute(@"Assets\Model\Yap\index_2_word.json"));
+        _wordDictionary = LoadWordDictionary(Global.Absolute(@"Assets\Model\Yap\index_2_word.json"));
     }
 #endif
 
-    private void LoadWordDictionary(string wordJsonPath)
+    private static Dictionary<int, string> LoadWordDictionary(string wordJsonPath)
     {
         if (!File.Exists(wordJsonPath)) throw new FileNotFoundException("Yap字典文件不存在", wordJsonPath);
         var json = File.ReadAllText(wordJsonPath);
-        _wordDictionary = JsonConvert.DeserializeObject<Dictionary<int, string>>(json) ??
-                          throw new Exception("index_2_word.json deserialize failed");
+        return JsonConvert.DeserializeObject<Dictionary<int, string>>(json) ??
+                          throw new InvalidDataException("index_2_word.json deserialize failed");
     }
 
     public string Inference(Mat mat)

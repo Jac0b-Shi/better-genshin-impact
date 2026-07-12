@@ -373,31 +373,53 @@ var expectedYapDictPath = System.IO.Path.GetFullPath(
     System.IO.Path.Combine(ocrRoot, BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
 Assert("B11.2.2 Yap resolver path", resolvedYapDict == expectedYapDictPath, $"resolved={resolvedYapDict} expected={expectedYapDictPath}");
 
-// 3. Core constructor contract (reflection)
-var ctorArgs = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference).GetConstructors()
-    .SelectMany(c => c.GetParameters())
-    .Select(p => p.ParameterType.Name)
-    .ToList();
-Assert("B11.2.2 PickTextInference has IOcrResourcePathResolver param", ctorArgs.Contains("IOcrResourcePathResolver"), $"ctors: {string.Join(", ", ctorArgs)}");
+// 3. PickTextInference constructor contract: exactly one public ctor, exactly (BgiOnnxFactory, IOcrResourcePathResolver)
+var pickCtor = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference).GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+Assert("B11.2.2 PickTextInference has exactly 1 public ctor", pickCtor.Length == 1, $"got {pickCtor.Length}");
+var pickCtorParams = pickCtor.Single().GetParameters();
+Assert("B11.2.2 PickTextInference ctor has 2 params", pickCtorParams.Length == 2, $"got {pickCtorParams.Length}");
+Assert("B11.2.2 PickTextInference ctor param 1 is BgiOnnxFactory", pickCtorParams[0].ParameterType == typeof(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory), $"got {pickCtorParams[0].ParameterType.Name}");
+Assert("B11.2.2 PickTextInference ctor param 2 is IOcrResourcePathResolver", pickCtorParams[1].ParameterType == typeof(BetterGenshinImpact.Core.Abstractions.Runtime.IOcrResourcePathResolver), $"got {pickCtorParams[1].ParameterType.Name}");
+Assert("B11.2.2 PickTextInference ctor param 1 not optional", !pickCtorParams[0].IsOptional, "is optional");
+Assert("B11.2.2 PickTextInference ctor param 2 not optional", !pickCtorParams[1].IsOptional, "is optional");
 
-// 4. TextInferenceFactory contract
-var factoryMethods = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.TextInferenceFactory).GetMethods()
-    .Where(m => m.Name == "Create")
-    .SelectMany(m => m.GetParameters())
-    .Select(p => p.ParameterType.Name)
-    .ToList();
-Assert("B11.2.2 TextInferenceFactory.Create has IOcrResourcePathResolver param", factoryMethods.Contains("IOcrResourcePathResolver"), $"factory params: {string.Join(", ", factoryMethods)}");
+// 4. TextInferenceFactory.Create contract: exactly one public static Create with (OcrEngineTypes, BgiOnnxFactory, IOcrResourcePathResolver)
+var factoryCreateMethods = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.TextInferenceFactory).GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+    .Where(m => m.Name == "Create").ToList();
+Assert("B11.2.2 factory Create has exactly 1 overload", factoryCreateMethods.Count == 1, $"got {factoryCreateMethods.Count}");
+var factoryCreateParams = factoryCreateMethods.Single().GetParameters();
+Assert("B11.2.2 factory Create has 3 params", factoryCreateParams.Length == 3, $"got {factoryCreateParams.Length}");
+Assert("B11.2.2 factory Create param 1 is OcrEngineTypes", factoryCreateParams[0].ParameterType == typeof(BetterGenshinImpact.Core.Recognition.OcrEngineTypes), $"got {factoryCreateParams[0].ParameterType.Name}");
+Assert("B11.2.2 factory Create param 2 is BgiOnnxFactory", factoryCreateParams[1].ParameterType == typeof(BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory), $"got {factoryCreateParams[1].ParameterType.Name}");
+Assert("B11.2.2 factory Create param 3 is IOcrResourcePathResolver", factoryCreateParams[2].ParameterType == typeof(BetterGenshinImpact.Core.Abstractions.Runtime.IOcrResourcePathResolver), $"got {factoryCreateParams[2].ParameterType.Name}");
+Assert("B11.2.2 factory Create param 1 not optional", !factoryCreateParams[0].IsOptional, "is optional");
+Assert("B11.2.2 factory Create param 2 not optional", !factoryCreateParams[1].IsOptional, "is optional");
+Assert("B11.2.2 factory Create param 3 not optional", !factoryCreateParams[2].IsOptional, "is optional");
 
-// 5. Null resolver fail-fast (BgiOnnxFactory that does not call CreateInferenceSession)
+// 5. Null resolver fail-fast: PickTextInference
 var nullResolverFactory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver);
 try
 {
     _ = new BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference(nullResolverFactory, null!);
-    Assert("B11.2.2 null resolver should throw", false, "no exception thrown");
+    Assert("B11.2.2 null resolver PickTextInference should throw", false, "no exception thrown");
 }
 catch (ArgumentNullException ex)
 {
-    Assert("B11.2.2 null resolver param name", ex.ParamName == "resourceResolver", $"got {ex.ParamName}");
+    Assert("B11.2.2 null resolver PickTextInference param name", ex.ParamName == "resourceResolver", $"got {ex.ParamName}");
+}
+
+// 6. Null resolver fail-fast: TextInferenceFactory.Create
+try
+{
+    _ = BetterGenshinImpact.Core.Recognition.ONNX.SVTR.TextInferenceFactory.Create(
+        BetterGenshinImpact.Core.Recognition.OcrEngineTypes.YapModel,
+        nullResolverFactory,
+        null!);
+    Assert("B11.2.2 null resolver factory should throw", false, "no exception thrown");
+}
+catch (ArgumentNullException ex)
+{
+    Assert("B11.2.2 null resolver factory param name", ex.ParamName == "resourceResolver", $"got {ex.ParamName}");
 }
 Console.WriteLine();
 
