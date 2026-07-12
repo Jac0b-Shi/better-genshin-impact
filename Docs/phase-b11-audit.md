@@ -1,6 +1,6 @@
 # B11 Audit: Platform Capability Wiring
 
-**Status:** B11.1, B11.2.1, and B11.3–B11.5.1 are complete; B11.2.2 remains open because PickTextInference still uses Global.Absolute for index_2_word.json; B11.6.1 provenance remains NO-GO. Core OCR production-ready remains false.
+**Status:** B11.1–B11.5.1 and B11.2.2 complete; B11.6.1 provenance remains NO-GO; B11.6.2 downloader prohibited. Core OCR production-ready remains false.
 **Predecessor:** B10 structural shim cleanup complete
 
 ---
@@ -766,7 +766,7 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 - [ ] BetterGI installer/7z member tree not inspected
 - [ ] Yap model SHA-256 not compared with BetterGI
 - [ ] GPL-3.0 coverage of Yap model weights unclarified
-- [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2)
+- [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2) → resolved by a6df841
 - [ ] Preheat PNG provenance unknown
 - [ ] inference.yml format unverified
 - [ ] Paddle→ONNX conversion pipeline undocumented
@@ -783,7 +783,7 @@ B11.5.1 did not depend on provenance and is now complete. B11.2.2 is the next im
 | Phase | Status | Result / next action |
 |-------|--------|----------------------|
 | B11.5.1 | **Completed** | Manifest includes Yap JSON; 21 physical paths; final relationship assertion in 77277dc |
-| B11.2.2 | **Next** | Remove `Global.Absolute` from `PickTextInference` Yap dictionary loading |
+| B11.2.2 Yap dictionary | Resolved — a6df841 removes Global.Absolute from PickTextInference; uses explicit IOcrResourcePathResolver |
 | B11.6.1.x | Blocked / pending evidence | Inspect release assets, hashes, mappings and licensing |
 | B11.6.2 | NO-GO | Do not implement downloader |
 
