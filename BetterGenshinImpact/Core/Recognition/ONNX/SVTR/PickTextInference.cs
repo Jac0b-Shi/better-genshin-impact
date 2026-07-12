@@ -1,4 +1,5 @@
 using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
@@ -19,17 +20,36 @@ namespace BetterGenshinImpact.Core.Recognition.ONNX.SVTR;
 /// </summary>
 public class PickTextInference : ITextInference
 {
-    private readonly InferenceSession _session;
-    private readonly Dictionary<int, string> _wordDictionary;
+    /// <summary>
+    /// Manifest-registered Yap dictionary relative path.
+    /// Must match the sidecar path in model-artifacts.manifest.json.
+    /// </summary>
+    public const string YapDictionaryRelativePath =
+        "Assets/Model/Yap/index_2_word.json";
 
+    private readonly InferenceSession _session;
+    private Dictionary<int, string> _wordDictionary = null!;
+
+#if BGI_PLATFORM_MAC
+    public PickTextInference(BgiOnnxFactory onnxFactory, IOcrResourcePathResolver resourceResolver)
+    {
+        ArgumentNullException.ThrowIfNull(onnxFactory);
+        ArgumentNullException.ThrowIfNull(resourceResolver);
+        _session = onnxFactory.CreateInferenceSession(BgiOnnxModel.YapModelTraining, true);
+        LoadWordDictionary(resourceResolver.ResolveSidecarPath(YapDictionaryRelativePath));
+    }
+#else
     public PickTextInference(BgiOnnxFactory onnxFactory)
     {
         ArgumentNullException.ThrowIfNull(onnxFactory);
         _session = onnxFactory.CreateInferenceSession(BgiOnnxModel.YapModelTraining, true);
+        LoadWordDictionary(Global.Absolute(@"Assets\Model\Yap\index_2_word.json"));
+    }
+#endif
 
-        var wordJsonPath = Global.Absolute(@"Assets\Model\Yap\index_2_word.json");
+    private void LoadWordDictionary(string wordJsonPath)
+    {
         if (!File.Exists(wordJsonPath)) throw new FileNotFoundException("Yap字典文件不存在", wordJsonPath);
-
         var json = File.ReadAllText(wordJsonPath);
         _wordDictionary = JsonConvert.DeserializeObject<Dictionary<int, string>>(json) ??
                           throw new Exception("index_2_word.json deserialize failed");

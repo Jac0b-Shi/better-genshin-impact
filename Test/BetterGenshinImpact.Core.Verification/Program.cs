@@ -359,6 +359,48 @@ foreach (var sidecar in manifest.SidecarArtifacts)
 }
 Console.WriteLine();
 
+// ==== B11.2.2 Yap dictionary path injection ====
+Console.WriteLine("B11.2.2: Yap dictionary path injection");
+
+// 1. Manifest constant binding
+var yapEntryB11_2 = manifest.Artifacts.Single(a => a.RegistryKey == "YapModelTraining");
+var manifestYapSidecar = yapEntryB11_2.Sidecars.Single();
+Assert("B11.2.2 Yap constant matches manifest", manifestYapSidecar == BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath, $"manifest={manifestYapSidecar} const={BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath}");
+
+// 2. Resolver path
+var resolvedYapDict = ocrResolver.ResolveSidecarPath(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath);
+var expectedYapDictPath = System.IO.Path.GetFullPath(
+    System.IO.Path.Combine(ocrRoot, BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+Assert("B11.2.2 Yap resolver path", resolvedYapDict == expectedYapDictPath, $"resolved={resolvedYapDict} expected={expectedYapDictPath}");
+
+// 3. Core constructor contract (reflection)
+var ctorArgs = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference).GetConstructors()
+    .SelectMany(c => c.GetParameters())
+    .Select(p => p.ParameterType.Name)
+    .ToList();
+Assert("B11.2.2 PickTextInference has IOcrResourcePathResolver param", ctorArgs.Contains("IOcrResourcePathResolver"), $"ctors: {string.Join(", ", ctorArgs)}");
+
+// 4. TextInferenceFactory contract
+var factoryMethods = typeof(BetterGenshinImpact.Core.Recognition.ONNX.SVTR.TextInferenceFactory).GetMethods()
+    .Where(m => m.Name == "Create")
+    .SelectMany(m => m.GetParameters())
+    .Select(p => p.ParameterType.Name)
+    .ToList();
+Assert("B11.2.2 TextInferenceFactory.Create has IOcrResourcePathResolver param", factoryMethods.Contains("IOcrResourcePathResolver"), $"factory params: {string.Join(", ", factoryMethods)}");
+
+// 5. Null resolver fail-fast (BgiOnnxFactory that does not call CreateInferenceSession)
+var nullResolverFactory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver);
+try
+{
+    _ = new BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference(nullResolverFactory, null!);
+    Assert("B11.2.2 null resolver should throw", false, "no exception thrown");
+}
+catch (ArgumentNullException ex)
+{
+    Assert("B11.2.2 null resolver param name", ex.ParamName == "resourceResolver", $"got {ex.ParamName}");
+}
+Console.WriteLine();
+
 // ==== B5: AutoPickTrigger IAutoPickRuntimeState injection ====
 Console.WriteLine("AutoPickTrigger: IAutoPickRuntimeState injection");
 var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();
