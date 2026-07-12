@@ -267,6 +267,34 @@ B11.1.1 fixed `BgiOnnxFactory.CreateInferenceSession` to use `IOnnxModelPathReso
 - No real artifact files delivered
 - Core OCR production-ready remains false
 
+### 2.6 B11.2.2 Yap dictionary path implementation
+
+| Item | Detail |
+|------|--------|
+| a6df841 (initial) | Core PickTextInference requires IOcrResourcePathResolver; YapDictionaryRelativePath constant; Windows/WPF preserves original single-parameter API and Global.Absolute |
+| f438ec3 (correction) | Exact constructor/factory API contract locked via reflection verification; _wordDictionary restored to private readonly; LoadWordDictionary returns Dictionary; factory null-resolver fail-fast test |
+| Yap dictionary path | `"Assets/Model/Yap/index_2_word.json"` — matches manifest sidecar |
+| Core constructor params | (BgiOnnxFactory, IOcrResourcePathResolver) — both required, not optional |
+| Factory params | (OcrEngineTypes, BgiOnnxFactory, IOcrResourcePathResolver) — all required, not optional |
+| Core/macOS Global.Absolute | **Removed** — uses resolver.ResolveSidecarPath |
+| Windows Global.Absolute | Preserved — unchanged |
+| Static resolver / service locator / fallback | **None** |
+| Real JSON delivered? | **No** |
+
+### 2.7 B11.2.2 Validation result
+
+| Test | Result |
+|------|--------|
+| Core build | Passed |
+| B11.2.2 section assertions | 19/19 passed |
+| Constructor exact contract | Single ctor, (BgiOnnxFactory, IOcrResourcePathResolver), both non-optional |
+| Factory exact contract | Single Create overload, 3 required params, resolver at position 3 |
+| PickTextInference null-resolver fail-fast | ArgumentNullException with ParamName "resourceResolver" before session creation |
+| Factory null-resolver fail-fast | Same exception before switch/object creation |
+| Manifest constant binding | PickTextInference.YapDictionaryRelativePath matches manifest sidecar |
+| Full Verification rerun | Incomplete — stopped by pre-existing OpenCV native loading failure later in suite |
+| Full-suite N/N | Not claimed |
+
 ### 2.5 Baseline validation
 
 ```
@@ -274,7 +302,7 @@ dotnet build BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj  → zero 
 dotnet run --project Test/BetterGenshinImpact.Core.Verification/...    → 288/288 ✅
 ```
 
-Note: This is the total Verification baseline (288/288) for the PaddleOCR path resolver infrastructure. The Yap dictionary contract is not yet covered by this count.
+Note: At this historical B11.2.1 baseline, the Yap dictionary contract was not yet covered; B11.2.2 later closed it.
 
 ---
 
@@ -716,11 +744,11 @@ When B11.6.2 download script is implemented, it must satisfy:
 
 Two independent workstreams:
 
-**Immediate internal correctness (no artifact dependency):**
-| Phase | Scope |
-|-------|-------|
-| B11.5.1 | Add `Assets/Model/Yap/index_2_word.json` to manifest; update counts 20→21; update Verification |
-| B11.2.2 | Remove `Global.Absolute` from `PickTextInference` Core path; use explicit resolver or minimal required path |
+**Immediate internal correctness (completed):**
+| Phase | Status | Result |
+|-------|--------|--------|
+| B11.5.1 | Completed | 21-file destination manifest |
+| B11.2.2 | Completed | Explicit Yap sidecar resolver injection through required IOcrResourcePathResolver |
 
 **Provenance-gated delivery work (requires artifact source-lock):**
 | Phase | Scope | Artifacts needed? |
@@ -766,7 +794,6 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 - [ ] BetterGI installer/7z member tree not inspected
 - [ ] Yap model SHA-256 not compared with BetterGI
 - [ ] GPL-3.0 coverage of Yap model weights unclarified
-- [ ] `index_2_word.json` uses `Global.Absolute` in Core (B11.2.2) → resolved by a6df841
 - [ ] Preheat PNG provenance unknown
 - [ ] inference.yml format unverified
 - [ ] Paddle→ONNX conversion pipeline undocumented
@@ -775,16 +802,18 @@ See detailed report: [`Docs/b11.6.1-artifact-provenance.md`](b11.6.1-artifact-pr
 - B11.5 manifest omission — resolved by 15ae5f2
 - Yap same-directory relationship assertion — corrected by 77277dc
 - Destination manifest now models 21 physical paths
+- Core/macOS Global.Absolute removed from PickTextInference — resolved by a6df841
+- Exact constructor/factory resolver contract locked — f438ec3
 
 ### 6.12 Phases opened by audit and current status
 
-B11.5.1 did not depend on provenance and is now complete. B11.2.2 is the next immediate internal-correctness phase. Source-lock and downloader work remain blocked by provenance.
+B11.5.1 and B11.2.2 are complete. The next work is B11.6.1.x evidence collection, but source-lock and downloader remain blocked by provenance.
 
 | Phase | Status | Result / next action |
 |-------|--------|----------------------|
-| B11.5.1 | **Completed** | Manifest includes Yap JSON; 21 physical paths; final relationship assertion in 77277dc |
-| B11.2.2 Yap dictionary | Resolved — a6df841 removes Global.Absolute from PickTextInference; uses explicit IOcrResourcePathResolver |
-| B11.6.1.x | Blocked / pending evidence | Inspect release assets, hashes, mappings and licensing |
+| B11.5.1 | Completed | Manifest includes Yap JSON; 21 physical paths; final relationship assertion in 77277dc |
+| B11.2.2 | Completed | a6df841 + f438ec3; Core/macOS no Global.Absolute; exact constructor/factory API locked |
+| B11.6.1.x | Pending evidence | Inspect release assets, hashes, mappings and licensing |
 | B11.6.2 | NO-GO | Do not implement downloader |
 
 ---
