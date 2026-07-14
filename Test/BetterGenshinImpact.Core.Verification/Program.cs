@@ -669,6 +669,136 @@ Console.WriteLine("B11.6.2: Hardening — cancellation cleanup");
     Assert("B11.6.2 No output left behind", !Directory.Exists("/tmp/bgi-cancel-test") || Directory.GetFileSystemEntries("/tmp/bgi-cancel-test").Length == 0, "");
 }
 Console.WriteLine();
+
+// ==== B12.1 Path chain verification: Downloader → Resolver → PickTextInference ====
+Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver → Filesystem");
+{
+    // Setup: create fake archive + lock, download to temp modelRoot
+    var chainWork = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "bgi-chain-" + Guid.NewGuid().ToString("N")[..8]));
+    var chainExtract = Path.GetFullPath(Path.Combine(chainWork, "src"));
+    var chainModelRoot = Path.GetFullPath(Path.Combine(chainWork, "model-root"));
+    var chainArchive = Path.GetFullPath(Path.Combine(chainWork, "chain.7z"));
+    Directory.CreateDirectory(chainExtract);
+
+    // Create all 21 manifest files
+    var allDestinations = manifest.Artifacts.SelectMany(a => new[] { a.RelativePath }.Concat(a.Sidecars))
+        .Concat(manifest.SidecarArtifacts.Select(s => s.RelativePath))
+        .Distinct(StringComparer.Ordinal)
+        .ToList();
+    Assert("B12.1 All 21 destination paths enumerated", allDestinations.Count == 21, $"got {allDestinations.Count}");
+
+    var contentDict = new Dictionary<string, byte[]>();
+    foreach (var dest in allDestinations)
+    {
+        var content = Encoding.UTF8.GetBytes($"content-for-{dest}");
+        contentDict[dest] = content;
+        var fp = Path.Combine(chainExtract, "BetterGI", dest);
+        Directory.CreateDirectory(Path.GetDirectoryName(fp)!);
+        File.WriteAllBytes(fp, content);
+    }
+
+    // Pack into 7z
+    var chainPsi = new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = "7z", Arguments = $"a \"{chainArchive}\" \"*\"",
+        WorkingDirectory = chainExtract,
+        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
+    };
+    using (var cp = System.Diagnostics.Process.Start(chainPsi)!) { cp.WaitForExit(); }
+
+    // Build lock JSON
+    var chainSha = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(chainArchive))).ToLowerInvariant();
+    var chainArtifactsJson = string.Join(",", manifest.Artifacts.SelectMany(a =>
+        new[] { (rel: a.RelativePath, mp: "BetterGI/" + a.RelativePath, sha: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"content-for-{a.RelativePath}"))).ToLowerInvariant(), size: contentDict[a.RelativePath].LongLength) }
+        .Concat(a.Sidecars.Select(s => (rel: s, mp: "BetterGI/" + s, sha: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"content-for-{s}"))).ToLowerInvariant(), size: contentDict[s].LongLength)))
+    ).Select(x => $"{{\"destinationRelativePath\":\"{x.rel}\",\"sourceId\":\"test\",\"memberPath\":\"{x.mp}\",\"sizeBytes\":{x.size},\"sha256\":\"{x.sha}\",\"transformation\":\"relocate\",\"licenseEvidence\":{{\"spdxId\":null,\"source\":\"test\",\"redistributionStatus\":\"test\"}}}}"));
+    var chainSidecarJson = string.Join(",", manifest.SidecarArtifacts.Select(s =>
+        $"{{\"destinationRelativePath\":\"{s.RelativePath}\",\"sourceId\":\"test\",\"memberPath\":\"BetterGI/{s.RelativePath}\",\"sizeBytes\":{contentDict[s.RelativePath].LongLength},\"sha256\":\"{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"content-for-{s.RelativePath}"))).ToLowerInvariant()}\",\"transformation\":\"relocate\",\"licenseEvidence\":{{\"spdxId\":null,\"source\":\"test\",\"redistributionStatus\":\"test\"}}}}"));
+    var chainLock = "{\"schemaVersion\":1,\"artifactSetVersion\":\"chain\"," +
+        "\"sources\":[{\"id\":\"test\",\"type\":\"archive\"," +
+        "\"url\":\"file://" + chainArchive.Replace('\\', '/') + "\"," +
+        "\"sha256\":\"" + chainSha + "\"," +
+        "\"format\":\"7z\",\"sizeBytes\":" + new FileInfo(chainArchive).Length + "," +
+        "\"memberCount\":0," +
+        "\"provenance\":{\"project\":\"test\",\"releaseTag\":\"v0\"," +
+        "\"commitSha\":\"0000000000000000000000000000000000000000\"," +
+        "\"publishedAt\":\"2025-01-01T00:00:00Z\"}}]," +
+        "\"artifacts\":[" + chainArtifactsJson + "," + chainSidecarJson + "]}";
+    var chainLockPath = Path.Combine(chainWork, "lock.json");
+    File.WriteAllText(chainLockPath, chainLock);
+
+    // Download
+    using var chainDl = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader();
+    Directory.CreateDirectory(chainModelRoot);
+    var chainResult = await chainDl.DownloadAsync(chainLockPath, chainModelRoot, CancellationToken.None);
+    Assert("B12.1 Chain download success", chainResult.Success, $"errors={string.Join("; ", chainResult.Errors)}");
+    Assert("B12.1 Chain all 21 files placed", chainResult.ArtifactsExtracted == 21, $"extracted={chainResult.ArtifactsExtracted}");
+
+    // Create resolvers with the same modelRoot
+    var chainOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(chainModelRoot);
+    var chainOcrResolver = new BetterGenshinImpact.Core.Adapters.OcrResourcePathResolver(chainModelRoot);
+
+    // Verify: every manifest artifact → resolver resolves to existing file
+    foreach (var entry in manifest.Artifacts)
+    {
+        var model = registryMap.GetValueOrDefault(entry.RegistryKey);
+        if (model is null)
+        {
+            Assert($"B12.1 RegistryKey {entry.RegistryKey} not in registry map", false, "");
+            continue;
+        }
+        var resolvedPath = chainOnnxResolver.ResolveModelPath(model);
+        Assert($"B12.1 ONNX resolver for {entry.RegistryKey} → file exists", File.Exists(resolvedPath),
+            $"resolved={resolvedPath}");
+        var content = File.ReadAllBytes(resolvedPath);
+        Assert($"B12.1 ONNX {entry.RegistryKey} content matches",
+            content.SequenceEqual(Encoding.UTF8.GetBytes($"content-for-{entry.RelativePath}")),
+            $"content mismatch at {resolvedPath}");
+
+        // Sidecars
+        foreach (var sidecar in entry.Sidecars)
+        {
+            var scPath = chainOcrResolver.ResolveSidecarPath(sidecar);
+            Assert($"B12.1 Sidecar {sidecar} → file exists", File.Exists(scPath),
+                $"resolved={scPath}");
+            var scContent = File.ReadAllBytes(scPath);
+            Assert($"B12.1 Sidecar {sidecar} content matches",
+                scContent.SequenceEqual(Encoding.UTF8.GetBytes($"content-for-{sidecar}")),
+                $"content mismatch at {scPath}");
+        }
+    }
+
+    // Verify: global sidecar artifacts (preheat PNGs)
+    foreach (var sidecar in manifest.SidecarArtifacts)
+    {
+        var scPath = chainOcrResolver.ResolveSidecarPath(sidecar.RelativePath);
+        Assert($"B12.1 Global sidecar {sidecar.Id} → file exists", File.Exists(scPath),
+            $"resolved={scPath}");
+        var scContent = File.ReadAllBytes(scPath);
+        Assert($"B12.1 Global sidecar {sidecar.Id} content matches",
+            scContent.SequenceEqual(Encoding.UTF8.GetBytes($"content-for-{sidecar.RelativePath}")),
+            $"content mismatch at {scPath}");
+    }
+
+    // Specifically verify PickTextInference chain
+    var yapDictPath = chainOcrResolver.ResolveSidecarPath(
+        BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference.YapDictionaryRelativePath);
+    Assert("B12.1 PickTextInference YapDictionaryRelativePath resolves to file",
+        File.Exists(yapDictPath), $"path={yapDictPath}");
+    Assert("B12.1 PickTextInference Yap JSON content correct",
+        File.ReadAllBytes(yapDictPath).SequenceEqual(
+            Encoding.UTF8.GetBytes("content-for-Assets/Model/Yap/index_2_word.json")),
+        "");
+
+    var yapOnnxPath = chainOnnxResolver.ResolveModelPath(
+        BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.YapModelTraining);
+    Assert("B12.1 PickTextInference YapModelTraining ONNX resolves to file",
+        File.Exists(yapOnnxPath), $"path={yapOnnxPath}");
+
+    Console.WriteLine("B12.1: ALL PATH CHAIN VERIFICATIONS PASSED");
+    Directory.Delete(chainWork, recursive: true);
+}
+Console.WriteLine();
 var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();
 var defaultLogger = NullLogger<AutoPickAssets>.Instance;
 var triggerLogger = NullLogger<AutoPickTrigger>.Instance;
