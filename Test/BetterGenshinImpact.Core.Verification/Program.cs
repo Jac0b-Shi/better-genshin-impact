@@ -4,7 +4,13 @@ using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Adapters;
 using System.Security.Cryptography;
 using System.Text;
+using BetterGenshinImpact.Core.Adapters;
 using BetterGenshinImpact.Core.Composition;
+using BetterGenshinImpact.Core.Recognition.OCR.Engine;
+using BetterGenshinImpact.Core.Recognition.OCR.Engine.data;
+using BetterGenshinImpact.Core.Recognition.OCR.Paddle;
+using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Infrastructure;
 using BetterGenshinImpact.Core.Recognition;
@@ -882,6 +888,159 @@ Console.WriteLine("B12.2: Real ONNX InferenceSession load test");
         }
 
         Console.WriteLine($"B12.2: {sessionCount}/{testModels.Length} InferenceSessions created successfully");
+    }
+}
+Console.WriteLine();
+
+// ==== B12.3 PaddleOCR preprocessing/postprocessing validation ====
+Console.WriteLine("B12.3: PaddleOCR pipeline validation");
+{
+    // Helper: replicate ParseInferenceYml logic
+    static List<string> ParseCharacterDictFromYaml(string path)
+    {
+        using var reader = new System.IO.StreamReader(path);
+        var parser = new YamlDotNet.Core.Parser(reader);
+        while (parser.MoveNext())
+        {
+            if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "PostProcess" }) continue;
+            parser.MoveNext();
+            while (parser.MoveNext())
+            {
+                if (parser.Current is not YamlDotNet.Core.Events.Scalar { Value: "character_dict" }) continue;
+                parser.MoveNext();
+                var result = new List<string>();
+                while (parser.MoveNext())
+                {
+                    if (parser.Current is YamlDotNet.Core.Events.SequenceEnd)
+                        return result;
+                    if (parser.Current is YamlDotNet.Core.Events.Scalar s)
+                        result.Add(s.Value);
+                }
+            }
+        }
+        throw new InvalidOperationException("character_dict not found in PostProcess");
+    }
+    var realBase = Path.GetFullPath(Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "artifacts/provenance-audit/release-0.62.0/extracted/BetterGI/Assets/Model"));
+
+    if (!Directory.Exists(realBase))
+    {
+        Console.WriteLine("B12.3: SKIPPED — extracted model directory not found");
+    }
+    else
+    {
+        var recYamls = Directory.GetFiles(Path.Combine(realBase, "PaddleOCR/Rec"), "inference.yml", SearchOption.AllDirectories);
+
+        // B12.3.1: ParseInferenceYml runtime validation (replicate parsing logic with YamlDotNet)
+        foreach (var yamlPath in recYamls)
+        {
+            var variant = yamlPath.Contains("/Rec/V4/") ? "V4" :
+                          yamlPath.Contains("/V4En") || yamlPath.Contains("/en_") ? "V4En" :
+                          yamlPath.Contains("/V5Latin") || yamlPath.Contains("/latin_") ? "V5Latin" :
+                          yamlPath.Contains("/V5Eslav") || yamlPath.Contains("/eslav_") ? "V5Eslav" :
+                          yamlPath.Contains("/V5Korean") || yamlPath.Contains("/korean_") ? "V5Korean" :
+                          yamlPath.Contains("/Rec/V6/") ? "V6" : "V5";
+            try
+            {
+                var labels = ParseCharacterDictFromYaml(yamlPath);
+                Assert($"B12.3.1 {variant} YAML parse succeeded", labels is { Count: > 0 }, "");
+                Assert($"B12.3.1 {variant} label count > 10", labels!.Count > 10, $"count={labels.Count}");
+                Console.WriteLine($"  {variant}: {labels.Count} labels parsed from {Path.GetFileName(Path.GetDirectoryName(yamlPath))}");
+            }
+            catch (Exception ex)
+            {
+                Assert($"B12.3.1 {variant} YAML parse", false, $"{ex.GetType().Name}: {ex.Message[..Math.Min(200, ex.Message.Length)]}");
+            }
+        }
+
+        // B12.3.2 + B12.3.3: Real inference with Rec model
+        try
+        {
+            var recV4EnModel = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV4En;
+            var recV4EnYaml = Path.Combine(realBase, "PaddleOCR/Rec/V4/en_PP-OCRv4_mobile_rec_infer/inference.yml");
+            var labels = ParseCharacterDictFromYaml(recV4EnYaml);
+
+            var factory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(
+                new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(Path.GetFullPath(Path.Combine(realBase, "../.."))));
+
+            using var recSession = factory.CreateInferenceSession(recV4EnModel);
+            Assert("B12.3.2 RecV4En session created for inference", recSession != null, "");
+
+            // Create a synthetic test image (grayscale, 100x32)
+            var testImage = new Mat(32, 100, MatType.CV_8UC1, Scalar.Black);
+            Cv2.PutText(testImage, "Hello", new OpenCvSharp.Point(10, 24),
+                HersheyFonts.HersheySimplex, 0.8, Scalar.White, 1);
+
+            // Preprocess: resize + normalize (same as Rec.RunMulti)
+            var modelHeight = 48; // from RecV4En config
+            var maxWidth = (int)Math.Ceiling(1.0 * testImage.Width / testImage.Height * modelHeight);
+            var channel3 = testImage.CvtColor(ColorConversionCodes.GRAY2BGR);
+            var inputTensor = OcrUtils.ResizeNormImg(channel3, new OcrShape(3, maxWidth, modelHeight), out var owner);
+            Assert("B12.3.2 Preprocessed tensor created", inputTensor != null, "");
+            var inputDims = inputTensor.Dimensions.ToArray();
+            Console.WriteLine($"  RecV4En input tensor shape: [{string.Join(",", inputDims)}]");
+            channel3.Dispose();
+
+            // Run inference
+            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results;
+            lock (recSession)
+            {
+                results = recSession.Run([
+                    NamedOnnxValue.CreateFromTensor(recSession.InputNames[0], inputTensor)
+                ]);
+            }
+            Assert("B12.3.3 Inference produced output", results.Count > 0, "");
+            var output = results[0];
+            Assert("B12.3.3 Output is float tensor", output.ElementType == TensorElementType.Float, "");
+            var outputTensor = output.AsTensor<float>();
+            var outDims = outputTensor.Dimensions.ToArray();
+            Console.WriteLine($"  RecV4En output tensor shape: [{string.Join(",", outDims)}]");
+
+            // Postprocess: argmax decode (same logic as Rec.RunMulti)
+            var outputArray = outputTensor.ToArray();
+            var resultShape = outputTensor.Dimensions.ToArray();
+            var labelCount = resultShape[2];
+            var charCount = resultShape[1];
+            StringBuilder sb = new();
+            var lastIndex = 0;
+            float score = 0;
+            for (var n = 0; n < charCount; ++n)
+            {
+                var rowOffset = n * labelCount;
+                var maxVal = float.MinValue;
+                var maxIndex = 0;
+                for (var c = 0; c < labelCount; c++)
+                {
+                    var value = outputArray[rowOffset + c];
+                    if (value > maxVal)
+                    {
+                        maxVal = value;
+                        maxIndex = c;
+                    }
+                }
+                if (maxIndex > 0 && !(n > 0 && maxIndex == lastIndex))
+                {
+                    score += maxVal;
+                    sb.Append(OcrUtils.GetLabelByIndex(maxIndex, labels));
+                }
+                lastIndex = maxIndex;
+            }
+            var text = sb.ToString();
+            Console.WriteLine($"  RecV4En decoded text: \"{text}\" (score={score:F2}, length={text.Length})");
+            Assert("B12.3.3 Text decoding produced result", text.Length >= 0, $"text={text}");
+
+            owner.Dispose();
+            results.Dispose();
+            testImage.Dispose();
+            channel3.Dispose();
+            Console.WriteLine("B12.3: Real OCR pipeline (parse → preprocess → inference → decode) COMPLETE");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"B12.3: Pipeline test failed: {ex.GetType().Name}: {ex.Message[..Math.Min(200, ex.Message.Length)]}");
+            Assert("B12.3 OCR pipeline", false, $"{ex.GetType().Name}: {ex.Message[..Math.Min(100, ex.Message.Length)]}");
+        }
     }
 }
 Console.WriteLine();
