@@ -63,8 +63,15 @@ public sealed class WindowsTaskControlPlatform : ITaskControlPlatform
     public void MoveMouseBy(int x, int y) => Simulation.SendInput.Mouse.MoveMouseBy(x, y);
     public void LeftButtonDown() => Simulation.SendInput.Mouse.LeftButtonDown();
     public void LeftButtonUp() => Simulation.SendInput.Mouse.LeftButtonUp();
+    public void LeftButtonClick() => Simulation.SendInput.Mouse.LeftButtonClick();
+    public void RightButtonDown() => Simulation.SendInput.Mouse.RightButtonDown();
     public void RightButtonUp() => Simulation.SendInput.Mouse.RightButtonUp();
+    public void RightButtonClick() => Simulation.SendInput.Mouse.RightButtonClick();
+    public void MiddleButtonDown() => Simulation.SendInput.Mouse.MiddleButtonDown();
+    public void MiddleButtonUp() => Simulation.SendInput.Mouse.MiddleButtonUp();
     public void MiddleButtonClick() => Simulation.SendInput.Mouse.MiddleButtonClick();
+    public void VerticalScroll(int scrollAmountInClicks) =>
+        Simulation.SendInput.Mouse.VerticalScroll(scrollAmountInClicks);
     public void PressEscape() => Simulation.SendInput.Keyboard.KeyPress(User32.VK.VK_ESCAPE);
 
     public ImageRegion CaptureToRectArea(bool forceNew)

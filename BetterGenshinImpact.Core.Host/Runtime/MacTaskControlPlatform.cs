@@ -38,8 +38,15 @@ public sealed class MacTaskControlPlatform(
     public void MoveMouseBy(int x, int y) => Dispatch(new { action = "moveMouseBy", x, y });
     public void LeftButtonDown() => Dispatch(new { action = "mouseDown", button = "left" });
     public void LeftButtonUp() => Dispatch(new { action = "mouseUp", button = "left" });
+    public void LeftButtonClick() => Dispatch(new { action = "mouseClick", button = "left" });
+    public void RightButtonDown() => Dispatch(new { action = "mouseDown", button = "right" });
     public void RightButtonUp() => Dispatch(new { action = "mouseUp", button = "right" });
+    public void RightButtonClick() => Dispatch(new { action = "mouseClick", button = "right" });
+    public void MiddleButtonDown() => Dispatch(new { action = "mouseDown", button = "middle" });
+    public void MiddleButtonUp() => Dispatch(new { action = "mouseUp", button = "middle" });
     public void MiddleButtonClick() => Dispatch(new { action = "mouseClick", button = "middle" });
+    public void VerticalScroll(int scrollAmountInClicks) =>
+        Dispatch(new { action = "verticalScroll", clicks = scrollAmountInClicks });
     public void PressEscape() => Dispatch(new { action = "keyPress", windowsVirtualKey = 0x1B });
 
     public ImageRegion CaptureToRectArea(bool forceNew)

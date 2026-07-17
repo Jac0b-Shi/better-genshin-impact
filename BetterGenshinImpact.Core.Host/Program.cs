@@ -64,6 +64,8 @@ server.AttachPlatformAssetInitializer(() =>
 {
     MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
     ElementAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
+    BetterGenshinImpact.GameTask.AutoFight.Assets.AutoFightAssets.Initialize(
+        gameTaskManagerPlatform.SystemInfo);
 });
 var imageRegionOcrService = new MacImageRegionOcrService(
     layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());

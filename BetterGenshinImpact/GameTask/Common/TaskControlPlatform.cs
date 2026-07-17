@@ -17,8 +17,14 @@ public interface ITaskControlPlatform
     void MoveMouseBy(int x, int y);
     void LeftButtonDown();
     void LeftButtonUp();
+    void LeftButtonClick();
+    void RightButtonDown();
     void RightButtonUp();
+    void RightButtonClick();
+    void MiddleButtonDown();
+    void MiddleButtonUp();
     void MiddleButtonClick();
+    void VerticalScroll(int scrollAmountInClicks);
     void PressEscape();
     ImageRegion CaptureToRectArea(bool forceNew);
 }

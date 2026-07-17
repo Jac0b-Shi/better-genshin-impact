@@ -2096,8 +2096,14 @@ sealed class RecordingTaskControlPlatform : ITaskControlPlatform
     public void MoveMouseBy(int x, int y) { }
     public void LeftButtonDown() { }
     public void LeftButtonUp() { }
+    public void LeftButtonClick() { }
+    public void RightButtonDown() { }
     public void RightButtonUp() { }
+    public void RightButtonClick() { }
+    public void MiddleButtonDown() { }
+    public void MiddleButtonUp() { }
     public void MiddleButtonClick() { }
+    public void VerticalScroll(int scrollAmountInClicks) { }
     public void PressEscape() { }
     public ImageRegion CaptureToRectArea(bool forceNew) => throw new NotSupportedException();
 }

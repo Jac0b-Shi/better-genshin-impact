@@ -446,7 +446,7 @@ public class CombatScenes : IDisposable, ICombatScriptScene
     public void AfterTask()
     {
         // 释放所有按键
-        Simulation.ReleaseAllKey();
+        TaskControlPlatform.Current.ReleasePressedInputs();
 
         var mwk = SelectAvatar("玛薇卡");
         if (mwk != null)

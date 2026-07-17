@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using BetterGenshinImpact.GameTask.AutoFight.Config;
 using Microsoft.Extensions.Logging;
+using BetterGenshinImpact.GameTask.Common;
 
 namespace BetterGenshinImpact.GameTask.AutoFight.Script;
 
@@ -40,7 +41,7 @@ public static class ESkillCdTracker
     /// <summary>角色名 → E 技能就绪的时间戳（UTC）</summary>
     private static readonly ConcurrentDictionary<string, DateTime> EReadyAt = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly ILogger Logger = App.GetLogger<ConditionEvaluator>();
+    private static ILogger Logger => TaskControlPlatform.Current.Logger;
 
     /// <summary>
     /// 记录传入的 CD 值。> 0 时才写入，否则忽略。

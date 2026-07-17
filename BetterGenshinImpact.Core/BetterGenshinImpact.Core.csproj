@@ -193,6 +193,7 @@
     <Compile Include="../BetterGenshinImpact/Model/ConditionDefinition.cs" Link="Model/ConditionDefinition.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Config/CombatAvatar.cs" Link="GameTask/AutoFight/Config/CombatAvatar.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Config/DefaultAutoFightConfig.cs" Link="GameTask/AutoFight/Config/DefaultAutoFightConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Assets/AutoFightAssets.cs" Link="GameTask/AutoFight/Assets/AutoFightAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/Enum/*.cs" Link="GameTask/AutoPathing/Model/Enum/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/MaterialInfo.cs" Link="GameTask/AutoPathing/Model/MaterialInfo.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/PathingJson.cs" Link="GameTask/AutoPathing/Model/PathingJson.cs" />
@@ -215,6 +216,10 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Handler/CombatScriptHandler.cs" Link="GameTask/AutoPathing/Handler/CombatScriptHandler.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptParser.cs" Link="GameTask/AutoFight/Script/CombatScriptParser.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/Method.cs" Link="GameTask/AutoFight/Script/Method.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/ESkillCdTracker.cs" Link="GameTask/AutoFight/Script/ESkillCdTracker.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ImageDifferenceDetector.cs" Link="Core/Recognition/OpenCv/ImageDifferenceDetector.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/StringUtils.cs" Link="Helpers/StringUtils.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/RegexHelper.cs" Link="Helpers/RegexHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoGeniusInvokation/Model/ElementalType.cs" Link="GameTask/AutoGeniusInvokation/Model/ElementalType.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/HandledException.cs" Link="GameTask/Common/Exceptions/HandledException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/RetryException.cs" Link="GameTask/Common/Exceptions/RetryException.cs" />
