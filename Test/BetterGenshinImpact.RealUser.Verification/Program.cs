@@ -4,6 +4,9 @@ using BetterGenshinImpact.Core.Script.Group;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script;
 using Newtonsoft.Json.Linq;
+using Microsoft.ClearScript;
+using Microsoft.ClearScript.V8;
+using Microsoft.ClearScript.JavaScript;
 
 var root = args.Length == 1
     ? Path.GetFullPath(args[0])
@@ -33,10 +36,44 @@ foreach (var groupProject in javascriptProjects)
     if (!string.Equals(scriptProject.Manifest.Name, groupProject.Name, StringComparison.Ordinal))
         throw new InvalidDataException(
             $"Manifest name mismatch for {groupProject.FolderName}: {scriptProject.Manifest.Name} != {groupProject.Name}");
-    _ = new PackageDocumentLoader(scriptProject.ProjectPath);
+    var loader = new PackageDocumentLoader(scriptProject.ProjectPath);
+    VerifyJavaScriptGraph(scriptProject, loader);
     Console.WriteLine(
-        $"PASS {groupProject.FolderName}: main={scriptProject.Manifest.Main}, settings={((JArray)catalogProject.Settings).Count}, " +
+        $"PASS {groupProject.FolderName}: graph=compiled, main={scriptProject.Manifest.Main}, settings={((JArray)catalogProject.Settings).Count}, " +
         $"saved_files={scriptProject.Manifest.SavedFiles?.Length ?? 0}, libraries={scriptProject.Manifest.Library?.Length ?? 0}");
 }
 
 Console.WriteLine($"Real User verification passed: group={group.Name}, projects={group.Projects.Count}, javascript={javascriptProjects.Length}.");
+
+static void VerifyJavaScriptGraph(ScriptProject project, PackageDocumentLoader loader)
+{
+    var mainPath = Path.Combine(project.ProjectPath, project.Manifest.Main);
+    var code = File.ReadAllText(mainPath);
+    using var engine = new V8ScriptEngine(V8ScriptEngineFlags.EnableTaskPromiseConversion);
+    engine.DocumentSettings.Loader = loader;
+    engine.DocumentSettings.SearchPath = string.Join(';', project.ProjectPath, Path.Combine(project.ProjectPath, "packages"));
+    var isModule = (project.Manifest.Library?.Length ?? 0) != 0
+        || code.Contains("import ", StringComparison.Ordinal)
+        || code.Contains("export ", StringComparison.Ordinal);
+    if (!isModule)
+    {
+        using var compiled = engine.Compile(new DocumentInfo(new Uri(mainPath)), code);
+        return;
+    }
+
+    try
+    {
+        var rewritten = loader.RewriteScriptCode(code, mainPath);
+        engine.Evaluate(new DocumentInfo(new Uri(mainPath)) { Category = ModuleCategory.Standard }, rewritten);
+    }
+    catch (FileNotFoundException)
+    {
+        throw;
+    }
+    catch (ScriptEngineException exception) when (
+        exception.ErrorDetails.Contains("ReferenceError", StringComparison.Ordinal))
+    {
+        // Static module linking has completed; execution stopped only because production host objects
+        // are intentionally absent from this dependency-graph verifier.
+    }
+}
