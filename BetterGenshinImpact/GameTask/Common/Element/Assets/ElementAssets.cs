@@ -122,12 +122,12 @@ public class ElementAssets : BaseAssets<ElementAssets>
 
     public new static ElementAssets Instance => _instance
         ?? throw new InvalidOperationException("ElementAssets.Initialize(...) must be called before Instance.");
+#endif
 
-    private ElementAssets(ISystemInfo systemInfo) : base(systemInfo)
+    public ElementAssets(ISystemInfo systemInfo) : base(systemInfo)
     {
         Initialization(systemInfo);
     }
-#endif
 #pragma warning restore CS8618 // 在退出构造函数时，不可为 null 的字段必须包含非 null 值。请考虑添加 "required" 修饰符或声明为可为 null。
 
     private void Initialization(ISystemInfo systemInfo)
