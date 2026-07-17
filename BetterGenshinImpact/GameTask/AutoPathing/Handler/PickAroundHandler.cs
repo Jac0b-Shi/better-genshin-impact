@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.Helpers;
-using Vanara.PInvoke;
 using static BetterGenshinImpact.GameTask.Common.TaskControl;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Simulator.Extensions;
@@ -60,9 +59,9 @@ public class PickAroundHandler() : IActionHandler
         await Delay(200, _ct);
     }
 
-    public async Task MoveAfterTurn(User32.VK vk, int ms = 0)
+    public async Task MoveAfterTurn(GIActions action, int ms = 0)
     {
-        Simulation.SendInput.Keyboard.KeyPress(vk);
+        Simulation.SendInput.SimulateAction(action);
         await Delay(200, _ct);
         Simulation.SendInput.Mouse.MiddleButtonClick();
         await Delay(500, _ct);
@@ -81,8 +80,8 @@ public class PickAroundHandler() : IActionHandler
         double y = oldRadius * Math.Sin(angle);
         Simulation.SendInput.Mouse.MiddleButtonClick();
         await Delay(500, _ct);
-        await MoveAfterTurn(GIActions.MoveBackward.ToActionKey().ToVK(), (int)Math.Round(y) + 200);
-        await MoveAfterTurn(GIActions.MoveLeft.ToActionKey().ToVK(), (int)Math.Round(x));
+        await MoveAfterTurn(GIActions.MoveBackward, (int)Math.Round(y) + 200);
+        await MoveAfterTurn(GIActions.MoveLeft, (int)Math.Round(x));
     }
 }
 
