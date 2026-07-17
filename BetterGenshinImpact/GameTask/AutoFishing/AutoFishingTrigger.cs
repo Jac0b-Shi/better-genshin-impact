@@ -1,7 +1,6 @@
 using BehaviourTree;
 using BehaviourTree.FluentBuilder;
 using BehaviourTree.Composites;
-using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask.AutoFishing.Assets;
 using BetterGenshinImpact.GameTask.Common;
 using Microsoft.Extensions.Logging;
@@ -12,7 +11,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using Point = OpenCvSharp.Point;
-using Fischless.WindowsInput;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition.ONNX;
@@ -25,7 +23,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
     public class AutoFishingTrigger : ITaskTrigger
     {
         private readonly ILogger<AutoFishingTrigger> _logger = App.GetLogger<AutoFishingTrigger>();
-        private readonly InputSimulator input = Simulation.SendInput;
+        private readonly IAutoFishingInput input = new TaskControlAutoFishingInput();
 
         public string Name => "自动钓鱼";
         public bool IsEnabled { get; set; }
@@ -234,7 +232,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 }
 
                 //_logger.LogInformation("移动鼠标 {X} {Y}", 0, moveY);
-                Simulation.SendInput.Mouse.MoveMouseBy(0, moveY);
+                input.MoveMouseBy(0, moveY);
                 return (0, minDistance);
             }
 
@@ -254,7 +252,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 }
 
                 //_logger.LogInformation("移动鼠标 {X} {Y}", moveX, 0);
-                Simulation.SendInput.Mouse.MoveMouseBy(moveX, 0);
+                input.MoveMouseBy(moveX, 0);
                 return (minDistance, 0);
             }
 
@@ -287,7 +285,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 }
 
                 //_logger.LogInformation("移动鼠标 {X} {Y}", moveX, moveY);
-                Simulation.SendInput.Mouse.MoveMouseBy(moveX, moveY);
+                input.MoveMouseBy(moveX, moveY);
                 return (dpX, dpY);
             }
 

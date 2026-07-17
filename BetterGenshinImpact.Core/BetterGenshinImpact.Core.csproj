@@ -220,6 +220,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/ESkillCdTracker.cs" Link="GameTask/AutoFight/Script/ESkillCdTracker.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" Link="GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ExitAndReloginPlatform.cs" Link="GameTask/Common/Job/ExitAndReloginPlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingInput.cs" Link="GameTask/AutoFishing/AutoFishingInput.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/GetGridIcons/GridIconClassifier.cs" Link="GameTask/GetGridIcons/GridIconClassifier.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ImageDifferenceDetector.cs" Link="Core/Recognition/OpenCv/ImageDifferenceDetector.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/StringUtils.cs" Link="Helpers/StringUtils.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/RegexHelper.cs" Link="Helpers/RegexHelper.cs" />

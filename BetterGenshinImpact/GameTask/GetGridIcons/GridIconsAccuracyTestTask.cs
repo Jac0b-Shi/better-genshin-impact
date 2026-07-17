@@ -51,33 +51,7 @@ public class GridIconsAccuracyTestTask : ISoloTask
     /// <returns>推理会话</returns>
     /// <exception cref="Exception"></exception>
     public static InferenceSession LoadModel(out Dictionary<string, float[]> prototypes)
-    {
-        #region 加载model
-        var session = new InferenceSession(Global.Absolute(@"Assets\Model\Item\gridIcon.onnx"));
-
-        var metadata = session.ModelMetadata;
-
-        if (!metadata.CustomMetadataMap.TryGetValue("prefix_list", out string? prefixListJson))
-        {
-            throw new Exception("模型文件缺少prefix_list");
-        }
-        List<string> prefixList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(prefixListJson) ?? throw new Exception();   // 不预测前缀
-        #endregion
-        #region 加载原型向量
-        var allLines = File.ReadLines(Global.Absolute(@"Assets\Model\Item\items.csv")).Skip(1);    // 跳过首行列名
-        prototypes = new Dictionary<string, float[]>();
-        foreach (string line in allLines)
-        {
-            var columns = line.Split(",").ToArray();
-            var bytes = Convert.FromBase64String(columns[1]);
-            int totalFloats = bytes.Length / sizeof(float);
-            float[] flatData = new float[totalFloats];
-            Buffer.BlockCopy(bytes, 0, flatData, 0, bytes.Length);
-            prototypes.Add(columns[0], flatData);
-        }
-        #endregion
-        return session;
-    }
+        => GridIconClassifier.LoadModel(out prototypes);
 
     public async Task Start(CancellationToken ct)
     {
@@ -179,49 +153,5 @@ public class GridIconsAccuracyTestTask : ISoloTask
     /// <returns>(预测名称, 预测星级)</returns>
     /// <exception cref="Exception"></exception>
     public static (string?, int) Infer(Mat mat, InferenceSession session, Dictionary<string, float[]> prototypes)
-    {
-        if (mat.Size().Width != 125 || mat.Size().Height != 125)
-        {
-            throw new ArgumentOutOfRangeException(nameof(mat), "输入图像尺寸应为125*125");
-        }
-        using Mat rgb = mat.CvtColor(ColorConversionCodes.BGR2RGB);
-        var tensor = new DenseTensor<float>(new[] { 1, 3, rgb.Height, rgb.Width });  // todo 放到BgiOnnxFactory那边去做个Mat->NamedOnnxValue的通用方法？
-        for (int y = 0; y < rgb.Height; y++)
-        {
-            for (int x = 0; x < rgb.Width; x++)
-            {
-                tensor[0, 0, y, x] = rgb.At<Vec3b>(y, x)[0] / 255f;
-                tensor[0, 1, y, x] = rgb.At<Vec3b>(y, x)[1] / 255f;
-                tensor[0, 2, y, x] = rgb.At<Vec3b>(y, x)[2] / 255f;
-            }
-        }
-        var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("input_image", tensor) };
-        using var results = session.Run(inputs);
-        float[] feature_matrix = results[0].AsEnumerable<float>().ToArray();
-        string? pred_name = null;
-        double? min2 = null;
-        foreach (KeyValuePair<string, float[]> prototype in prototypes)
-        {
-            double distance2 = 0;
-            for (int i = 0; i < 64; i++)
-            {
-                distance2 += Math.Pow(prototype.Value[i] - feature_matrix[i], 2f);
-            }
-            if (min2 == null || distance2 < min2)
-            {
-                min2 = distance2;
-                if (min2 < 10 * 10) // todo：负样本距离10直接读取模型
-                {
-                    pred_name = prototype.Key;
-                }
-            }
-        }
-        if (min2 == null)
-        {
-            throw new Exception("特征数据为空");
-        }
-        // min2 = Math.Sqrt(min2.Value);
-        int pred_star = results[2].AsEnumerable<float>().ToList().IndexOf(results[2].AsEnumerable<float>().Max());
-        return (pred_name, pred_star);
-    }
+        => GridIconClassifier.Infer(mat, session, prototypes);
 }

@@ -24,6 +24,7 @@ using BetterGenshinImpact.GameTask.LogParse;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
+using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Suspend;
@@ -48,7 +49,8 @@ OverlayDrawPlatform.Configure(new RecordingOverlayDrawPlatform());
 CombatCommandPlatform.Configure(new VerificationCombatCommandPlatform());
 var combatSceneProvider = new RecordingCombatSceneProvider();
 CombatSceneProvider.Configure(combatSceneProvider);
-TaskControlPlatform.Configure(new RecordingTaskControlPlatform());
+var recordingTaskControl = new RecordingTaskControlPlatform();
+TaskControlPlatform.Configure(recordingTaskControl);
 BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory CpuFactory(IOnnxModelPathResolver resolver) =>
     new(new BetterGenshinImpact.Core.Runtime.Portable.CpuOnnxRuntimePlatform(resolver));
 DesktopRegionInputPlatform.Configure(recorder);
@@ -99,6 +101,22 @@ using (var paimonBgra = new Mat())
         confirmRo.TemplateImageMat?.Dispose();
     }
 }
+
+// ==== AutoFishing input: real behaviour tree input surface ====
+Console.WriteLine("AutoFishing input: shared acknowledged task-control surface");
+recordingTaskControl.Calls.Clear();
+var fishingInput = new TaskControlAutoFishingInput();
+fishingInput.MoveMouseBy(12, -4);
+fishingInput.LeftButtonDown();
+fishingInput.LeftButtonUp();
+fishingInput.PressInteraction();
+fishingInput.SetMoveForward(true);
+fishingInput.SetMoveForward(false);
+Assert("AutoFishing input preserves upstream action order",
+    recordingTaskControl.Calls.SequenceEqual([
+        "move:12,-4", "leftDown", "leftUp", "action:PickUpOrInteract:KeyPress",
+        "action:MoveForward:KeyDown", "action:MoveForward:KeyUp"
+    ]), string.Join(" | ", recordingTaskControl.Calls));
 
 // ==== Scheduler lifecycle: real upstream TaskRunner algorithm ====
 Console.WriteLine("Scheduler lifecycle: TaskRunner lock/cancel/error/finally semantics");
@@ -2088,16 +2106,17 @@ sealed class RecordingPathExecutorSuspendContext : IPathExecutorSuspendContext
 
 sealed class RecordingTaskControlPlatform : ITaskControlPlatform
 {
+    public List<string> Calls { get; } = [];
     public Microsoft.Extensions.Logging.ILogger Logger => NullLogger.Instance;
     public double DpiScale => 1;
     public bool IsHdrCapture => false;
     public void EnsureGameActive() { }
     public void ReleasePressedInputs() { }
-    public void SimulateAction(GIActions action, KeyType keyType) { }
+    public void SimulateAction(GIActions action, KeyType keyType) => Calls.Add($"action:{action}:{keyType}");
     public bool IsActionKeyDown(GIActions action) => false;
-    public void MoveMouseBy(int x, int y) { }
-    public void LeftButtonDown() { }
-    public void LeftButtonUp() { }
+    public void MoveMouseBy(int x, int y) => Calls.Add($"move:{x},{y}");
+    public void LeftButtonDown() => Calls.Add("leftDown");
+    public void LeftButtonUp() => Calls.Add("leftUp");
     public void LeftButtonClick() { }
     public void RightButtonDown() { }
     public void RightButtonUp() { }
