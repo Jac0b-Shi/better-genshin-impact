@@ -104,7 +104,7 @@ public class Avatar : ICombatCommandAvatar
     private static readonly Random UnstuckRandom = new();
 
     private static readonly Lazy<BgiYoloPredictor> QBurstClassifierLazy = new(() =>
-        App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiQClassify));
+        AutoFightRuntimePlatform.Current.CreateYoloPredictor(BgiOnnxModel.BgiQClassify));
 
 
     public Avatar(CombatScenes combatScenes, string name, int index, Rect nameRect, double manualSkillCd = -1)
@@ -435,7 +435,7 @@ public class Avatar : ICombatCommandAvatar
         // 通过寻找右侧人物编号来判断是否出战
         if (IndexRect == default)
         {
-            var assetScale = TaskContext.Instance().SystemInfo.AssetScale;
+            var assetScale = AutoFightRuntimePlatform.Current.SystemInfo.AssetScale;
             // 剪裁出队伍区域
             var teamRa = region.DeriveCrop(AutoFightAssets.Instance.TeamRect);
             var blockX = NameRect.X + NameRect.Width * 2 - 10;
@@ -585,7 +585,7 @@ public class Avatar : ICombatCommandAvatar
     {
         using var eRa = imageRegion.DeriveCrop(AutoFightAssets.Instance.ECooldownRect);
         using var eRaWhite = OpenCvCommonHelper.InRangeHsv(eRa.SrcMat, new Scalar(0, 0, 235), new Scalar(0, 25, 255));
-        var text = OcrFactory.Paddle.OcrWithoutDetector(eRaWhite);
+        var text = AutoFightRuntimePlatform.Current.OcrService.OcrWithoutDetector(eRaWhite);
         var cd = StringUtils.TryParseDouble(text);
         if (cd > 0 && cd <= CombatAvatar.SkillCd)
         {
@@ -881,7 +881,7 @@ public class Avatar : ICombatCommandAvatar
 
         if (Name == "那维莱特")
         {
-            var dpi = TaskContext.Instance().DpiScale;
+            var dpi = AutoFightRuntimePlatform.Current.DpiScale;
             SimulateAction(GIActions.NormalAttack, KeyType.KeyDown);
             while (ms >= 0)
             {
@@ -899,7 +899,7 @@ public class Avatar : ICombatCommandAvatar
         }
         else if (Name == "恰斯卡")
         {
-            var dpi = TaskContext.Instance().DpiScale;
+            var dpi = AutoFightRuntimePlatform.Current.DpiScale;
             SimulateAction(GIActions.NormalAttack, KeyType.KeyDown);
             int tick = -4; // 起飞那一刻需要多一点点时间用来矫正视角高度
             while (ms >= 0)

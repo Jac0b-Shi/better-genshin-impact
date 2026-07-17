@@ -165,6 +165,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Config/PreExecutionPriorityConfig.cs" Link="Core/Config/PreExecutionPriorityConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatConfig.cs" Link="GameTask/AutoEat/AutoEatConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightConfig.cs" Link="GameTask/AutoFight/AutoFightConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightRuntimePlatform.cs" Link="GameTask/AutoFight/AutoFightRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Shell/ShellConfig.cs" Link="GameTask/Shell/ShellConfig.cs" />
   </ItemGroup>
 

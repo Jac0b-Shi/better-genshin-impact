@@ -10,25 +10,29 @@ using OpenCvSharp;
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 /// <summary>Lazy real Paddle OCR composition for ImageRegion on macOS.</summary>
-public sealed class MacImageRegionOcrService(RuntimeLayout layout, ILogger<BgiOnnxFactory> logger)
-    : IOcrService, IDisposable
+public sealed class MacImageRegionOcrService : IOcrService, IDisposable
 {
-    private readonly Lazy<OcrFactory> _factory = new(() =>
+    private readonly BgiOnnxFactory _onnxFactory;
+    private readonly Lazy<OcrFactory> _factory;
+
+    public MacImageRegionOcrService(RuntimeLayout layout, ILogger<BgiOnnxFactory> logger)
     {
-        var modelResolver = new ModelRootPathResolver(layout.RootPath);
-        var resourceResolver = new OcrResourcePathResolver(layout.RootPath);
-        var runtimeConfig = new MacCoreRuntimeAdapter(
-            new AutoPickConfig(), PaddleOcrModelConfig.V5Auto, "zh-CN");
-        return new OcrFactory(
-            logger,
-            new BgiOnnxFactory(new CpuOnnxRuntimePlatform(modelResolver)),
-            runtimeConfig,
-            resourceResolver);
-    }, LazyThreadSafetyMode.ExecutionAndPublication);
+        _onnxFactory = new BgiOnnxFactory(
+            new CpuOnnxRuntimePlatform(new ModelRootPathResolver(layout.RootPath)));
+        _factory = new Lazy<OcrFactory>(() =>
+        {
+            var resourceResolver = new OcrResourcePathResolver(layout.RootPath);
+            var runtimeConfig = new MacCoreRuntimeAdapter(
+                new AutoPickConfig(), PaddleOcrModelConfig.V5Auto, "zh-CN");
+            return new OcrFactory(logger, _onnxFactory, runtimeConfig, resourceResolver);
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
 
     public string Ocr(Mat mat) => _factory.Value.Service.Ocr(mat);
     public string OcrWithoutDetector(Mat mat) => _factory.Value.Service.OcrWithoutDetector(mat);
     public OcrResult OcrResult(Mat mat) => _factory.Value.Service.OcrResult(mat);
+    public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) =>
+        _onnxFactory.CreateYoloPredictor(model);
 
     public void Dispose()
     {
