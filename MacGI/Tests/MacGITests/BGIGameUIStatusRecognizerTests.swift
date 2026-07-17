@@ -51,27 +51,6 @@ struct BGIGameUIStatusRecognizerTests {
         #expect(status.paimonMenuObservation != nil)
     }
 
-    @Test("Capturing JS host returns big-map zoom level from current frame")
-    func capturingJSHostReturnsBigMapZoomLevelFromCurrentFrame() throws {
-        let templateAsset = "GameTask/QuickTeleport/Assets/1920x1080/MapScaleButton.png"
-        let template = try BGIAssetResolver.cgImage(for: templateAsset)
-        let targetPoint = CGPoint(x: 35, y: 500)
-        let image = try makeSyntheticFrame(
-            template: template,
-            at: targetPoint,
-            size: CGSize(width: 1920, height: 1080)
-        )
-        let frame = makeSyntheticImageFrame(image, width: 1920, height: 1080)
-        let host = BGICapturingJSScriptHostEnvironment(captureFrameProvider: { frame })
-
-        let result = try host.performGenshinCommand(.getBigMapZoomLevel)
-
-        let expectedCenterY = targetPoint.y + CGFloat(template.height) / 2
-        let scale = (612.0 - Double(expectedCenterY)) / (612.0 - 468.0)
-        let expected = (-5.0 * scale) + 6.0
-        #expect(abs(result.doubleValue - expected) < 0.0001)
-        #expect(host.genshinCommands == [.getBigMapZoomLevel])
-    }
 }
 
 private func makeSyntheticImageFrame(_ image: CGImage, width: Int, height: Int) -> CaptureImageFrame {

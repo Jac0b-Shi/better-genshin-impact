@@ -262,17 +262,12 @@ final class AppState: ObservableObject {
     @Published var runtimeLoopSkippedTicks: UInt32 = 0
     @Published var runtimeLoopLastTickCostMs: Double = 0
     @Published var allowRuntimeRealInput = false
-    @Published var jsScriptExecutionStatus = "Idle"
-    @Published var lastJSScriptExecutionResult: BGIJSScriptExecutionResult?
     @Published var schedulerGroups: [BGIScriptGroup] = []
     @Published var schedulerCatalogIssues: [BGIScriptRepositoryCatalogIssue] = []
     @Published var schedulerCatalogStatus = "Core unavailable"
     @Published var selectedSchedulerGroupName = ""
     @Published var schedulerExecutionStatus = "Idle"
     @Published var currentSchedulerProjectID: String?
-    @Published var lastKeyMousePlaybackResult: BGIKeyMousePlaybackResult?
-    @Published var lastShellExecutionResult: BGIShellExecutionResult?
-    @Published var lastPathingExecutionResult: BGIPathingExecutionResult?
 
     // MARK: Window & capture (typed — not strings)
 
@@ -310,7 +305,6 @@ final class AppState: ObservableObject {
     private let runtimeResourceStore: BGIRuntimeResourceStore
     let latestFrameStore = LatestFrameStore()
     private var runtimeFrameIndex: UInt64 = 0
-    private var jsScriptExecutionTask: Task<Void, Never>?
     private var schedulerExecutionTask: Task<Void, Never>?
     private var betterGICoreSupervisor: BetterGICoreProcessSupervisor?
     private var coreStartupTask: Task<Void, Never>?
@@ -694,24 +688,8 @@ final class AppState: ObservableObject {
         addLog(.info, "Export logs requested (mock)")
     }
 
-    func runInstalledJSScript(folderName: String, settingsJSON: String = "{}") {
-        _ = (folderName, settingsJSON)
-        jsScriptExecutionTask?.cancel()
-        jsScriptExecutionTask = nil
-        jsScriptExecutionStatus = "Core scheduler unavailable"
-        addLog(.error, "JS execution is disabled until BetterGI Core advertises scheduler.run; Swift JavaScriptCore fallback is prohibited.")
-    }
-
-    func cancelInstalledJSScript() {
-        jsScriptExecutionTask?.cancel()
-        jsScriptExecutionTask = nil
-        jsScriptExecutionStatus = "Cancelled"
-        addLog(.warn, "JS script execution cancelled")
-    }
-
     func runSchedulerGroups() {
         schedulerExecutionTask?.cancel()
-        cancelInstalledJSScript()
         currentSchedulerProjectID = nil
         guard let supervisor = betterGICoreSupervisor,
               !selectedSchedulerGroupName.isEmpty else {
@@ -744,7 +722,6 @@ final class AppState: ObservableObject {
     func cancelSchedulerGroups() {
         schedulerExecutionTask?.cancel()
         schedulerExecutionTask = nil
-        cancelInstalledJSScript()
         let taskID = currentSchedulerProjectID
         currentSchedulerProjectID = nil
         guard let supervisor = betterGICoreSupervisor, let taskID else {
@@ -1000,8 +977,6 @@ final class AppState: ObservableObject {
     func resetUIState() {
         schedulerExecutionTask?.cancel()
         schedulerExecutionTask = nil
-        jsScriptExecutionTask?.cancel()
-        jsScriptExecutionTask = nil
         appStatus = .idle
         gameWindowStatus = .mock
         captureStatus = .ok
@@ -1016,13 +991,8 @@ final class AppState: ObservableObject {
         runtimeLoopTickCount = 0
         runtimeLoopSkippedTicks = 0
         runtimeLoopLastTickCostMs = 0
-        jsScriptExecutionStatus = "Idle"
-        lastJSScriptExecutionResult = nil
         schedulerExecutionStatus = "Idle"
         currentSchedulerProjectID = nil
-        lastKeyMousePlaybackResult = nil
-        lastShellExecutionResult = nil
-        lastPathingExecutionResult = nil
         safetyGate.resetCounters()
         addLog(.info, "UI state reset")
     }

@@ -260,9 +260,9 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
         case "keyDown", "keyUp", "keyPress":
             let key: KeyCode?
             if let rawKey = parameters["key"] as? String {
-                key = BGIJSScriptKeyMapper.keyCode(from: rawKey)
+                key = BetterGICoreInputKeyMapper.keyCode(from: rawKey)
             } else if let virtualKey = parameters["windowsVirtualKey"] as? Int {
-                key = BGIJSScriptKeyMapper.keyCode(fromWindowsVirtualKey: virtualKey)
+                key = BetterGICoreInputKeyMapper.keyCode(fromWindowsVirtualKey: virtualKey)
             } else {
                 key = nil
             }

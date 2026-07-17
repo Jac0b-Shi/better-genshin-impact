@@ -1008,6 +1008,14 @@ struct BGIScriptGroupProject: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
+/// Wire-compatible subset of BetterGI ShellConfig used only in ScriptGroup DTOs.
+struct BGIShellConfig: Equatable, Codable, Sendable {
+    var disable: Bool = false
+    var timeout: Int = 60
+    var noWindow: Bool = true
+    var output: Bool = true
+}
+
 struct BGIScriptGroupConfig: Equatable, Codable, Sendable {
     var shellConfig: BGIShellConfig
     var enableShellConfig: Bool

@@ -24,7 +24,6 @@ let package = Package(
                 .copy("Resources")
             ],
             linkerSettings: [
-                .linkedFramework("JavaScriptCore")
             ]
         ),
         .testTarget(

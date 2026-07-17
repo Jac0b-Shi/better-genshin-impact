@@ -611,14 +611,10 @@ struct JSScriptPage: View {
                 } label: {
                     Label("脚本仓库", systemImage: "archivebox")
                 }
-                Button {
-                    appState.runInstalledJSScript(folderName: "daily")
-                } label: {
-                    Label("运行 daily", systemImage: "play.fill")
+                Button { appState.runSchedulerGroups() } label: {
+                    Label("运行所选配置组", systemImage: "play.fill")
                 }
-                Button {
-                    appState.cancelInstalledJSScript()
-                } label: {
+                Button { appState.cancelSchedulerGroups() } label: {
                     Label("停止", systemImage: "stop.fill")
                 }
                 Spacer()
@@ -627,21 +623,17 @@ struct JSScriptPage: View {
             BGISectionCard("脚本列表", subtitle: "上游页面按目录、名称、版本展示，并提供执行、打开目录、刷新、删除。", symbolName: "doc.text") {
                 BGIDataTable(
                     headers: ["目录", "名称", "版本"],
-                    rows: [
-                        ["daily", "自动领取奖励", "1.0.0"],
-                        ["combat", "自动战斗策略示例", "2.3.1"],
-                        ["collect", "材料采集辅助", "0.9.4"]
-                    ]
+                    rows: appState.schedulerGroups.flatMap { group in
+                        group.projects.map { [group.name, $0.name, $0.type.rawValue] }
+                    }
                 )
             }
 
-            BGIOriginalCard(icon: .symbol("play.rectangle"), title: "脚本执行链路", subtitle: appState.jsScriptExecutionStatus) {
-                Button("运行 daily") {
-                    appState.runInstalledJSScript(folderName: "daily")
-                }
+            BGIOriginalCard(icon: .symbol("play.rectangle"), title: "脚本执行链路", subtitle: appState.schedulerExecutionStatus) {
+                Button("运行所选配置组") { appState.runSchedulerGroups() }
             } content: {
-                BGISettingLine(title: "最近结果", subtitle: "通过 BGIJSScriptTaskExecutor 执行已安装脚本。") {
-                    Text(appState.lastJSScriptExecutionResult.map { "\($0.logs.count) logs / \($0.inputCommands.count) inputs" } ?? "无")
+                BGISettingLine(title: "最近结果", subtitle: "通过 BetterGI C# Core 执行已安装脚本。") {
+                    Text(appState.currentSchedulerProjectID ?? "无")
                         .foregroundStyle(BGIColors.mutedText)
                 }
             }
