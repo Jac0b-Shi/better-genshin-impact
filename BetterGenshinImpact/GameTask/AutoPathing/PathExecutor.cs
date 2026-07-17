@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.AutoFight.Model;
@@ -8,7 +8,9 @@ using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.AutoSkip;
+#if !BGI_PLATFORM_MAC
 using BetterGenshinImpact.GameTask.AutoSkip.Assets;
+#endif
 using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.Common.Job;
@@ -42,7 +44,9 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
     private readonly CameraRotateTask _rotateTask;
     private readonly TrapEscaper _trapEscaper;
     private readonly BlessingOfTheWelkinMoonTask _blessingOfTheWelkinMoonTask = new();
+#if !BGI_PLATFORM_MAC
     private AutoSkipTrigger? _autoSkipTrigger;
+#endif
     public int SuccessFight = 0;
     //路径追踪完全走完所有路径结束的标识
     public bool SuccessEnd = false;
@@ -1320,6 +1324,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             imageRegion = CaptureToRectArea();
         }
 
+#if !BGI_PLATFORM_MAC
         // 一些异常界面处理
         var cookRa = imageRegion.Find(AutoSkipAssets.Instance.CookRo);
         var closeRa = imageRegion.Find(AutoSkipAssets.Instance.PageCloseMainRo);
@@ -1337,18 +1342,21 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             PressEscape();
             await Delay(1000, ct); // 等待界面关闭
         }
-
+#endif
 
         // 处理月卡
         await _blessingOfTheWelkinMoonTask.Start(ct);
 
         if (PartyConfig.AutoSkipEnabled)
         {
+#if !BGI_PLATFORM_MAC
             // 判断是否进入剧情
             await AutoSkip();
+#endif
         }
     }
 
+#if !BGI_PLATFORM_MAC
     private async Task AutoSkip()
     {
         var ra = CaptureToRectArea();
@@ -1394,6 +1402,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             }
         }
     }
+#endif
 
     private void EndJudgment(ImageRegion ra)
     {
