@@ -12,6 +12,7 @@ using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
 using Microsoft.Extensions.Logging;
@@ -79,6 +80,7 @@ AutoFightRuntimePlatform.Configure(new MacAutoFightRuntimePlatform(
     gameTaskManagerPlatform.SystemInfo, imageRegionOcrService));
 AutoSkipRuntimePlatform.Configure(new MacAutoSkipRuntimePlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));
+ExitAndReloginPlatform.Configure(new MacExitAndReloginPlatform());
 var pathExecutorPlatform = new MacPathExecutorPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
 PathExecutorPlatform.Configure(pathExecutorPlatform);

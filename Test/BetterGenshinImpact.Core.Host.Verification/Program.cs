@@ -12,6 +12,7 @@ using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoSkip;
@@ -351,6 +352,20 @@ try
         vadUnavailable = true;
     }
     Require(vadUnavailable, "macOS AutoSkip VAD silently fell back instead of reporting unavailable capability.");
+    var reloginPlatform = new MacExitAndReloginPlatform();
+    var focusResponder = Task.Run(async () =>
+    {
+        var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+            ?? throw new EndOfStreamException("Exit-and-relogin focus callback ended unexpectedly.");
+        Require(callback.Method == "window.activate",
+            "Exit-and-relogin did not request real game-window activation.");
+        await callbackConnection.WriteResponseAsync(
+            RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+    }, cancellation.Token);
+    reloginPlatform.FocusGameWindow();
+    await focusResponder;
+    Require(!reloginPlatform.TryLoginThirdParty(cancellation.Token),
+        "macOS incorrectly reported the Windows-only Bilibili channel login as available.");
     Console.WriteLine("Shared TaskControl passed: hold action, focus check, key-up ordering, raw key and platform key-state query.");
 
     var pathingPlatformResponder = Task.Run(async () =>

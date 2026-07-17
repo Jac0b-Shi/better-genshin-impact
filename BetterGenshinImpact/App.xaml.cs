@@ -238,6 +238,8 @@ public partial class App : Application
             new Core.Runtime.Windows.WindowsAutoFightRuntimePlatform());
         GameTask.AutoSkip.AutoSkipRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsAutoSkipRuntimePlatform());
+        GameTask.Common.Job.ExitAndReloginPlatform.Configure(
+            new Core.Runtime.Windows.WindowsExitAndReloginPlatform());
         GameTask.Shell.ShellTaskPlatform.Configure(new GameTask.WindowsShellTaskPlatform());
         Core.Recorder.KeyMouseMacroPlatform.Configure(new GameTask.WindowsKeyMouseMacroPlatform());
         GameTask.AutoPathing.ScriptGroupExecutionServices.Configure(

@@ -2,7 +2,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception;
 using BetterGenshinImpact.GameTask.AutoWood.Assets;
-using BetterGenshinImpact.GameTask.AutoWood.Utils;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Model.Area;
 using Microsoft.Extensions.Logging;
@@ -13,12 +12,11 @@ namespace BetterGenshinImpact.GameTask.Common.Job;
 public class ExitAndReloginJob
 {
     private AutoWoodAssets _assets = AutoWoodAssets.Instance;
-    private readonly Login3rdParty _login3rdParty = new();
 
     public async Task Start(CancellationToken ct)
     {
         Logger.LogInformation("退出至登录页面");
-        SystemControl.FocusWindow(TaskContext.Instance().GameHandle);
+        ExitAndReloginPlatform.Current.FocusGameWindow();
 
         // 等待菜单界面出现
         await NewRetry.WaitForElementAppear(
@@ -58,12 +56,8 @@ public class ExitAndReloginJob
 
         //============== 重新登录流程 ==============
         Logger.LogInformation("点击登录");
-        _login3rdParty.RefreshAvailabled();
-        if (_login3rdParty is { Type: Login3rdParty.The3rdPartyType.Bilibili, IsAvailabled: true })
+        if (ExitAndReloginPlatform.Current.TryLoginThirdParty(ct))
         {
-            // await Delay(1, ct);
-            Thread.Sleep(100);
-            _login3rdParty.Login(ct);
             Logger.LogInformation("退出重登启用 B 服模式");
         }
 
