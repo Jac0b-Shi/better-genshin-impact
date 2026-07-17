@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.Model;
 using Microsoft.Extensions.Localization;
@@ -53,8 +54,7 @@ public sealed class MacAutoFishingRuntimePlatform : IAutoFishingRuntimePlatform
         PersistConfig();
     }
     public Task SetTimeAsync(int hour, int minute, CancellationToken cancellationToken) =>
-        throw new CapabilityUnavailableException(
-            "AutoFishing time adjustment is not composed until the shared SetTimeTask closure is linked.");
+        new SetTimeTask().Start(hour, minute, cancellationToken);
     public void SaveBehaviourScreenshot(ImageRegion imageRegion, string fileName) =>
         throw new CapabilityUnavailableException(
             "AutoFishing behavior screenshots require the Core-owned UID-cover configuration to be composed.");

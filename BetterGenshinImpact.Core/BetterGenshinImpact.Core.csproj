@@ -52,6 +52,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/TaskControl.cs" Link="GameTask/Common/TaskControl.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/TaskControlPlatform.cs" Link="GameTask/Common/TaskControlPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/NewRetry.cs" Link="GameTask/Common/NewRetry.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ReturnMainUiTask.cs" Link="GameTask/Common/Job/ReturnMainUiTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SetTimeTask.cs" Link="GameTask/Common/Job/SetTimeTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/CameraRotateTask.cs" Link="GameTask/AutoPathing/CameraRotateTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorPlatform.cs" Link="GameTask/AutoPathing/PathExecutorPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/NavigationPlatform.cs" Link="GameTask/AutoPathing/NavigationPlatform.cs" />
@@ -88,6 +90,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/GameCaptureRegion.cs" Link="GameTask/Model/Area/GameCaptureRegion.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvImageIO.cs" Link="GameTask/Common/BgiVision/BvImageIO.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMainUi.cs" Link="GameTask/Common/BgiVision/BvMainUi.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.cs" Link="GameTask/Common/BgiVision/BvResxHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMotionStatus.cs" Link="GameTask/Common/BgiVision/BvMotionStatus.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/GameUiCategory.cs" Link="GameTask/Common/BgiVision/GameUiCategory.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/INodeConverter.cs" Link="GameTask/Model/Area/Converter/INodeConverter.cs" />
@@ -368,6 +371,14 @@
                       LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.en.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.fr.resx"
                       LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.fr.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.zh-Hans.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.zh-Hans.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.zh-Hant.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.zh-Hant.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.en.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.en.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.fr.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.fr.resources" />
   </ItemGroup>
 
 </Project>

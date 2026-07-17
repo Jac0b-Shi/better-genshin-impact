@@ -82,7 +82,6 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
         // return new ImageRegion(newMat, 0, 0, this, new TranslationConverter(0, 0));
     }
 
-#if BGI_FULL_WINDOWS
     /// <summary>
     /// 静态方法,在游戏窗体捕获区域维度进行点击
     /// </summary>
@@ -94,24 +93,24 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
     /// </param>
     public static void GameRegionClick(Func<Size, double, (double, double)> posFunc)
     {
-        var captureAreaRect = TaskContext.Instance().SystemInfo.CaptureAreaRect;
-        var assetScale = TaskContext.Instance().SystemInfo.ScaleTo1080PRatio;
+        var captureAreaRect = GameTaskManagerPlatform.Current.SystemInfo.CaptureAreaRect;
+        var assetScale = GameTaskManagerPlatform.Current.SystemInfo.ScaleTo1080PRatio;
         var (cx, cy) = posFunc(new Size(captureAreaRect.Width, captureAreaRect.Height), assetScale);
         DesktopRegion.DesktopRegionClick(captureAreaRect.X + cx, captureAreaRect.Y + cy);
     }
 
     public static void GameRegionMove(Func<Size, double, (double, double)> posFunc)
     {
-        var captureAreaRect = TaskContext.Instance().SystemInfo.CaptureAreaRect;
-        var assetScale = TaskContext.Instance().SystemInfo.ScaleTo1080PRatio;
+        var captureAreaRect = GameTaskManagerPlatform.Current.SystemInfo.CaptureAreaRect;
+        var assetScale = GameTaskManagerPlatform.Current.SystemInfo.ScaleTo1080PRatio;
         var (cx, cy) = posFunc(new Size(captureAreaRect.Width, captureAreaRect.Height), assetScale);
         DesktopRegion.DesktopRegionMove(captureAreaRect.X + cx, captureAreaRect.Y + cy);
     }
 
     public static void GameRegionMoveBy(Func<Size, double, (double, double)> deltaFunc)
     {
-        var captureAreaRect = TaskContext.Instance().SystemInfo.CaptureAreaRect;
-        var assetScale = TaskContext.Instance().SystemInfo.ScaleTo1080PRatio;
+        var captureAreaRect = GameTaskManagerPlatform.Current.SystemInfo.CaptureAreaRect;
+        var assetScale = GameTaskManagerPlatform.Current.SystemInfo.ScaleTo1080PRatio;
         var (dx, dy) = deltaFunc(new Size(captureAreaRect.Width, captureAreaRect.Height), assetScale);
         DesktopRegion.DesktopRegionMoveBy(dx, dy);
     }
@@ -132,5 +131,4 @@ public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = nu
         // 1080P坐标 转换到实际游戏窗口坐标
         GameRegionMove((_, scale) => (cx * scale, cy * scale));
     }
-#endif
 }

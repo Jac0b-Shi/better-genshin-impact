@@ -1,12 +1,29 @@
 using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.GameTask.AutoFight.Assets;
+using BetterGenshinImpact.GameTask.Common.Element.Assets;
+using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.GameTask.Model.Area;
+using BetterGenshinImpact.Helpers;
 using OpenCvSharp;
+using System.Globalization;
 using System.Linq;
 
 namespace BetterGenshinImpact.GameTask.Common.BgiVision;
 
 public static partial class Bv
 {
+    public static bool IsInMainUi(ImageRegion captureRa)
+    {
+        var culture = CultureInfo.GetCultureInfo(TaskParameterPlatform.Current.GameCultureInfoName);
+        var revival = TaskParameterPlatform.Current.GetStringLocalizer<BvResxHelper>()
+            .WithCultureGet(culture, "复苏");
+        return IsInMainUi(
+            captureRa,
+            ElementAssets.Instance.PaimonMenuRo,
+            AutoFightAssets.Instance.ConfirmRa,
+            revival);
+    }
+
     /// <summary>
     /// Shared main-UI recognition body. The Windows composition supplies the original
     /// ElementAssets/AutoFightAssets objects; the macOS composition builds the same

@@ -1856,6 +1856,18 @@ Assert("B8.1.1 trigger wired with externalConfig null",
 // ==== B8.2: shared GameTaskManager lifecycle and platform construction ====
 Console.WriteLine("B8.2: shared GameTaskManager lifecycle and platform construction");
 GameTaskManagerPlatform.Configure(new VerificationGameTaskManagerPlatform(b5SystemInfo, triggerLogger));
+recorder.Clear();
+GameCaptureRegion.GameRegion1080PPosClick(1500, 1000);
+Assert("SetTime shared game-region click uses composed capture metrics",
+    recorder.Calls.SequenceEqual([
+        "MoveMouseTo(X=1500, Y=1000)", "LeftButtonDown()", "LeftButtonUp()"
+    ]), string.Join(" | ", recorder.Calls));
+var setTimePosition = (double[])typeof(BetterGenshinImpact.GameTask.Common.Job.SetTimeTask)
+    .GetMethod("GetPosition", BindingFlags.Instance | BindingFlags.NonPublic)!
+    .Invoke(new BetterGenshinImpact.GameTask.Common.Job.SetTimeTask(), [30d, 0d])!;
+Assert("SetTime real upstream dial geometry is linked",
+    Math.Abs(setTimePosition[0] - 1471d) < 0.001 && Math.Abs(setTimePosition[1] - 501.6d) < 0.001,
+    $"x={setTimePosition[0]}, y={setTimePosition[1]}");
 var lowPriority = new VerificationTrigger("low", 1, false);
 var highPriority = new VerificationTrigger("high", 10, false);
 GameTaskManager.TriggerDictionary = new ConcurrentDictionary<string, ITaskTrigger>(

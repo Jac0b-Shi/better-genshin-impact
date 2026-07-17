@@ -64,19 +64,6 @@ public static partial class Bv
 
 
     /// <summary>
-    /// 是否在主界面
-    /// </summary>
-    /// <param name="captureRa"></param>
-    /// <returns></returns>
-    public static bool IsInMainUi(ImageRegion captureRa)
-    {
-        CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
-        IStringLocalizer stringLocalizer = App.GetService<IStringLocalizer<BvResxHelper>>() ?? throw new Exception();
-        string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
-        return IsInMainUi(captureRa, ElementAssets.Instance.PaimonMenuRo, AutoFightAssets.Instance.ConfirmRa, revival);
-    }
-
-    /// <summary>
     /// 等待主界面加载完成
     /// </summary>
     /// <param name="ct"></param>
