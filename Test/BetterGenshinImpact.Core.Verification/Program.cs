@@ -25,6 +25,8 @@ using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.AutoPathing;
+using BetterGenshinImpact.GameTask.AutoPathing.Suspend;
 using BetterGenshinImpact.GameTask.Common.Map.Maps;
 using BetterGenshinImpact.GameTask.Common.Map.Maps.Base;
 using BetterGenshinImpact.GameTask.Model.Area;
@@ -185,6 +187,23 @@ foreach (var command in combatWaypointForTrack.CombatScript!.CombatCommands)
 Assert("upstream combat command execution preserves macro dispatch order",
     recordingCombatAvatar.Calls.SequenceEqual(["KeyDown(q)", "Wait(600)", "KeyUp(q)"]),
     string.Join(',', recordingCombatAvatar.Calls));
+Assert("upstream TrapEscaper is compiled into Core",
+    typeof(TrapEscaper).Assembly == typeof(PathingTask).Assembly,
+    typeof(TrapEscaper).Assembly.GetName().Name ?? "unknown");
+var suspendContext = new RecordingPathExecutorSuspendContext
+{
+    CurWaypoints = (2, [combatWaypointForTrack]),
+    CurWaypoint = (0, combatWaypointForTrack)
+};
+var pathSuspend = new PathExecutorSuspend(suspendContext);
+pathSuspend.Suspend();
+Assert("PathExecutorSuspend preserves upstream suspend flag",
+    pathSuspend.IsSuspended && suspendContext.GetPositionAndTimeSuspendFlag,
+    $"suspended={pathSuspend.IsSuspended}, flag={suspendContext.GetPositionAndTimeSuspendFlag}");
+pathSuspend.Resume();
+Assert("PathExecutorSuspend resets movement timeout on resume",
+    !pathSuspend.IsSuspended && suspendContext.MoveToStartTime > DateTime.UtcNow.AddSeconds(-2),
+    suspendContext.MoveToStartTime.ToString("O"));
 try
 {
     _ = new CombatCommand("当前角色", "keydown(VK_VOLUME_UP)");
@@ -2031,6 +2050,14 @@ sealed class RecordingCombatCommandScene(ICombatCommandAvatar avatar) : ICombatC
     public ICombatCommandAvatar SelectAvatar(int avatarIndex) => avatarIndex == 1
         ? avatar
         : throw new ArgumentOutOfRangeException(nameof(avatarIndex));
+}
+
+sealed class RecordingPathExecutorSuspendContext : IPathExecutorSuspendContext
+{
+    public (int, List<WaypointForTrack>) CurWaypoints { get; init; }
+    public (int, WaypointForTrack) CurWaypoint { get; init; }
+    public bool GetPositionAndTimeSuspendFlag { get; set; }
+    public DateTime MoveToStartTime { get; set; }
 }
 
 sealed class RecordingCombatCommandAvatar(string name) : ICombatCommandAvatar

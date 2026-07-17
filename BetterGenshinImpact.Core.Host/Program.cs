@@ -58,7 +58,11 @@ server.AttachScriptHostServices(scriptHostServices);
 var captureRing = new SharedCaptureRingReader(layout);
 var gameTaskManagerPlatform = new MacGameTaskManagerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
-server.AttachPlatformAssetInitializer(() => MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo));
+server.AttachPlatformAssetInitializer(() =>
+{
+    MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
+    ElementAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
+});
 var imageRegionOcrService = new MacImageRegionOcrService(
     layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
 BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageRegionOcrService);

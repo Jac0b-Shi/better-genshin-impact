@@ -53,6 +53,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorPlatform.cs" Link="GameTask/AutoPathing/PathExecutorPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/NavigationPlatform.cs" Link="GameTask/AutoPathing/NavigationPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/NavigationInstance.cs" Link="GameTask/AutoPathing/NavigationInstance.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Navigation.cs" Link="GameTask/AutoPathing/Navigation.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/CameraOrientation.cs" Link="GameTask/Common/Map/CameraOrientation.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/Camera/CameraOrientationFromGia.cs" Link="GameTask/Common/Map/Camera/CameraOrientationFromGia.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/MiniMap/CameraOrientationCalculator.cs" Link="GameTask/Common/Map/MiniMap/CameraOrientationCalculator.cs" />
@@ -61,6 +62,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/MiniMap/MiniMapPreprocessorUtils.cs" Link="GameTask/Common/Map/MiniMap/MiniMapPreprocessorUtils.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/Maps/**/*.cs" Link="GameTask/Common/Map/Maps/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/MapAssets.cs" Link="GameTask/Common/Element/Assets/MapAssets.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/ElementAssets.cs" Link="GameTask/Common/Element/Assets/ElementAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/MapLazyAssets.cs" Link="GameTask/Common/Element/Assets/MapLazyAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/Model/*.cs" Link="GameTask/AutoTrackPath/Model/%(Filename)%(Extension)" />
   </ItemGroup>
@@ -83,6 +85,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/GameCaptureRegion.cs" Link="GameTask/Model/Area/GameCaptureRegion.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvImageIO.cs" Link="GameTask/Common/BgiVision/BvImageIO.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMainUi.cs" Link="GameTask/Common/BgiVision/BvMainUi.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMotionStatus.cs" Link="GameTask/Common/BgiVision/BvMotionStatus.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/GameUiCategory.cs" Link="GameTask/Common/BgiVision/GameUiCategory.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/INodeConverter.cs" Link="GameTask/Model/Area/Converter/INodeConverter.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Converter/ScaleConverter.cs" Link="GameTask/Model/Area/Converter/ScaleConverter.cs" />
@@ -180,6 +183,7 @@
     <Compile Include="../BetterGenshinImpact/Service/ScriptService.cs" Link="Service/ScriptService.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/CancellationContext.cs" Link="Core/Script/CancellationContext.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Suspend/ISuspendable.cs" Link="GameTask/AutoPathing/Suspend/ISuspendable.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Suspend/PathExecutorSuspend.cs" Link="GameTask/AutoPathing/Suspend/PathExecutorSuspend.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/RunnerContext.cs" Link="GameTask/RunnerContext.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/TaskRunner.cs" Link="GameTask/TaskRunner.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/TaskRunnerPlatform.cs" Link="GameTask/TaskRunnerPlatform.cs" />
@@ -197,6 +201,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/PathingTaskInfo.cs" Link="GameTask/AutoPathing/Model/PathingTaskInfo.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/Waypoint.cs" Link="GameTask/AutoPathing/Model/Waypoint.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorContract.cs" Link="GameTask/AutoPathing/PathExecutorContract.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/TrapEscaper.cs" Link="GameTask/AutoPathing/TrapEscaper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/WaypointForTrack.cs" Link="GameTask/AutoPathing/Model/WaypointForTrack.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatCommandPlatform.cs" Link="GameTask/AutoFight/Script/CombatCommandPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/ICombatCommandRuntime.cs" Link="GameTask/AutoFight/Script/ICombatCommandRuntime.cs" />

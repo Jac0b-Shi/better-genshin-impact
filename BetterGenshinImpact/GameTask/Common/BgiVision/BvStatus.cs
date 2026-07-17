@@ -218,22 +218,6 @@ public static partial class Bv
         return (end * 1.0 - cur) / (end - start);
     }
 
-    public static MotionStatus GetMotionStatus(ImageRegion captureRa)
-    {
-        using var spaceRa = captureRa.Find(ElementAssets.Instance.SpaceKey);
-        var spaceExist = spaceRa.IsExist();
-        using var xRa = captureRa.Find(ElementAssets.Instance.XKey);
-        var xExist = xRa.IsExist();
-        if (spaceExist)
-        {
-            return xExist ? MotionStatus.Climb : MotionStatus.Fly;
-        }
-        else
-        {
-            return MotionStatus.Normal;
-        }
-    }
-
     /// <summary>
     /// 是否出现复苏提示
     /// </summary>
@@ -370,11 +354,4 @@ public static partial class Bv
             return 0;
         }
     }
-}
-
-public enum MotionStatus
-{
-    Normal, // 正常
-    Fly, // 飞行
-    Climb, // 攀爬
 }

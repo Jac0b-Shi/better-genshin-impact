@@ -37,7 +37,7 @@ using BetterGenshinImpact.GameTask.AutoFight;
 
 namespace BetterGenshinImpact.GameTask.AutoPathing;
 
-public class PathExecutor : IPathExecutor
+public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
 {
     private readonly CameraRotateTask _rotateTask;
     private readonly TrapEscaper _trapEscaper;
@@ -86,6 +86,17 @@ public class PathExecutor : IPathExecutor
 
     //记录当前点位
     public (int, WaypointForTrack) CurWaypoint { get; set; }
+
+    DateTime IPathExecutorSuspendContext.MoveToStartTime
+    {
+        set => moveToStartTime = value;
+    }
+
+    bool IPathExecutorSuspendContext.GetPositionAndTimeSuspendFlag
+    {
+        get => GetPositionAndTimeSuspendFlag;
+        set => GetPositionAndTimeSuspendFlag = value;
+    }
 
     //记录恢复点位数组
     private (int, List<WaypointForTrack>) RecordWaypoints { get; set; }
