@@ -291,6 +291,123 @@
         "source": "No independent license identified; distributed inside BetterGI GPLv3 release archive as project test asset",
         "redistributionStatus": "allowed-under-project-distribution"
       }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Common/avatar_side_classify_sim.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Common/avatar_side_classify_sim.onnx",
+      "sizeBytes": 3301669,
+      "sha256": "874c47c33c1eab500f699bf277458e48d45b5393703463d1601278182b753ce9",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Common/q_classify_sim.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Common/q_classify_sim.onnx",
+      "sizeBytes": 5793942,
+      "sha256": "da21c5e7eb65709d3cff0ce250c3da74bd8ffd08034da8ee9c93bc8a3ab3c612",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Domain/bgi_tree.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Domain/bgi_tree.onnx",
+      "sizeBytes": 6170170,
+      "sha256": "14fcda7478568b38d22601c662e6ac2bf1eac7cb6b5274742f0d6583f1053ee4",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Fish/bgi_fish.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Fish/bgi_fish.onnx",
+      "sizeBytes": 12772718,
+      "sha256": "b1fd2fa1caa98946825aa5c530168c884732f70b7090208cfce2b5895be723cf",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Item/gridIcon.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Item/gridIcon.onnx",
+      "sizeBytes": 1217657,
+      "sha256": "ac56acadfe8b8ffdf2bfeac2c3b56415d2aa2c51c2d4f9c4264ef2f40de8cd18",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Item/items.csv",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Item/items.csv",
+      "sizeBytes": 331709,
+      "sha256": "410f68e29220530bd8d3f8e0ea97644d65039ec2c623d395f59acee92f677068",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release item-classification data; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Mine/bgi_mine.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Mine/bgi_mine.onnx",
+      "sizeBytes": 10972792,
+      "sha256": "869719df68daf755b0ca5f80cbf0ed7bc4883b15325376e38808160c4909920e",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/Vad/silero_vad.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/Vad/silero_vad.onnx",
+      "sizeBytes": 2327524,
+      "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "MIT",
+        "source": "Silero VAD MIT license included at Assets/Model/Vad/LICENSE in the BetterGI release",
+        "redistributionStatus": "allowed-with-attribution"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Model/World/bgi_world.onnx",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Model/World/bgi_world.onnx",
+      "sizeBytes": 11212849,
+      "sha256": "7c0add59558ea38f3dc882e7ad924840e2705382372738c5048e5f145b3aca4a",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
     }
   ]
 }

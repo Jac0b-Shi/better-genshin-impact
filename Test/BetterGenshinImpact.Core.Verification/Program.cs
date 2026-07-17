@@ -503,21 +503,21 @@ Assert("B11.5 Loader leaves stream open", manifestReadStream.CanRead, "stream wa
 manifestReadStream.Close();
 Assert("B11.5 Loader parses successfully", manifest != null, "null");
 Assert("B11.5 Manifest version is 1", manifest!.Version == 1, $"got {manifest.Version}");
-Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
+Assert("B11.5 Model artifacts count is 19", manifest.Artifacts.Count == 19, $"got {manifest.Artifacts.Count}");
 Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
-// Physical file count: 11 model ONNX + 8 model-bound sidecars + 2 preheat sidecars = 21
+// Physical file count: 19 model ONNX + 9 model-bound sidecars + 2 preheat sidecars = 30
 var modelsWithSidecar = manifest.Artifacts.FindAll(a => a.Sidecars.Count > 0);
-Assert("B11.5 Models with sidecar count 8", modelsWithSidecar.Count == 8, $"got {modelsWithSidecar.Count}");
+Assert("B11.5 Models with sidecar count 9", modelsWithSidecar.Count == 9, $"got {modelsWithSidecar.Count}");
 var allPhysicalPaths =
     manifest.Artifacts.Select(a => a.RelativePath)
     .Concat(manifest.Artifacts.SelectMany(a => a.Sidecars))
     .Concat(manifest.SidecarArtifacts.Select(s => s.RelativePath))
     .ToList();
-Assert("B11.5 Physical paths count 21", allPhysicalPaths.Count == 21, $"got {allPhysicalPaths.Count}");
-Assert("B11.5 Physical paths unique", allPhysicalPaths.Distinct(System.StringComparer.Ordinal).Count() == 21, "duplicate paths");
+Assert("B11.5 Physical paths count 30", allPhysicalPaths.Count == 30, $"got {allPhysicalPaths.Count}");
+Assert("B11.5 Physical paths unique", allPhysicalPaths.Distinct(System.StringComparer.Ordinal).Count() == 30, "duplicate paths");
 // Uniqueness
-Assert("B11.5 Artifact ids unique", manifest.Artifacts.Select(a => a.Id).Distinct().Count() == 11, "duplicate ids");
-Assert("B11.5 Registry keys unique", manifest.Artifacts.Select(a => a.RegistryKey).Distinct().Count() == 11, "duplicate keys");
+Assert("B11.5 Artifact ids unique", manifest.Artifacts.Select(a => a.Id).Distinct().Count() == 19, "duplicate ids");
+Assert("B11.5 Registry keys unique", manifest.Artifacts.Select(a => a.RegistryKey).Distinct().Count() == 19, "duplicate keys");
 Assert("B11.5 Sidecar ids unique", manifest.SidecarArtifacts.Select(s => s.Id).Distinct().Count() == 2, "duplicate sidecar ids");
 // Invariants: all paths use forward slash, not rooted, no ..
 foreach (var a in manifest.Artifacts)
@@ -537,12 +537,12 @@ foreach (var s in manifest.SidecarArtifacts)
 // Case convention: all Paddle entries use PaddleOCR, none use PaddleOcr
 foreach (var a in manifest.Artifacts)
 {
-    if (a.RegistryKey == "YapModelTraining") continue;
+    if (!a.RegistryKey.StartsWith("PaddleOcr", StringComparison.Ordinal)) continue;
     var n = a.RelativePath.Replace('\\', '/');
     Assert($"B11.5 {a.Id} contains PaddleOCR", n.Contains("/PaddleOCR/"), n);
     Assert($"B11.5 {a.Id} no PaddleOcr", !n.Contains("/PaddleOcr/"), n);
 }
-// All 11 registry entries match resolver
+// All locked registry entries match the runtime resolver.
 var registryMap = new Dictionary<string, BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel>
 {
     ["YapModelTraining"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.YapModelTraining,
@@ -555,9 +555,17 @@ var registryMap = new Dictionary<string, BetterGenshinImpact.Core.Recognition.ON
     ["PaddleOcrRecV5Latin"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Latin,
     ["PaddleOcrRecV5Eslav"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Eslav,
     ["PaddleOcrRecV5Korean"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV5Korean,
-    ["PaddleOcrRecV6"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV6
+    ["PaddleOcrRecV6"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV6,
+    ["BgiAvatarSide"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiAvatarSide,
+    ["BgiQClassify"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiQClassify,
+    ["BgiTree"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiTree,
+    ["BgiFish"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiFish,
+    ["GridIcon"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.GridIcon,
+    ["BgiMine"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiMine,
+    ["SileroVad"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.SileroVad,
+    ["BgiWorld"] = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiWorld
 };
-Assert("B11.5 Registry map has 11 entries", registryMap.Count == 11, $"got {registryMap.Count}");
+Assert("B11.5 Registry map has 19 entries", registryMap.Count == 19, $"got {registryMap.Count}");
 foreach (var entry in manifest.Artifacts)
 {
     Assert($"B11.5 Registry key {entry.RegistryKey} in map", registryMap.ContainsKey(entry.RegistryKey), $"missing {entry.RegistryKey}");
@@ -702,7 +710,7 @@ Assert("B11.6.1.4 Lock has artifactSetVersion", lockDoc.TryGetProperty("artifact
 Assert("B11.6.1.4 Lock has sources", lockDoc.TryGetProperty("sources", out var sourcesArray) && sourcesArray.GetArrayLength() > 0, "");
 Assert("B11.6.1.4 Lock has artifacts", lockDoc.TryGetProperty("artifacts", out var artifactsArray), "");
 var lockArtifactsCount = artifactsArray.GetArrayLength();
-Assert("B11.6.1.4 Lock has 21 artifacts", lockArtifactsCount == 21, $"got {lockArtifactsCount}");
+Assert("B11.6.1.4 Lock has 30 artifacts", lockArtifactsCount == 30, $"got {lockArtifactsCount}");
 // Validate each artifact
 var lockDests = new HashSet<string>(StringComparer.Ordinal);
 var lockHashes = new HashSet<string>(StringComparer.Ordinal);
@@ -743,8 +751,8 @@ foreach (var art in artifactsArray.EnumerateArray())
     var licStatus = art.GetProperty("licenseEvidence").GetProperty("redistributionStatus").GetString();
     Assert($"B11.6.1.4 redistributionStatus non-empty {dest}", !string.IsNullOrEmpty(licStatus), "");
 }
-Assert("B11.6.1.4 21 unique destinations", lockDests.Count == 21, $"got {lockDests.Count}");
-Assert("B11.6.1.4 21 unique hashes", lockHashes.Count == 21, $"got {lockHashes.Count}");
+Assert("B11.6.1.4 30 unique destinations", lockDests.Count == 30, $"got {lockDests.Count}");
+Assert("B11.6.1.4 30 unique hashes", lockHashes.Count == 30, $"got {lockHashes.Count}");
 // Verify source has url and sha256
 var source = sourcesArray[0];
 Assert("B11.6.1.4 source has url", source.TryGetProperty("url", out var srcUrl) && !string.IsNullOrEmpty(srcUrl.GetString()), "");
@@ -763,7 +771,7 @@ var dlSource = downloaderLock.Sources[0];
 Assert("B11.6.2 Downloader source has url", !string.IsNullOrEmpty(dlSource.Url), "");
 Assert("B11.6.2 Downloader source has sha256", dlSource.Sha256.Length == 64, $"len={dlSource.Sha256.Length}");
 Assert("B11.6.2 Downloader source has provenance", dlSource.Provenance.CommitSha.Length == 40, "");
-Assert("B11.6.2 Downloader has 21 artifacts", downloaderLock.Artifacts.Count == 21, $"got {downloaderLock.Artifacts.Count}");
+Assert("B11.6.2 Downloader has 30 artifacts", downloaderLock.Artifacts.Count == 30, $"got {downloaderLock.Artifacts.Count}");
 // Validate each artifact has required fields for download
 foreach (var art in downloaderLock.Artifacts)
 {
@@ -788,7 +796,7 @@ Console.WriteLine("B11.6.2: Hardening — fake local archive end-to-end");
     var fakeArchive = Path.GetFullPath(Path.Combine(fakeWork, "test.7z"));
     Directory.CreateDirectory(fakeExtract);
 
-    // Create fake files mimicking the 21-file structure
+    // Create a representative fake artifact subset.
     var fakeFiles = new Dictionary<string, byte[]>
     {
         ["Assets/Model/Yap/model_training.onnx"] = [1, 2, 3, 4],
@@ -805,14 +813,9 @@ Console.WriteLine("B11.6.2: Hardening — fake local archive end-to-end");
         Directory.CreateDirectory(Path.GetDirectoryName(fp)!);
         File.WriteAllBytes(fp, kvp.Value);
     }
-    // Pack into 7z
-    var psi7z = new System.Diagnostics.ProcessStartInfo
-    {
-        FileName = "7z", Arguments = $"a \"{fakeArchive}\" \"*\"",
-        WorkingDirectory = fakeExtract,
-        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
-    };
-    using (var p7z = System.Diagnostics.Process.Start(psi7z)!) { p7z.WaitForExit(); }
+    // Archive content is auto-detected. Use the BCL writer so the suite itself
+    // does not acquire a Homebrew/system 7z dependency.
+    System.IO.Compression.ZipFile.CreateFromDirectory(fakeExtract, fakeArchive);
     Assert("B11.6.2 Fake archive created", File.Exists(fakeArchive), fakeArchive);
 
     // Build minimal source-lock
@@ -820,13 +823,14 @@ Console.WriteLine("B11.6.2: Hardening — fake local archive end-to-end");
     var fakeArtifacts = fakeFiles.Select(kvp => new {
         dest = kvp.Key,
         sha = Convert.ToHexString(SHA256.HashData(kvp.Value)).ToLowerInvariant(),
+        size = kvp.Value.LongLength,
     }).ToList();
     // Build source-lock JSON without raw string interpolation
     var fakeArtifactsJson = string.Join(",", fakeArtifacts.Select(a =>
         "{\"destinationRelativePath\":\"Assets/Model/" + a.dest.Substring("Assets/Model/".Length) + "\"," +
         "\"sourceId\":\"test\"," +
         "\"memberPath\":\"BetterGI/Assets/Model/" + a.dest.Substring("Assets/Model/".Length) + "\"," +
-        "\"sizeBytes\":1,\"sha256\":\"" + a.sha + "\"," +
+        "\"sizeBytes\":" + a.size + ",\"sha256\":\"" + a.sha + "\"," +
         "\"transformation\":\"relocate\"," +
         "\"licenseEvidence\":{\"spdxId\":null,\"source\":\"test\",\"redistributionStatus\":\"test\"}}"));
     var fakeLockContent =
@@ -877,16 +881,18 @@ Console.WriteLine("B11.6.2: Hardening — path traversal safety");
     var safeFile = Path.Combine(traverseExtract, "BetterGI", "Assets", "Model", "Yap", "model_training.onnx");
     Directory.CreateDirectory(Path.GetDirectoryName(safeFile)!);
     File.WriteAllBytes(safeFile, [1, 2, 3]);
-    var escapeFile = Path.Combine(traverseExtract, "..", "..", "..", "escape.txt");
-    Directory.CreateDirectory(Path.GetDirectoryName(escapeFile)!);
-    File.WriteAllText(escapeFile, "traversal-success");
-    var psiT = new System.Diagnostics.ProcessStartInfo
+    using (var zip = System.IO.Compression.ZipFile.Open(traverseArchive, System.IO.Compression.ZipArchiveMode.Create))
     {
-        FileName = "7z", Arguments = $"a \"{traverseArchive}\" \"*\"",
-        WorkingDirectory = Path.Combine(traverseExtract, ".."),
-        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
-    };
-    using (var pT = System.Diagnostics.Process.Start(psiT)!) { pT.WaitForExit(); }
+        var safeEntry = zip.CreateEntry("BetterGI/Assets/Model/Yap/model_training.onnx");
+        using (var input = File.OpenRead(safeFile))
+        using (var output = safeEntry.Open())
+        {
+            input.CopyTo(output);
+        }
+        var unsafeEntry = zip.CreateEntry("../escape.txt");
+        using var writer = new StreamWriter(unsafeEntry.Open());
+        writer.Write("traversal-success");
+    }
 
     var tSha = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(traverseArchive))).ToLowerInvariant();
     var tLockContent =
@@ -943,12 +949,12 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
     var chainArchive = Path.GetFullPath(Path.Combine(chainWork, "chain.7z"));
     Directory.CreateDirectory(chainExtract);
 
-    // Create all 21 manifest files
+    // Create all locked manifest files.
     var allDestinations = manifest.Artifacts.SelectMany(a => new[] { a.RelativePath }.Concat(a.Sidecars))
         .Concat(manifest.SidecarArtifacts.Select(s => s.RelativePath))
         .Distinct(StringComparer.Ordinal)
         .ToList();
-    Assert("B12.1 All 21 destination paths enumerated", allDestinations.Count == 21, $"got {allDestinations.Count}");
+    Assert("B12.1 All 30 destination paths enumerated", allDestinations.Count == 30, $"got {allDestinations.Count}");
 
     var contentDict = new Dictionary<string, byte[]>();
     foreach (var dest in allDestinations)
@@ -960,14 +966,7 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
         File.WriteAllBytes(fp, content);
     }
 
-    // Pack into 7z
-    var chainPsi = new System.Diagnostics.ProcessStartInfo
-    {
-        FileName = "7z", Arguments = $"a \"{chainArchive}\" \"*\"",
-        WorkingDirectory = chainExtract,
-        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
-    };
-    using (var cp = System.Diagnostics.Process.Start(chainPsi)!) { cp.WaitForExit(); }
+    System.IO.Compression.ZipFile.CreateFromDirectory(chainExtract, chainArchive);
 
     // Build lock JSON
     var chainSha = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(chainArchive))).ToLowerInvariant();
@@ -995,7 +994,7 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
     Directory.CreateDirectory(chainModelRoot);
     var chainResult = await chainDl.DownloadAsync(chainLockPath, chainModelRoot, CancellationToken.None);
     Assert("B12.1 Chain download success", chainResult.Success, $"errors={string.Join("; ", chainResult.Errors)}");
-    Assert("B12.1 Chain all 21 files placed", chainResult.ArtifactsExtracted == 21, $"extracted={chainResult.ArtifactsExtracted}");
+    Assert("B12.1 Chain all 30 files placed", chainResult.ArtifactsExtracted == 30, $"extracted={chainResult.ArtifactsExtracted}");
 
     // Create resolvers with the same modelRoot
     var chainOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(chainModelRoot);
@@ -1063,34 +1062,72 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
 }
 Console.WriteLine();
 
-// ==== B12.2 Real ONNX InferenceSession load test ====
+// ==== B12.2 Locked release installation and artifact integrity ====
+Console.WriteLine("B12.2: Locked release artifact integrity");
+var lockedRuntimeRoot = Path.Combine(Path.GetTempPath(), "bgi-locked-runtime-" + Guid.NewGuid().ToString("N")[..8]);
+{
+    var localReleaseArchive = Path.GetFullPath(Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "artifacts/provenance-audit/release-0.62.0/downloads/BetterGI_v0.62.0.7z"));
+    var lockedTestSourcePath = lockPath;
+    var temporaryLockPath = Path.Combine(Path.GetTempPath(), "bgi-locked-source-" + Guid.NewGuid().ToString("N") + ".json");
+    if (File.Exists(localReleaseArchive))
+    {
+        var officialUrl = downloaderLock.Sources.Single().Url;
+        File.WriteAllText(temporaryLockPath,
+            lockJson.Replace(officialUrl, "file://" + localReleaseArchive, StringComparison.Ordinal));
+        lockedTestSourcePath = temporaryLockPath;
+    }
+
+    using (var realDownloader = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader())
+    {
+        var installResult = await realDownloader.DownloadAsync(
+            lockedTestSourcePath, lockedRuntimeRoot, CancellationToken.None);
+        Assert("B12.2 locked release installation succeeds", installResult.Success,
+            string.Join("; ", installResult.Errors));
+        Assert("B12.2 locked release installs all 30 artifacts",
+            installResult.ArtifactsExtracted == 30, $"got {installResult.ArtifactsExtracted}");
+    }
+
+    if (File.Exists(temporaryLockPath)) File.Delete(temporaryLockPath);
+
+    foreach (var artifact in downloaderLock.Artifacts)
+    {
+        var installedPath = Path.Combine(lockedRuntimeRoot,
+            artifact.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert($"B12.2 installed artifact exists {artifact.DestinationRelativePath}",
+            File.Exists(installedPath), installedPath);
+        if (!File.Exists(installedPath))
+        {
+            continue;
+        }
+
+        var fileInfo = new FileInfo(installedPath);
+        Assert($"B12.2 installed artifact size {artifact.DestinationRelativePath}",
+            fileInfo.Length == artifact.SizeBytes,
+            $"expected={artifact.SizeBytes}, actual={fileInfo.Length}");
+        using var stream = File.OpenRead(installedPath);
+        var actualSha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        Assert($"B12.2 installed artifact sha256 {artifact.DestinationRelativePath}",
+            actualSha256 == artifact.Sha256,
+            $"expected={artifact.Sha256}, actual={actualSha256}");
+    }
+}
+Console.WriteLine();
+
+// ==== B12.2.1 Real ONNX InferenceSession load test ====
 Console.WriteLine("B12.2: Real ONNX InferenceSession load test");
 {
-    // Use the provenance-audit extraction as real modelRoot
-    var realExtractBase = Path.GetFullPath(Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "artifacts/provenance-audit/release-0.62.0/extracted/BetterGI"));
-
-    if (!Directory.Exists(realExtractBase))
+    Assert("B12.2 real installed model directory exists", Directory.Exists(lockedRuntimeRoot), lockedRuntimeRoot);
+    if (Directory.Exists(lockedRuntimeRoot))
     {
-        Console.WriteLine("B12.2: SKIPPED — real extracted model directory not found at " + realExtractBase);
-    }
-    else
-    {
-        // modelRoot = BetterGI/ (contains Assets/)
-        var realModelRoot = realExtractBase;
-        var realOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(realModelRoot);
+        var realOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(lockedRuntimeRoot);
 
         // Create a BgiOnnxFactory with the real resolver
         var realFactory = CpuFactory(realOnnxResolver);
 
         // Test each real ONNX file via InferenceSession
-        var testModels = new[]
-        {
-            ("YapModelTraining", BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.YapModelTraining),
-            ("PaddleOcrDetV4", BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV4),
-            ("PaddleOcrRecV4En", BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV4En),
-        };
+        var testModels = registryMap.Select(entry => (entry.Key, entry.Value)).ToArray();
 
         int sessionCount = 0;
         foreach (var (name, model) in testModels)
@@ -1147,6 +1184,7 @@ Console.WriteLine("B12.2: Real ONNX InferenceSession load test");
         Console.WriteLine($"B12.2: {sessionCount}/{testModels.Length} InferenceSessions created successfully");
     }
 }
+if (Directory.Exists(lockedRuntimeRoot)) Directory.Delete(lockedRuntimeRoot, recursive: true);
 Console.WriteLine();
 
 // ==== B12.3 PaddleOCR preprocessing/postprocessing validation ====

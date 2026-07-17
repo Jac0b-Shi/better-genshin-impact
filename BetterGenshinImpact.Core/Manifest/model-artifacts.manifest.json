@@ -89,6 +89,70 @@
       "registryKey": "PaddleOcrRecV6",
       "requiredFor": ["PaddleOCR.Rec.V6"],
       "sidecars": ["Assets/Model/PaddleOCR/Rec/V6/inference.yml"]
+    },
+    {
+      "id": "BgiAvatarSide",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Common/avatar_side_classify_sim.onnx",
+      "registryKey": "BgiAvatarSide",
+      "requiredFor": ["AutoFight.TeamRecognition"],
+      "sidecars": []
+    },
+    {
+      "id": "BgiQClassify",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Common/q_classify_sim.onnx",
+      "registryKey": "BgiQClassify",
+      "requiredFor": ["AutoFight.BurstRecognition"],
+      "sidecars": []
+    },
+    {
+      "id": "BgiTree",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Domain/bgi_tree.onnx",
+      "registryKey": "BgiTree",
+      "requiredFor": ["AutoDomain.TreeRecognition"],
+      "sidecars": []
+    },
+    {
+      "id": "BgiFish",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Fish/bgi_fish.onnx",
+      "registryKey": "BgiFish",
+      "requiredFor": ["AutoFishing.FishRecognition"],
+      "sidecars": []
+    },
+    {
+      "id": "GridIcon",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Item/gridIcon.onnx",
+      "registryKey": "GridIcon",
+      "requiredFor": ["AutoFishing.BaitRecognition", "GridIconsAccuracyTest"],
+      "sidecars": ["Assets/Model/Item/items.csv"]
+    },
+    {
+      "id": "BgiMine",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Mine/bgi_mine.onnx",
+      "registryKey": "BgiMine",
+      "requiredFor": ["AutoPathing.Mining"],
+      "sidecars": []
+    },
+    {
+      "id": "SileroVad",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/Vad/silero_vad.onnx",
+      "registryKey": "SileroVad",
+      "requiredFor": ["AutoSkip.DialogueVoiceWait"],
+      "sidecars": []
+    },
+    {
+      "id": "BgiWorld",
+      "kind": "onnx",
+      "relativePath": "Assets/Model/World/bgi_world.onnx",
+      "registryKey": "BgiWorld",
+      "requiredFor": ["AutoFight.DropScan"],
+      "sidecars": []
     }
   ],
   "sidecarArtifacts": [

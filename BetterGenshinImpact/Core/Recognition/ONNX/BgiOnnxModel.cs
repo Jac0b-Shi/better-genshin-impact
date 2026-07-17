@@ -35,6 +35,11 @@ public class BgiOnnxModel
     public static readonly BgiOnnxModel BgiFish = Register("BgiFish", @"Assets\Model\Fish\bgi_fish.onnx");
 
     /// <summary>
+    /// 背包和鱼饵图标分类模型
+    /// </summary>
+    public static readonly BgiOnnxModel GridIcon = Register("GridIcon", @"Assets\Model\Item\gridIcon.onnx");
+
+    /// <summary>
     /// 秘境中古树
     /// </summary>
     public static readonly BgiOnnxModel BgiTree = Register("BgiTree", @"Assets\Model\Domain\bgi_tree.onnx");

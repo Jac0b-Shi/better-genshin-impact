@@ -7,11 +7,13 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpCompress.Archives;
+using SharpCompress.Common;
 
 namespace BetterGenshinImpact.Core.Infrastructure;
 
 /// <summary>
-/// Minimal downloader that reads model-artifacts.source-lock.json, downloads the
+/// Downloader that reads model-artifacts.source-lock.json, downloads the
 /// referenced archive, verifies hashes, and places artifacts at canonical destinations.
 /// Does NOT couple to Core runtime resolvers, UI, or network fallback logic.
 /// </summary>
@@ -112,7 +114,7 @@ public sealed class ArtifactDownloader : IDisposable
 
     /// <summary>
     /// Downloads the archive from source-lock, verifies archive hash, extracts
-    /// all 21 artifacts, verifies each artifact hash, and copies to canonical
+    /// every locked artifact, verifies each artifact hash, and copies to canonical
     /// destination under modelRoot.
     /// </summary>
     /// <param name="sourceLockPath">Path to model-artifacts.source-lock.json</param>
@@ -178,60 +180,99 @@ public sealed class ArtifactDownloader : IDisposable
             }
             Console.WriteLine($"Archive SHA-256 verified: {archiveHash[..16]}...");
 
-            // 4. Validate archive member safety before extraction
-            var memberCheck = await ListArchiveMembersAsync(archivePath);
-            foreach (var member in memberCheck)
+            // 4. Open and validate the 7z in-process. Core distribution must not
+            // depend on a Homebrew/system 7z executable.
+            // 5. Validate destinations up front, then scan the solid 7z exactly
+            // once. Opening every entry separately can decode the same solid
+            // block repeatedly and is unusably slow for the official archive.
+            modelRoot = Path.GetFullPath(modelRoot);
+            Directory.CreateDirectory(modelRoot);
+            var pendingArtifacts = new Dictionary<string, (ArtifactEntry Artifact, string Destination)>(StringComparer.Ordinal);
+            foreach (var artifact in lockDoc.Artifacts)
             {
-                if (member.Contains("..") || Path.IsPathRooted(member))
+                var destinationRelativePath = NormalizeArchiveMember(artifact.DestinationRelativePath);
+                if (!IsSafeArchiveMember(destinationRelativePath))
                 {
-                    result.Errors.Add($"Unsafe archive member path: {member}");
-                    return result;
+                    result.Errors.Add($"Unsafe artifact destination path: {artifact.DestinationRelativePath}");
+                    result.ArtifactsSkipped++;
+                    continue;
+                }
+
+                var destPath = Path.GetFullPath(Path.Combine(modelRoot,
+                    destinationRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+                if (!destPath.StartsWith(modelRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    result.Errors.Add($"Artifact destination escapes model root: {artifact.DestinationRelativePath}");
+                    result.ArtifactsSkipped++;
+                    continue;
+                }
+                var memberPath = NormalizeArchiveMember(artifact.MemberPath);
+                if (!IsSafeArchiveMember(memberPath))
+                {
+                    result.Errors.Add($"Unsafe locked archive member path: {artifact.MemberPath}");
+                    result.ArtifactsSkipped++;
+                    continue;
+                }
+                pendingArtifacts.Add(memberPath, (artifact, destPath));
+            }
+
+            async Task ProcessEntryAsync(string? rawKey, bool isDirectory, Func<Stream> openEntryStream)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (rawKey is null || isDirectory) return;
+                var memberPath = NormalizeArchiveMember(rawKey);
+                if (!IsSafeArchiveMember(memberPath))
+                {
+                    throw new InvalidDataException($"Unsafe archive member path: {memberPath}");
+                }
+                if (!pendingArtifacts.Remove(memberPath, out var lockedArtifact)) return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(lockedArtifact.Destination)!);
+                await using (var input = openEntryStream())
+                await using (var output = new FileStream(
+                    lockedArtifact.Destination, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await input.CopyToAsync(output, ct);
+                }
+
+                var actualSize = new FileInfo(lockedArtifact.Destination).Length;
+                var fileHash = await ComputeSha256Async(lockedArtifact.Destination);
+                var artifact = lockedArtifact.Artifact;
+                if (actualSize != artifact.SizeBytes || fileHash != artifact.Sha256.ToLowerInvariant())
+                {
+                    result.Errors.Add(
+                        $"Artifact integrity mismatch for {artifact.DestinationRelativePath}: " +
+                        $"expected size/hash {artifact.SizeBytes}/{artifact.Sha256[..16]}..., " +
+                        $"got {actualSize}/{fileHash[..16]}...");
+                    File.Delete(lockedArtifact.Destination);
+                    result.ArtifactsSkipped++;
+                    return;
+                }
+
+                result.ArtifactsExtracted++;
+            }
+
+            using var archive = ArchiveFactory.OpenArchive(archivePath);
+            if (archive.Type == ArchiveType.SevenZip)
+            {
+                using var reader = archive.ExtractAllEntries();
+                while (reader.MoveToNextEntry())
+                {
+                    await ProcessEntryAsync(reader.Entry.Key, reader.Entry.IsDirectory, reader.OpenEntryStream);
+                }
+            }
+            else
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    await ProcessEntryAsync(entry.Key, entry.IsDirectory, entry.OpenEntryStream);
                 }
             }
 
-            // 5. Extract archive to temp
-            var extractDir = Path.Combine(tempDir, "extracted");
-            Directory.CreateDirectory(extractDir);
-            await Extract7zAsync(archivePath, extractDir);
-            Console.WriteLine($"Extracted to {extractDir}");
-
-            // 5. Verify and place each artifact
-            modelRoot = Path.GetFullPath(modelRoot);
-            Directory.CreateDirectory(modelRoot);
-
-            foreach (var artifact in lockDoc.Artifacts)
+            foreach (var missing in pendingArtifacts.Values)
             {
-                ct.ThrowIfCancellationRequested();
-                var destPath = Path.Combine(modelRoot, artifact.DestinationRelativePath);
-                var destDir = Path.GetDirectoryName(destPath)!;
-
-                // Resolve the actual file in extracted archive
-                // memberPath is like "BetterGI/Assets/Model/..."
-                // After extraction, files land under extractDir/BetterGI/Assets/Model/...
-                var sourcePath = Path.Combine(extractDir, artifact.MemberPath.Replace('/', Path.DirectorySeparatorChar));
-
-                if (!File.Exists(sourcePath))
-                {
-                    result.Errors.Add($"Extracted file not found: {artifact.MemberPath}");
-                    result.ArtifactsSkipped++;
-                    continue;
-                }
-
-                // Verify artifact SHA-256
-                var fileHash = await ComputeSha256Async(sourcePath);
-                if (fileHash != artifact.Sha256.ToLowerInvariant())
-                {
-                    result.Errors.Add(
-                        $"Artifact SHA-256 mismatch for {artifact.DestinationRelativePath}: " +
-                        $"expected {artifact.Sha256[..16]}..., got {fileHash[..16]}...");
-                    result.ArtifactsSkipped++;
-                    continue;
-                }
-
-                // Copy to canonical destination
-                Directory.CreateDirectory(destDir);
-                File.Copy(sourcePath, destPath, overwrite: true);
-                result.ArtifactsExtracted++;
+                result.Errors.Add($"Archive member not found: {missing.Artifact.MemberPath}");
+                result.ArtifactsSkipped++;
             }
 
             result.ArchivePath = archivePath;
@@ -284,90 +325,15 @@ public sealed class ArtifactDownloader : IDisposable
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private static async Task<List<string>> ListArchiveMembersAsync(string archivePath)
+    private static string NormalizeArchiveMember(string path)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = "7z",
-            Arguments = $"l -slt \"{archivePath}\"",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        using var process = System.Diagnostics.Process.Start(psi)!;
-        await process.WaitForExitAsync();
-        if (process.ExitCode != 0)
-            return [];
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var members = new List<string>();
-        foreach (var line in output.Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("Path = ") && !trimmed.Contains("Does not exist"))
-            {
-                var memberPath = trimmed.Substring("Path = ".Length).Trim();
-                // Skip the archive file itself (absolute path) and directories
-                if (!string.IsNullOrEmpty(memberPath)
-                    && !Path.IsPathRooted(memberPath)
-                    && !memberPath.EndsWith("/"))
-                {
-                    members.Add(memberPath);
-                }
-            }
-        }
-        return members;
+        return path.Replace('\\', '/');
     }
 
-    private static async Task Extract7zAsync(string archivePath, string extractDir)
+    private static bool IsSafeArchiveMember(string path)
     {
-        // Use system7z if available; otherwise fallback to SharpCompress
-        if (await HasCommandAsync("7z"))
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "7z",
-                Arguments = $"x \"{archivePath}\" -o\"{extractDir}\" -y",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var process = System.Diagnostics.Process.Start(psi)!;
-            await process.WaitForExitAsync();
-            if (process.ExitCode != 0)
-            {
-                var stderr = await process.StandardError.ReadToEndAsync();
-                throw new InvalidOperationException($"7z extraction failed (exit {process.ExitCode}): {stderr}");
-            }
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                "7z command not found. Install p7zip: `brew install p7zip`");
-        }
-    }
-
-    private static async Task<bool> HasCommandAsync(string command)
-    {
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "which",
-                Arguments = command,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var process = System.Diagnostics.Process.Start(psi)!;
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) return false;
+        return path.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .All(segment => segment is not "." and not "..");
     }
 }
