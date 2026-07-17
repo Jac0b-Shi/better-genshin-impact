@@ -34,11 +34,13 @@ using System.Reflection;
 using System.Threading;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
+using BetterGenshinImpact.GameTask.AutoFight.Script;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
 var recorder = new RecordingInputBackend();
 OverlayDrawPlatform.Configure(new RecordingOverlayDrawPlatform());
+CombatCommandPlatform.Configure(new VerificationCombatCommandPlatform());
 BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory CpuFactory(IOnnxModelPathResolver resolver) =>
     new(new BetterGenshinImpact.Core.Runtime.Portable.CpuOnnxRuntimePlatform(resolver));
 DesktopRegionInputPlatform.Configure(recorder);
@@ -152,6 +154,35 @@ Assert("Pathing JSON remains snake_case", realPathingJson.Contains("\"map_match_
 var roundTrippedPathingTask = PathingTask.BuildFromJson(realPathingJson);
 Assert("PathingTask round-trip preserves stop_flying",
     roundTrippedPathingTask.Positions[1].Action == "stop_flying", roundTrippedPathingTask.Positions[1].Action ?? "null");
+
+var combatWaypoint = new Waypoint
+{
+    Type = "target",
+    MoveMode = "walk",
+    Action = "combat_script",
+    ActionParams = "keydown(q),wait(0.6),keyup(q)",
+    X = 123.5,
+    Y = -456.25
+};
+var combatWaypointForTrack = new WaypointForTrack(combatWaypoint, MapTypes.Teyvat.ToString(), "SIFT");
+Assert("WaypointForTrack parses embedded combat_script with upstream parser",
+    combatWaypointForTrack.CombatScript?.CombatCommands.Count == 3,
+    $"commands={combatWaypointForTrack.CombatScript?.CombatCommands.Count}");
+Assert("embedded combat_script preserves command order and arguments",
+    combatWaypointForTrack.CombatScript?.CombatCommands[0].Method == Method.KeyDown
+    && combatWaypointForTrack.CombatScript.CombatCommands[1].Method == Method.Wait
+    && combatWaypointForTrack.CombatScript.CombatCommands[1].Args?.Single() == "0.6"
+    && combatWaypointForTrack.CombatScript.CombatCommands[2].Method == Method.KeyUp,
+    string.Join(',', combatWaypointForTrack.CombatScript?.CombatCommands.Select(command => command.Method.Alias[0]) ?? []));
+try
+{
+    _ = new CombatCommand("当前角色", "keydown(VK_VOLUME_UP)");
+    Assert("unsupported semantic combat key fails explicitly", false, "command unexpectedly parsed");
+}
+catch (ArgumentException)
+{
+    Assert("unsupported semantic combat key fails explicitly", true, "");
+}
 
 var siftMap = MapManager.GetMap(MapTypes.Teyvat, "SIFT");
 var templateMap = MapManager.GetMap(MapTypes.Teyvat, "TemplateMatch");
@@ -1968,4 +1999,16 @@ sealed class RecordingScriptHostServices : IScriptHostServices
     public TimeSpan ServerTimeZoneOffset => TimeSpan.FromHours(8);
     public bool JsNotificationEnabled => true;
     public void EmitNotification(ScriptNotificationKind kind, string message) { }
+}
+
+sealed class VerificationCombatCommandPlatform : ICombatCommandPlatform
+{
+    public void ValidateKeyName(string keyName)
+    {
+        var normalized = keyName.Trim().ToUpperInvariant();
+        if (normalized.StartsWith("VK_", StringComparison.Ordinal)) normalized = normalized[3..];
+        if (normalized.Length == 1 && normalized[0] is >= 'A' and <= 'Z') return;
+        if (normalized is "LBUTTON" or "RBUTTON" or "MBUTTON" or "SPACE" or "ESCAPE") return;
+        throw new ArgumentException($"Unsupported verification key: {keyName}", nameof(keyName));
+    }
 }

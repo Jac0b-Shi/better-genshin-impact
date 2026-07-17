@@ -230,6 +230,8 @@ public partial class App : Application
         GameTask.Common.TaskControlPlatform.Configure(new Core.Runtime.Windows.WindowsTaskControlPlatform());
         GameTask.AutoPathing.PathExecutorPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorPlatform());
         GameTask.AutoPathing.NavigationPlatform.Configure(new Core.Runtime.Windows.WindowsNavigationPlatform());
+        GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
+            new Core.Runtime.Windows.WindowsCombatCommandPlatform());
         GameTask.Shell.ShellTaskPlatform.Configure(new GameTask.WindowsShellTaskPlatform());
         Core.Recorder.KeyMouseMacroPlatform.Configure(new GameTask.WindowsKeyMouseMacroPlatform());
         GameTask.AutoPathing.ScriptGroupExecutionServices.Configure(

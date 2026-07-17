@@ -197,6 +197,13 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/PathingTaskInfo.cs" Link="GameTask/AutoPathing/Model/PathingTaskInfo.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/Waypoint.cs" Link="GameTask/AutoPathing/Model/Waypoint.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorContract.cs" Link="GameTask/AutoPathing/PathExecutorContract.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Model/WaypointForTrack.cs" Link="GameTask/AutoPathing/Model/WaypointForTrack.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatCommandPlatform.cs" Link="GameTask/AutoFight/Script/CombatCommandPlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatCommand.cs" Link="GameTask/AutoFight/Script/CombatCommand.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScript.cs" Link="GameTask/AutoFight/Script/CombatScript.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptBag.cs" Link="GameTask/AutoFight/Script/CombatScriptBag.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptParser.cs" Link="GameTask/AutoFight/Script/CombatScriptParser.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/Method.cs" Link="GameTask/AutoFight/Script/Method.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoGeniusInvokation/Model/ElementalType.cs" Link="GameTask/AutoGeniusInvokation/Model/ElementalType.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/HandledException.cs" Link="GameTask/Common/Exceptions/HandledException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/RetryException.cs" Link="GameTask/Common/Exceptions/RetryException.cs" />
@@ -247,6 +254,7 @@
     <Compile Include="../BetterGenshinImpact/Helpers/Extensions/RectCutExtension.cs" Link="Helpers/Extensions/RectCutExtension.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/BgiKeyMapper.cs" Link="Helpers/BgiKeyMapper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/SpeedTimer.cs" Link="Helpers/SpeedTimer.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/AssertUtils.cs" Link="Helpers/AssertUtils.cs" />
   </ItemGroup>
 
   <!-- Model -->

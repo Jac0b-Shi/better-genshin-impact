@@ -71,6 +71,8 @@ PathExecutorPlatform.Configure(pathExecutorPlatform);
 server.AttachPathExecutorPlatform(pathExecutorPlatform);
 NavigationPlatform.Configure(new MacNavigationPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));
+BetterGenshinImpact.GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
+    new MacCombatCommandPlatform());
 var scriptServicePlatform = new MacScriptServicePlatform(
     layout, loggerFactory.CreateLogger("BetterGenshinImpact.Service.ScriptService"), scriptHostServices,
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing, gameTaskManagerPlatform);
