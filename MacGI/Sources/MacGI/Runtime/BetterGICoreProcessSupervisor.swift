@@ -114,6 +114,13 @@ actor BetterGICoreProcessSupervisor {
         return try client.getScriptGroup(name: name)
     }
 
+    func saveScriptGroup(name: String, documentData: Data) throws -> BetterGIScriptGroupDocument {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        return try client.saveScriptGroup(name: name, documentData: documentData)
+    }
+
     func listScriptProjects() throws -> [BetterGIScriptProjectSummary] {
         guard case .running = state, let client else {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
@@ -138,6 +145,20 @@ actor BetterGICoreProcessSupervisor {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
         }
         _ = try client.request(method: "scheduler.stop", parameters: ["taskId": taskID])
+    }
+
+    func pauseScheduler(taskID: String) throws {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        _ = try client.request(method: "scheduler.pause", parameters: ["taskId": taskID])
+    }
+
+    func resumeScheduler(taskID: String) throws {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        _ = try client.request(method: "scheduler.resume", parameters: ["taskId": taskID])
     }
 
     func stop() {

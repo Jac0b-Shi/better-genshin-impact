@@ -459,6 +459,16 @@ try
     Require(documents.Count == 1, "catalog did not return the fixture group");
     Require(documents[0]?["document"]?["projects"]?[0]?["runNum"]?.Value<int>() == 2,
         "catalog did not pass the document through the upstream ScriptGroup model");
+    var savedDocument = (JObject)documents[0]!["document"]!.DeepClone();
+    savedDocument["projects"]![0]!["runNum"] = 3;
+    var saved = await ExchangeAsync(connection, "catalog-save", "catalog.saveScriptGroup", sessionToken,
+        JObject.FromObject(new { name = "狗粮+锄地", document = savedDocument }), cancellation.Token);
+    Require(saved.Error is null && JObject.FromObject(saved.Result!)["document"]?["projects"]?[0]?["runNum"]?.Value<int>() == 3,
+        saved.Error?.Message ?? "catalog.saveScriptGroup did not return the normalized upstream document");
+    var reloaded = await ExchangeAsync(connection, "catalog-reload", "catalog.getScriptGroup", sessionToken,
+        JObject.FromObject(new { name = "狗粮+锄地" }), cancellation.Token);
+    Require(reloaded.Error is null && JObject.FromObject(reloaded.Result!)["document"]?["projects"]?[0]?["runNum"]?.Value<int>() == 3,
+        reloaded.Error?.Message ?? "catalog.saveScriptGroup did not persist through the authoritative Core catalog");
 
     var projects = await ExchangeAsync(connection, "projects", "catalog.listScriptProjects", sessionToken, null, cancellation.Token);
     var projectDocuments = JArray.FromObject(projects.Result!);
@@ -476,7 +486,7 @@ try
     var schedulerGroup = new ScriptGroup { Name = "SchedulerShell" };
     schedulerGroup.Config.EnableShellConfig = true;
     schedulerGroup.Config.ShellConfig.Output = true;
-    schedulerGroup.AddProject(ScriptGroupProject.BuildShellProject($"printf scheduler-real > '{schedulerMarker}'"));
+    schedulerGroup.AddProject(ScriptGroupProject.BuildShellProject($"sleep 1; printf scheduler-real > '{schedulerMarker}'"));
     await File.WriteAllTextAsync(
         Path.Combine(layout.ScriptGroupPath, schedulerGroup.Name + ".json"), schedulerGroup.ToJson());
 
@@ -550,11 +560,22 @@ try
     var schedulerRun = await ExchangeAsync(connection, "scheduler-real", "scheduler.run", sessionToken,
         JObject.FromObject(new { groupName = schedulerGroup.Name }), cancellation.Token);
     Require(schedulerRun.Error is null, schedulerRun.Error?.Message ?? "scheduler.run failed");
+    var schedulerTaskId = JObject.FromObject(schedulerRun.Result!).Value<string>("taskId")
+        ?? throw new InvalidDataException("scheduler.run omitted taskId");
+    var schedulerPause = await ExchangeAsync(connection, "scheduler-pause", "scheduler.pause", sessionToken,
+        JObject.FromObject(new { taskId = schedulerTaskId }), cancellation.Token);
+    Require(schedulerPause.Error is null && JObject.FromObject(schedulerPause.Result!).Value<string>("state") == "paused",
+        schedulerPause.Error?.Message ?? "scheduler.pause failed");
+    var schedulerResume = await ExchangeAsync(connection, "scheduler-resume", "scheduler.resume", sessionToken,
+        JObject.FromObject(new { taskId = schedulerTaskId }), cancellation.Token);
+    Require(schedulerResume.Error is null && JObject.FromObject(schedulerResume.Result!).Value<string>("state") == "running",
+        schedulerResume.Error?.Message ?? "scheduler.resume failed");
     await schedulerResponder;
     Require(await File.ReadAllTextAsync(schedulerMarker) == "scheduler-real",
         "scheduler RPC did not execute the real ScriptService Shell branch");
-    Require(schedulerStates.FirstOrDefault() == "running" && schedulerStates.LastOrDefault() == "completed",
-        "scheduler events did not preserve running/completed lifecycle");
+    Require(schedulerStates.FirstOrDefault() == "running" && schedulerStates.Contains("paused") &&
+            schedulerStates.LastOrDefault() == "completed",
+        "scheduler events did not preserve running/paused/resumed/completed lifecycle");
 
     var missingGroup = await ExchangeAsync(connection, "3", "scheduler.run", sessionToken,
         JObject.FromObject(new { groupName = "missing-group" }), cancellation.Token);
@@ -565,7 +586,7 @@ try
     var rejected = await ExchangeAsync(rejectedConnection, "4", "core.handshake", "wrong", null, cancellation.Token);
     Require(rejected.Error?.Code == "Unauthorized", "invalid session token was accepted");
 
-    Console.WriteLine("Core Host verification passed: duplex RPC, framing, 0600, OpenCV, ClearScript, real ScriptProject, real zsh execution, catalog, scheduler boundary, auth.");
+    Console.WriteLine("Core Host verification passed: duplex RPC, framing, 0600, OpenCV, ClearScript, real ScriptProject, real zsh execution, authoritative catalog save, scheduler pause/resume boundary, auth.");
 }
 finally
 {

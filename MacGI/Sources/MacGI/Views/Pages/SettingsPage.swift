@@ -191,7 +191,7 @@ struct SettingsPage: View {
                 }
                 BGISettingLine(title: "重置 Mock 状态", subtitle: "重置捕获、核心、输入、窗口状态。") {
                     Button {
-                        appState.resetMockState()
+                        appState.resetUIState()
                     } label: {
                         Label("重置", systemImage: "arrow.counterclockwise")
                     }

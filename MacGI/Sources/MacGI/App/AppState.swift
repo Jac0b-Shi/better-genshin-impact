@@ -305,13 +305,8 @@ final class AppState: ObservableObject {
     /// Input safety gate (dry-run, emergency stop, rate limiting).
     let safetyGate = InputSafetyGate()
 
-    private let automationRuntime = MockAutomationRuntime()
-    private let templateRecognitionEngine = TemplateMatchingRecognitionEngine()
     private let frameProvider = ScreenCaptureKitFrameProvider()
     private let inputDispatcher = CGEventInputDispatcher()
-    private let runtimeLoop = TaskTriggerLoopController()
-    private let rustCoreBridge: RustCoreBridge?
-    private let miniMapService: BGIMiniMapLocalizationService
     private let runtimeResourceStore: BGIRuntimeResourceStore
     let latestFrameStore = LatestFrameStore()
     private var runtimeFrameIndex: UInt64 = 0
@@ -417,16 +412,8 @@ final class AppState: ObservableObject {
 
     init(resourceStore: BGIRuntimeResourceStore = .defaultStore()) {
         runtimeResourceStore = resourceStore
-        let bridge = RustCoreBridge.loadDefault()
-        rustCoreBridge = bridge
-        miniMapService = BGIMiniMapLocalizationService()
-        addLog(.info, "betterGI-mac Swift UI prototype initialized")
-        addLog(.info, "HUD panel prepared in mock mode")
-        if let bridge {
-            addLog(.debug, "Core bridge: \(bridge.statusText) at \(bridge.libraryPath)")
-        } else {
-            addLog(.debug, "Rust acceleration bridge unavailable")
-        }
+        addLog(.info, "betterGI-mac Swift UI initialized")
+        addLog(.info, "Waiting for BetterGI C# Core Host")
         refreshWindows()
         coreStartupTask = Task { [weak self] in
             await self?.startBetterGICore()
@@ -583,12 +570,10 @@ final class AppState: ObservableObject {
             "bindings": \(keyBindings.bindings.count),
             "pickUpOrInteract": "\(keyBindings.key(for: .pickUpOrInteract).displayName)"
           },
-          "runtimeLoop": {
-            "running": \(runtimeLoop.isRunning),
-            "intervalMs": \(dispatcherIntervalMs),
-            "tickCount": \(runtimeLoopTickCount),
-            "skippedTicks": \(runtimeLoopSkippedTicks),
-            "lastTickCostMs": \(String(format: "%.1f", runtimeLoopLastTickCostMs))
+          "coreScheduler": {
+            "taskId": "\(currentSchedulerProjectID ?? "")",
+            "status": "\(schedulerExecutionStatus)",
+            "selectedGroup": "\(selectedSchedulerGroupName)"
           },
           "debugConfidence": \(String(format: "%.2f", debugConfidence)),
           "selectedWindow": "\(selectedWindow.displayName)",
@@ -598,14 +583,6 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - Computed properties for DebugPage / runtime status
-
-    var isRustCoreAvailable: Bool {
-        rustCoreBridge != nil
-    }
-
-    var rustCoreStatusText: String {
-        rustCoreBridge?.statusText ?? "Rust acceleration unavailable"
-    }
 
     /// Minimal asset coverage placeholder.
     /// Real implementation should query BGIAssetResolver / BGIModelAssetResolver.
@@ -640,25 +617,47 @@ final class AppState: ObservableObject {
     }
 
     func startOrResume() {
-        appStatus = .running
-        gameWindowStatus = .detected
-        captureStatus = .ok
-        inputStatus = .ok
-        rustCoreBridge?.start()
         safetyGate.emergencyStop = false
         safetyGate.resetCounters()
-        startRuntimeLoop()
-        addLog(.info, "Task dispatcher started")
+        if let supervisor = betterGICoreSupervisor, let taskID = currentSchedulerProjectID, appStatus == .paused {
+            Task { [weak self] in
+                do {
+                    try await supervisor.resumeScheduler(taskID: taskID)
+                    self?.appStatus = .running
+                    self?.schedulerExecutionStatus = "running"
+                    self?.addLog(.info, "Core scheduler resumed \(taskID)")
+                } catch {
+                    self?.appStatus = .error
+                    self?.addLog(.error, "Core scheduler resume failed: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
+        guard betterGICoreSupervisor != nil, !selectedSchedulerGroupName.isEmpty else {
+            appStatus = .error
+            addLog(.error, "Cannot start: BetterGI Core or selected script group is unavailable.")
+            return
+        }
+        runSchedulerGroups()
     }
 
     func pause() {
-        if appStatus == .running && !selectedWindow.isMock {
-            dispatchInput(.releaseAll)
+        guard let supervisor = betterGICoreSupervisor, let taskID = currentSchedulerProjectID else {
+            appStatus = .error
+            addLog(.error, "Cannot pause: no BetterGI Core scheduler task is active.")
+            return
         }
-        rustCoreBridge?.pause()
-        stopRuntimeLoop()
-        appStatus = .paused
-        addLog(.warn, "Task dispatcher paused")
+        Task { [weak self] in
+            do {
+                try await supervisor.pauseScheduler(taskID: taskID)
+                self?.appStatus = .paused
+                self?.schedulerExecutionStatus = "paused"
+                self?.addLog(.warn, "Core scheduler paused \(taskID)")
+            } catch {
+                self?.appStatus = .error
+                self?.addLog(.error, "Core scheduler pause failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     func toggleStartPause() {
@@ -676,17 +675,7 @@ final class AppState: ObservableObject {
     }
 
     func addTestLog() {
-        if appStatus == .running {
-            Task { await runDispatcherTick(forceMockCapture: false) }
-        } else {
-            let messages = [
-                "MOCK Core idle: dispatcher waits for Start",
-                "MOCK RecognitionObject loaded: \(recognitionObjects.count)",
-                "MOCK Trigger list loaded: \(triggerDescriptors.count)",
-                "MOCK Game window bounds updated"
-            ]
-            addLog(.info, messages.randomElement() ?? "MOCK heartbeat")
-        }
+        addLog(.info, "Core=\(coreStatus.label), scheduler=\(schedulerExecutionStatus), group=\(selectedSchedulerGroupName)")
     }
 
     func addLog(_ level: LogLevel, _ message: String) {
@@ -737,6 +726,7 @@ final class AppState: ObservableObject {
                 let taskID = try await supervisor.runSchedulerGroup(name: groupName)
                 guard !Task.isCancelled else { return }
                 self?.currentSchedulerProjectID = taskID
+                self?.appStatus = .running
                 self?.schedulerExecutionStatus = "running"
                 self?.addLog(.info, "Core scheduler started group \(groupName) as \(taskID)")
             } catch {
@@ -826,110 +816,22 @@ final class AppState: ObservableObject {
     /// Persist the currently selected scheduler group back to User/ScriptGroup/{name}.json
     private func persistCurrentSchedulerGroup() {
         guard let group = schedulerGroups.first(where: { $0.name == selectedSchedulerGroupName }) else { return }
-        let url = runtimeResourceStore.userScriptGroupURL(for: group.name)
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(group)
-            try data.write(to: url)
-            addLog(.info, "Saved scheduler group: \(group.name)")
-        } catch {
-            addLog(.error, "Failed to save scheduler group \(group.name): \(error.localizedDescription)")
+        guard let supervisor = betterGICoreSupervisor else {
+            addLog(.error, "Cannot save scheduler group: BetterGI Core is unavailable.")
+            return
         }
-    }
-
-    private func waitForCurrentJSScriptTask() async {
-        while jsScriptExecutionTask != nil && !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
-
-    private func runInstalledKeyMouseScript(name: String) async throws -> BGIKeyMousePlaybackResult {
-        let targetWindow = selectedWindow
-        let executor = BGIKeyMouseMacroExecutor()
-        return try await executor.executeInstalledScript(
-            name: name,
-            targetWindow: targetWindow
-        ) { [weak self] action in
-            guard let self else { return }
-            _ = self.dispatchInput(action, source: .runtimeTrigger)
-        }
-    }
-
-    private func runShellProject(
-        _ project: BGIScriptGroupProject,
-        in group: BGIScriptGroup
-    ) async throws -> BGIShellExecutionResult {
-        let config = group.config.enableShellConfig ? group.config.shellConfig : BGIShellConfig()
-        let executor = BGIShellTaskExecutor()
-        return try await executor.execute(command: project.name, config: config)
-    }
-
-    private func runPathingProject(_ project: BGIScriptGroupProject) async throws -> BGIPathingExecutionResult {
-        let executor = BGIPathingTaskExecutor()
-        let inputHandler: @MainActor (InputAction) -> InputSafetyGate.GateResult = { [weak self] action in
-            guard let self else { return .blocked(reason: "AppState released") }
-            return self.dispatchInput(action, source: .runtimeTrigger)
-        }
-        let captureForBigMapPosition: BGIBigMapInteractionService.CaptureFrameProvider = { [weak self] in
-            guard let self else {
-                throw BGIPathingNavigationBackendError.targetWindowInvalid
+        Task { [weak self] in
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                let data = try encoder.encode(group)
+                _ = try await supervisor.saveScriptGroup(name: group.name, documentData: data)
+                self?.addLog(.info, "Core saved scheduler group: \(group.name)")
+                await self?.loadSchedulerGroupsFromCore()
+            } catch {
+                self?.addLog(.error, "Core failed to save scheduler group \(group.name): \(error.localizedDescription)")
             }
-            let frame = try await self.frameProvider.captureWindow(self.selectedWindow)
-            self.latestFrameStore.update(frame)
-            return frame
         }
-        let siftPositionProvider = rustCoreBridge?.makeBigMapSiftBridge().map { bridge in
-            BGIBigMapSiftPositionProvider(
-                captureFrameProvider: captureForBigMapPosition,
-                matcher: bridge,
-                store: runtimeResourceStore
-            )
-        }
-        let bigMapPositionProvider: BGIBigMapInteractionService.BigMapPositionProvider = { [weak self] mapName in
-            guard let self else { throw BGIPathingNavigationBackendError.targetWindowInvalid }
-            if let siftPositionProvider {
-                return try await siftPositionProvider.getBigMapCenter(mapName: mapName)
-            }
-            // SIFT not available (no big-map-sift feature dylib) → minimap fallback
-            let frame = try await captureForBigMapPosition()
-            let result = try self.miniMapService.getPosition(from: frame, near: nil, mapName: mapName)
-            guard result.worldPoint.x != 0 || result.worldPoint.y != 0 else {
-                throw BGIBigMapInteractionError.bigMapPositionUnavailable
-            }
-            return result.worldPoint
-        }
-        let backend = BGIRealPathingNavigationBackend(
-            targetWindow: selectedWindow,
-            miniMapService: miniMapService,
-            captureFrameProvider: { [weak self] in
-                guard let self else {
-                    throw BGIPathingNavigationBackendError.targetWindowInvalid
-                }
-                let frame = try await self.frameProvider.captureWindow(self.selectedWindow)
-                self.latestFrameStore.update(frame)
-                return frame
-            },
-            keyBindings: keyBindings,
-            inputHandler: inputHandler,
-            cameraRotate: BGICameraRotateService(inputHandler: inputHandler),
-            bigMapService: BGIBigMapInteractionService(
-                inputHandler: inputHandler,
-                captureFrameProvider: captureForBigMapPosition,
-                recognitionObjectProvider: { frame, object in
-                    let engine = try PaddleOCRRecognitionEngine()
-                    return engine.recognize(imageFrame: frame, objects: [object]).observations
-                },
-                bigMapPositionProvider: bigMapPositionProvider,
-                keyBindings: keyBindings,
-                config: .forWindow(selectedWindow)
-            )
-        )
-        return try await executor.executeInstalledProject(
-            name: project.name,
-            folderName: project.folderName,
-            navigationBackend: backend
-        )
     }
 
     func featureEnabled(_ id: String) -> Bool {
@@ -1078,105 +980,6 @@ final class AppState: ObservableObject {
         return dispatchInput(inputAction, source: source)
     }
 
-    func runMockDispatcherTick() {
-        Task { await runDispatcherTick(forceMockCapture: true) }
-    }
-
-    /// Last template recognition report for tick logging.
-    private var lastTemplateReport: TemplateRecognitionReport?
-
-    func runDispatcherTick(forceMockCapture: Bool = false) async {
-        guard appStatus == .running else {
-            addLog(.warn, "Dispatcher tick ignored because app is not running")
-            return
-        }
-
-        let captureStartedAt = Date()
-        guard let frame = await captureFrameForDispatcher(forceMockCapture: forceMockCapture) else {
-            return
-        }
-        let captureCostMs = Date().timeIntervalSince(captureStartedAt) * 1000
-
-        runtimeSnapshot = automationRuntime.process(
-            frame: frame,
-            recognitionObjects: recognitionObjects,
-            triggerDescriptors: triggerDescriptors,
-            enabledFeatureIDs: Set(enabledFeatures.map(\.id)),
-            confidenceFloor: debugConfidence,
-            keyBindings: keyBindings,
-            captureCostMs: captureCostMs,
-            observationProvider: recognitionObservationProvider(for: lastCaptureImageFrame)
-        )
-
-        captureStatus = .ok
-        inputStatus = .ok
-        let shouldLogTick = !runtimeLoop.isRunning || runtimeSnapshot.frameIndex % 20 == 0 || !runtimeSnapshot.decisions.isEmpty
-        if shouldLogTick {
-            var logParts = "Dispatcher tick #\(runtimeSnapshot.frameIndex): ui=\(runtimeSnapshot.currentGameUiCategory.rawValue) ro=\(runtimeSnapshot.recognitionObjects.count) obs=\(runtimeSnapshot.observations.count) decisions=\(runtimeSnapshot.decisions.count)"
-            if let report = lastTemplateReport {
-                logParts += " tmpl backend=\(report.backendName) objects=\(report.objectCount) matched=\(report.matchedCount) cost=\(String(format: "%.1f", report.costMs))ms"
-                let ids = report.observations.prefix(5).map(\.objectName)
-                if !ids.isEmpty {
-                    logParts += " top=\(ids.joined(separator: ","))"
-                }
-            }
-            addLog(.debug, logParts)
-
-            for observation in runtimeSnapshot.observations.prefix(3) {
-                addLog(.trace, "RecognitionObject \(observation.objectName): \(String(format: "%.2f", observation.confidence))")
-            }
-        }
-
-        for decision in runtimeSnapshot.decisions {
-            addLog(.info, "\(decision.triggerID.label): \(decision.reason)")
-            for action in decision.actions {
-                dispatchInput(action, source: .runtimeTrigger)
-            }
-        }
-    }
-
-    private func recognitionObservationProvider(
-        for imageFrame: CaptureImageFrame?
-    ) -> (([RecognitionObject]) -> [RecognitionObservation])? {
-        guard let imageFrame else { return nil }
-        return { [rustCoreBridge, templateRecognitionEngine] activeObjects in
-            if let report = rustCoreBridge?.recognizeTemplates(
-                imageFrame: imageFrame,
-                objects: activeObjects
-            ) {
-                Task { @MainActor [weak self] in
-                    self?.lastTemplateReport = report
-                }
-                return report.observations
-            }
-            let fallbackReport = templateRecognitionEngine.recognize(
-                imageFrame: imageFrame,
-                objects: activeObjects
-            )
-            Task { @MainActor [weak self] in
-                self?.lastTemplateReport = fallbackReport
-            }
-            return fallbackReport.observations
-        }
-    }
-
-    private func captureFrameForJSScript(targetWindow: WindowInfo) async throws -> CaptureImageFrame {
-        if let lastCaptureImageFrame {
-            return lastCaptureImageFrame
-        }
-        if targetWindow.isMock {
-            let imageFrame = try makeMockJSScriptCaptureFrame(window: targetWindow)
-            lastCaptureImageFrame = imageFrame
-            lastCapturedFrame = imageFrame.metadata
-            return imageFrame
-        }
-        let imageFrame = try await frameProvider.captureWindow(targetWindow)
-        latestFrameStore.update(imageFrame)
-        lastCaptureImageFrame = imageFrame
-        lastCapturedFrame = imageFrame.metadata
-        return imageFrame
-    }
-
     func captureFrameForBetterGICore() async throws -> CaptureImageFrame {
         let targetWindow = selectedWindow
         guard targetWindow.id != 0, targetWindow.isOnScreen, !targetWindow.isMock else {
@@ -1194,203 +997,11 @@ final class AppState: ObservableObject {
         runtimeResourceStore.rootURL.appendingPathComponent("Run", isDirectory: true)
     }
 
-    private func makeMockJSScriptCaptureFrame(window: WindowInfo) throws -> CaptureImageFrame {
-        let width = 320
-        let height = 180
-        let bytesPerPixel = 4
-        let bytesPerRow = width * bytesPerPixel
-        var rgba = [UInt8](repeating: 0, count: height * bytesPerRow)
-        for pixelIndex in 0..<(width * height) {
-            let offset = pixelIndex * bytesPerPixel
-            rgba[offset] = 18
-            rgba[offset + 1] = 20
-            rgba[offset + 2] = 24
-            rgba[offset + 3] = 255
-        }
-        guard let provider = CGDataProvider(data: Data(rgba) as CFData),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let image = CGImage(
-                  width: width,
-                  height: height,
-                  bitsPerComponent: 8,
-                  bitsPerPixel: 32,
-                  bytesPerRow: bytesPerRow,
-                  space: colorSpace,
-                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                  provider: provider,
-                  decode: nil,
-                  shouldInterpolate: false,
-                  intent: .defaultIntent
-              ) else {
-            throw BGIJSScriptRuntimeError.scriptException("Unable to create mock JS capture image.")
-        }
-
-        runtimeFrameIndex = (runtimeFrameIndex + 1) % UInt64(CapturedFrame.maxFrameIndex(intervalMs: dispatcherIntervalMs))
-        let metadata = CapturedFrame(
-            frameIndex: runtimeFrameIndex,
-            timestamp: Date(),
-            width: width,
-            height: height,
-            scaleFactor: window.scaleFactor,
-            pixelFormat: 0x42475241,
-            bytesPerRow: bytesPerRow,
-            sourceWindow: window
-        )
-        return CaptureImageFrame(metadata: metadata, cgImage: image, backendName: "MockJS")
-    }
-
-    private func ocrResult(
-        frame: CaptureImageFrame,
-        roi: CGRect?,
-        engine: PaddleOCRRecognitionEngine
-    ) -> OCRResult {
-        let object = RecognitionObject(
-            id: "JS.Ocr",
-            recognitionType: .ocr,
-            regionOfInterest: roi.map {
-                RecognitionROI(
-                    x: $0.minX / max(1, Double(frame.metadata.width)),
-                    y: $0.minY / max(1, Double(frame.metadata.height)),
-                    width: $0.width / max(1, Double(frame.metadata.width)),
-                    height: $0.height / max(1, Double(frame.metadata.height)),
-                    coordinateSpace: .normalized
-                )
-            },
-            name: "JS.Ocr"
-        )
-        let report = engine.recognize(imageFrame: frame, objects: [object])
-        return OCRResult(
-            regions: report.observations.map { observation in
-                OCRResult.Region(
-                    boundingBox: CGRect(
-                        x: observation.normalizedRect.minX * CGFloat(frame.metadata.width),
-                        y: observation.normalizedRect.minY * CGFloat(frame.metadata.height),
-                        width: observation.normalizedRect.width * CGFloat(frame.metadata.width),
-                        height: observation.normalizedRect.height * CGFloat(frame.metadata.height)
-                    ),
-                    text: observation.text ?? "",
-                    confidence: Float(observation.confidence)
-                )
-            },
-            sourceROI: nil,
-            frameIndex: frame.metadata.frameIndex,
-            timestamp: frame.metadata.timestamp
-        )
-    }
-
-    private func dispatchRecordedJSScriptInputCommands(
-        _ commands: [BGIJSScriptInputCommand],
-        targetWindow: WindowInfo,
-        imageFrame: CaptureImageFrame
-    ) {
-        let gameMetrics = [
-            Double(imageFrame.metadata.width),
-            Double(imageFrame.metadata.height),
-            Double(imageFrame.metadata.scaleFactor)
-        ]
-        for command in commands {
-            guard let action = BGIJSScriptTaskExecutor.inputAction(
-                for: command,
-                targetWindow: targetWindow,
-                gameMetrics: gameMetrics
-            ) else {
-                continue
-            }
-            _ = dispatchInput(action, source: .runtimeTrigger)
-        }
-    }
-
-    func dispatchRecordedJSScriptGenshinCommands(
-        _ commands: [BGIJSScriptGenshinCommand],
-        targetWindow: WindowInfo
-    ) {
-        guard !commands.isEmpty else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            _ = await self.replayRecordedJSScriptGenshinCommands(commands, targetWindow: targetWindow)
-        }
-    }
-
-    @discardableResult
-    func replayRecordedJSScriptGenshinCommands(
-        _ commands: [BGIJSScriptGenshinCommand],
-        targetWindow: WindowInfo,
-        bigMapConfig: BGIBigMapConfig = BGIBigMapConfig()
-    ) async -> BGIJSScriptGenshinCommandReplayResult {
-        let replayer = BGIJSScriptGenshinCommandReplayer(
-            keyBindings: keyBindings,
-            bigMapConfig: bigMapConfig,
-            captureFrameProvider: { [weak self] in
-                guard let self else {
-                    throw BGIPathingNavigationBackendError.targetWindowInvalid
-                }
-                let frame = try await self.frameProvider.captureWindow(targetWindow)
-                self.latestFrameStore.update(frame)
-                return frame
-            },
-            recognitionObjectProvider: { frame, object in
-                if object.recognitionType == .templateMatch {
-                    return TemplateMatchingRecognitionEngine()
-                        .recognize(imageFrame: frame, objects: [object])
-                        .observations
-                }
-                let engine = try PaddleOCRRecognitionEngine()
-                return engine.recognize(imageFrame: frame, objects: [object]).observations
-            },
-            ocrProvider: { [weak self] frame, roi in
-                guard let self else {
-                    throw BGIJSScriptRuntimeError.ocrUnavailable
-                }
-                let engine = try PaddleOCRRecognitionEngine()
-                return self.ocrResult(frame: frame, roi: roi, engine: engine)
-            },
-            inputHandler: { [weak self] action in
-                guard let self else { return .blocked(reason: "AppState released") }
-                return self.dispatchInput(action, source: .runtimeTrigger)
-            }
-        )
-        let result = await replayer.replay(commands, targetWindow: targetWindow)
-        if result.executedCount > 0 || result.pendingCount > 0 || result.failedCount > 0 {
-            addLog(
-                result.failedCount == 0 ? .info : .warn,
-                "JS genshin replay: executed=\(result.executedCount) pending=\(result.pendingCount) failed=\(result.failedCount)"
-            )
-        }
-        for pending in result.pendingCommands.prefix(3) {
-            addLog(.debug, "JS genshin pending: \(pending.reason)")
-        }
-        for failure in result.failedCommands.prefix(3) {
-            addLog(.error, "JS genshin replay failed: \(failure.message)")
-        }
-        return result
-    }
-
-    func simulatePickupMatch() {
-        debugConfidence = min(0.99, debugConfidence + 0.04)
-        appStatus = .running
-        startRuntimeLoop()
-        addLog(.info, "Mock pickup match: confidence \(String(format: "%.2f", debugConfidence))")
-    }
-
-    func simulateCaptureLost() {
-        captureStatus = .lost
-        gameWindowStatus = .lost
-        appStatus = .error
-        addLog(.error, "Mock capture lost")
-    }
-
-    func simulateCoreError() {
-        coreStatus = .error
-        appStatus = .error
-        addLog(.error, "Mock Rust core bridge error")
-    }
-
-    func resetMockState() {
+    func resetUIState() {
         schedulerExecutionTask?.cancel()
         schedulerExecutionTask = nil
         jsScriptExecutionTask?.cancel()
         jsScriptExecutionTask = nil
-        stopRuntimeLoop()
         appStatus = .idle
         gameWindowStatus = .mock
         captureStatus = .ok
@@ -1402,7 +1013,6 @@ final class AppState: ObservableObject {
         lastCapturedFrame = nil
         lastCaptureImageFrame = nil
         runtimeSnapshot = .empty
-        runtimeFrameIndex = 0
         runtimeLoopTickCount = 0
         runtimeLoopSkippedTicks = 0
         runtimeLoopLastTickCostMs = 0
@@ -1414,52 +1024,6 @@ final class AppState: ObservableObject {
         lastShellExecutionResult = nil
         lastPathingExecutionResult = nil
         safetyGate.resetCounters()
-        addLog(.info, "Mock state reset")
-    }
-
-    private func startRuntimeLoop() {
-        runtimeLoop.onStatsChanged = { [weak self] stats in
-            self?.runtimeLoopTickCount = stats.tickCount
-            self?.runtimeLoopSkippedTicks = stats.skippedTickCount
-            self?.runtimeLoopLastTickCostMs = stats.lastTickCostMs
-        }
-
-        runtimeLoop.start(intervalMs: dispatcherIntervalMs) { [weak self] in
-            await self?.runDispatcherTick(forceMockCapture: false)
-        }
-    }
-
-    private func stopRuntimeLoop() {
-        runtimeLoop.stop()
-    }
-
-    private func captureFrameForDispatcher(forceMockCapture: Bool) async -> CapturedFrame? {
-        if forceMockCapture || selectedWindow.isMock {
-            runtimeFrameIndex = (runtimeFrameIndex + 1) % UInt64(CapturedFrame.maxFrameIndex(intervalMs: dispatcherIntervalMs))
-            let frame = CapturedFrame.mock(window: selectedWindow, frameIndex: runtimeFrameIndex)
-            lastCaptureImageFrame = nil
-            lastCapturedFrame = frame
-            captureStatus = .ok
-            return frame
-        }
-
-        let targetWindow = selectedWindow
-        do {
-            let imageFrame = try await frameProvider.captureWindow(targetWindow)
-            latestFrameStore.update(imageFrame)
-            lastCaptureImageFrame = imageFrame
-            lastCapturedFrame = imageFrame.metadata
-            captureStatus = .ok
-            if !runtimeLoop.isRunning || imageFrame.metadata.frameIndex % 60 == 0 {
-                addLog(.debug, "Capture backend: \(imageFrame.backendName)")
-            }
-            return imageFrame.metadata
-        } catch {
-            captureStatus = .error
-            appStatus = .error
-            stopRuntimeLoop()
-            addLog(.error, "Dispatcher capture failed: \(error.localizedDescription)")
-            return nil
-        }
+        addLog(.info, "UI state reset")
     }
 }

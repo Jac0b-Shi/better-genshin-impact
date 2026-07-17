@@ -176,6 +176,27 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
         )
     }
 
+    func saveScriptGroup(name: String, documentData: Data) throws -> BetterGIScriptGroupDocument {
+        let document = try JSONSerialization.jsonObject(with: documentData)
+        guard let object = document as? [String: Any], JSONSerialization.isValidJSONObject(object) else {
+            throw BetterGICoreRPCError.protocolViolation("Script-group document must be a JSON object.")
+        }
+        guard let item = try request(
+            method: "catalog.saveScriptGroup",
+            parameters: ["name": name, "document": object]
+        ) as? [String: Any],
+        let responseName = item["name"] as? String,
+        let path = item["path"] as? String,
+        let savedDocument = item["document"] as? [String: Any],
+        JSONSerialization.isValidJSONObject(savedDocument)
+        else { throw BetterGICoreRPCError.protocolViolation("Invalid catalog.saveScriptGroup result.") }
+        return BetterGIScriptGroupDocument(
+            name: responseName,
+            path: path,
+            documentData: try JSONSerialization.data(withJSONObject: savedDocument, options: [.sortedKeys])
+        )
+    }
+
     func listScriptProjects() throws -> [BetterGIScriptProjectSummary] {
         guard let items = try request(method: "catalog.listScriptProjects") as? [[String: Any]] else {
             throw BetterGICoreRPCError.protocolViolation("Invalid script-project catalog result.")
