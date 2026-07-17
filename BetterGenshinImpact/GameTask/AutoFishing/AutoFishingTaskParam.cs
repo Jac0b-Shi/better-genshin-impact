@@ -38,10 +38,10 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
         {
             if (config == null)
             {
-                return BuildFromConfig(TaskContext.Instance().Config.AutoFishingConfig);
+                return BuildFromConfig(AutoFishingRuntimePlatform.Current.Config);
             }
 
-            var autoFishingConfig = TaskContext.Instance().Config.AutoFishingConfig;
+            var autoFishingConfig = AutoFishingRuntimePlatform.Current.Config;
 
             var jsObject = (ScriptObject)config;
             var wholeProcessTimeoutSeconds = ScriptObjectConverter.GetValue(jsObject, "wholeProcessTimeoutSeconds", autoFishingConfig.WholeProcessTimeoutSeconds);
@@ -75,7 +75,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
         /// <returns></returns>
         public static AutoFishingTaskParam BuildFromConfig(AutoFishingConfig config, bool saveScreenshotOnKeyTick = false)
         {
-            CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
+            CultureInfo cultureInfo = new CultureInfo(AutoFishingRuntimePlatform.Current.GameCultureInfoName);
             bool useTorch;
             try
             {

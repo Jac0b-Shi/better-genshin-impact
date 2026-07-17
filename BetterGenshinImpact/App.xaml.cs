@@ -238,6 +238,10 @@ public partial class App : Application
             new Core.Runtime.Windows.WindowsAutoFightRuntimePlatform());
         GameTask.AutoFishing.AutoFishingRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsAutoFishingRuntimePlatform());
+        GameTask.Model.TaskParameterPlatform.Configure(
+            new Core.Runtime.Windows.WindowsTaskParameterPlatform());
+        GameTask.Common.BgiVision.BvSimpleOperationPlatform.Configure(
+            new Core.Runtime.Windows.WindowsBvSimpleOperationPlatform());
         GameTask.AutoSkip.AutoSkipRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsAutoSkipRuntimePlatform());
         GameTask.Common.Job.ExitAndReloginPlatform.Configure(

@@ -31,7 +31,8 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 {
     public class AutoFishingTask : ISoloTask
     {
-        private readonly ILogger _logger = App.GetLogger<AutoFishingTask>();
+        private readonly IAutoFishingRuntimePlatform runtime = AutoFishingRuntimePlatform.Current;
+        private readonly ILogger _logger;
         private readonly IAutoFishingInput input = new TaskControlAutoFishingInput();
         public string Name => "钓鱼独立任务";
 
@@ -39,19 +40,20 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 
         private readonly AutoFishingTaskParam param;
 
-        private readonly BgiYoloPredictor _predictor =
-            App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiFish);
+        private readonly BgiYoloPredictor _predictor;
 
         public AutoFishingTask(AutoFishingTaskParam param)
         {
             this.param = param;
+            _logger = runtime.GetLogger<AutoFishingTask>();
+            _predictor = runtime.CreateYoloPredictor(BgiOnnxModel.BgiFish);
         }
 
         public Task Start(CancellationToken ct)
         {
             this._ct = ct;
 
-            IOcrService ocrService = OcrFactory.Paddle;
+            IOcrService ocrService = runtime.OcrService;
             using InferenceSession session = GridIconClassifier.LoadModel(out Dictionary<string, float[]> prototypes);
 
             Blackboard blackboard = new Blackboard(_predictor, this.Sleep, AutoFishingAssets.Instance);
@@ -81,7 +83,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                                                 .End()
                                                 .PushLeaf(() => new FindFishTimeout("确认初始状态和找到鱼", 10, blackboard, _logger, param.SaveScreenshotOnKeyTick))
                                             .End()
-                                            .PushLeaf(() => new ChooseBait("选择鱼饵", blackboard, _logger, param.SaveScreenshotOnKeyTick, TaskContext.Instance().SystemInfo, input, session, prototypes))
+                                            .PushLeaf(() => new ChooseBait("选择鱼饵", blackboard, _logger, param.SaveScreenshotOnKeyTick, runtime.SystemInfo, input, session, prototypes))
                                             .MySimpleParallel("抛竿直到成功或出错", policy: SimpleParallelPolicy.OnlyOneMustSucceed)
                                                 .UntilSuccess("重复抛竿")
                                                     .Sequence("-")
@@ -122,7 +124,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
             _logger.LogWarning("请不要携带任何{Msg}，极有可能会误识别导致拖慢速度！", "跟宠");
             _logger.LogInformation(
                 $"当前参数：{param.WholeProcessTimeoutSeconds}，{param.ThrowRodTimeOutTimeoutSeconds}，{param.FishingTimePolicy}, {param.SaveScreenshotOnKeyTick}, {param.GameCultureInfo}, {param.UseTorch}");
-            TaskContext.Instance().Config.AutoFishingConfig.Enabled = false;
+            runtime.DisableRealtimeFishing();
             _logger.LogInformation("全自动运行时，自动切换实时任务中的半自动钓鱼功能为关闭状态");
 
             void tickARound()
@@ -132,23 +134,20 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 var prevManualGc = DateTime.MinValue;
                 while (!ct.IsCancellationRequested)
                 {
-                    if (!SystemControl.IsGenshinImpactActiveByProcess())
+                    if (!runtime.IsGameActive(out var activeProcessName))
                     {
-                        var name = SystemControl.GetActiveByProcess();
-                        _logger.LogWarning($"当前获取焦点的窗口为: {name}，不是原神，停止执行");
+                        _logger.LogWarning($"当前获取焦点的窗口为: {activeProcessName}，不是原神，停止执行");
                         break;
                     }
 
-                    using var bitmap =
-                        TaskControl.CaptureGameImageNoRetry(TaskTriggerDispatcher.Instance().GameCapture);
-                    if (bitmap == null)
+                    using var captureFrame = runtime.CaptureFrame();
+                    if (captureFrame == null)
                     {
                         _logger.LogWarning("截图失败");
                         continue;
                     }
 
-                    using var content = new CaptureContent(bitmap, 0, 0);
-                    behaviourTree.Tick(content.CaptureRectArea);
+                    behaviourTree.Tick(captureFrame);
 
                     if (behaviourTree.Status != BehaviourStatus.Running)
                     {
@@ -177,12 +176,11 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
             }
             else
             {
-                SetTimeTask setTimeTask = new SetTimeTask();
                 foreach (int hour in param.FishingTimePolicy == FishingTimePolicy.Daytime
                              ? [7]
                              : (param.FishingTimePolicy == FishingTimePolicy.Nighttime ? [19] : new int[] { 7, 19 }))
                 {
-                    setTimeTask.Start(hour, 0, ct).Wait(ct);
+                    runtime.SetTimeAsync(hour, 0, ct).Wait(ct);
                     tickARound();
                 }
             }
@@ -393,8 +391,8 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                     // 经验算在 16:9 常见分辨率（720p/1080p/1440p）下 Y+H 不会超出图像高度，暂不加钳位
                     using Mat subMat = imageRegion.SrcMat.SubMat(new Rect((int)(0.824 * imageRegion.Width), (int)(0.669 * imageRegion.Height), (int)(0.065 * imageRegion.Width), (int)(0.065 * imageRegion.Width)));
                     using Mat resized = subMat.Resize(new Size(125, 125));
-                    (string predName, _) = GridIconClassifier.Infer(resized, this.session, this.prototypes);
-                    if (predName.TryGetEnumValueFromDescription(out this.blackboard.selectedBait))
+                    (string? predName, _) = GridIconClassifier.Infer(resized, this.session, this.prototypes);
+                    if (predName is not null && predName.TryGetEnumValueFromDescription(out this.blackboard.selectedBait))
                     {
                         logger.LogInformation("点击开始钓鱼，当前鱼饵为{bait}", this.blackboard.selectedBait.Value.GetDescription());
                     }

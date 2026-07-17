@@ -1,9 +1,10 @@
 ﻿using BetterGenshinImpact.Core.Recognition;
-using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Model.Area;
+#if BGI_FULL_WINDOWS
 using Fischless.WindowsInput;
+#endif
 using OpenCvSharp;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -136,8 +137,8 @@ public static partial class Bv
                 return true;
             }
 
-            var scale = TaskContext.Instance().SystemInfo.AssetScale;
-            var config = TaskContext.Instance().Config.AutoPickConfig;
+            var scale = BvSimpleOperationPlatform.Current.SystemInfo.AssetScale;
+            var config = BvSimpleOperationPlatform.Current.AutoPickConfig;
             var textRect = new Rect(ra.X + (int)(config.ItemTextLeftOffset * scale), ra.Y,
                 (int)((config.ItemTextRightOffset - config.ItemTextLeftOffset) * scale), ra.Height);
 
@@ -172,13 +173,14 @@ public static partial class Bv
     {
         if (FindF(captureRa, text))
         {
-            Simulation.SendInput.Keyboard.KeyPress(AutoPickAssets.Instance.PickVk);
+            BvSimpleOperationPlatform.Current.PressPickKey();
             return true;
         }
 
         return false;
     }
 
+#if BGI_FULL_WINDOWS
     public static bool FindFAndPress(ImageRegion captureRa, IKeyboardSimulator keyboard, params string[] text)
     {
         if (FindF(captureRa, text))
@@ -189,4 +191,5 @@ public static partial class Bv
 
         return false;
     }
+#endif
 }

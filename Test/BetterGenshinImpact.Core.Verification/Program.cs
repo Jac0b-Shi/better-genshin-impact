@@ -38,6 +38,7 @@ using BetterGenshinImpact.Platform.Abstractions;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
+using System.Globalization;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoFight.Script;
@@ -135,6 +136,22 @@ using (var frame = new ImageRegion(new Mat(1080, 1920, MatType.CV_8UC3), 0, 0))
 Assert("AutoFishing real MoveViewpointDown preserves movement/sleep order",
     recordingTaskControl.Calls.SequenceEqual(["move:0,500", "sleep:100"]),
     string.Join(" | ", recordingTaskControl.Calls));
+
+var originalUiCulture = CultureInfo.CurrentUICulture;
+try
+{
+    var fishingLocalizer = new EmbeddedResourceStringLocalizer<AutoFishingTask>();
+    CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en");
+    Assert("AutoFishing uses the real English task resource",
+        fishingLocalizer["钓鱼"].Value == "Fishing", fishingLocalizer["钓鱼"].Value);
+    CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh-Hans");
+    Assert("AutoFishing uses the real Simplified Chinese task resource",
+        fishingLocalizer["上钩"].Value == "上钩", fishingLocalizer["上钩"].Value);
+}
+finally
+{
+    CultureInfo.CurrentUICulture = originalUiCulture;
+}
 
 using (var fishBarFrame = new Mat(140, 1920, MatType.CV_8UC3, Scalar.Black))
 {

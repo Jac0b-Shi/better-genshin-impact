@@ -235,13 +235,21 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/FishingTimePolicy.cs" Link="GameTask/AutoFishing/FishingTimePolicy.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/RodInput.cs" Link="GameTask/AutoFishing/RodInput.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/RodNet.cs" Link="GameTask/AutoFishing/RodNet.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.cs" Link="GameTask/AutoFishing/AutoFishingTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTaskParam.cs" Link="GameTask/AutoFishing/AutoFishingTaskParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTrigger.cs" Link="GameTask/AutoFishing/AutoFishingTrigger.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseTaskParam.cs" Link="GameTask/Model/BaseTaskParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/TaskParameterPlatform.cs" Link="GameTask/Model/TaskParameterPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/GridScreenExtensions.cs" Link="GameTask/Model/GameUI/GridScreenExtensions.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvSimpleOperation.cs" Link="GameTask/Common/BgiVision/BvSimpleOperation.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvSimpleOperationPlatform.cs" Link="GameTask/Common/BgiVision/BvSimpleOperationPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GetGridIcons/GridIconClassifier.cs" Link="GameTask/GetGridIcons/GridIconClassifier.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ImageDifferenceDetector.cs" Link="Core/Recognition/OpenCv/ImageDifferenceDetector.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/StringUtils.cs" Link="Helpers/StringUtils.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/RegexHelper.cs" Link="Helpers/RegexHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/CultureHelper.cs" Link="Helpers/CultureHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/Extensions/EnumExtensions.cs" Link="Helpers/Extensions/EnumExtensions.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/ScriptObjectConverter.cs" Link="Helpers/ScriptObjectConverter.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoGeniusInvokation/Model/ElementalType.cs" Link="GameTask/AutoGeniusInvokation/Model/ElementalType.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/HandledException.cs" Link="GameTask/Common/Exceptions/HandledException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/RetryException.cs" Link="GameTask/Common/Exceptions/RetryException.cs" />
@@ -340,6 +348,7 @@
   <ItemGroup>
     <Compile Include="Artifacts/ModelArtifactManifest.cs" />
     <Compile Include="Infrastructure/ArtifactDownloader.cs" />
+    <Compile Include="Infrastructure/EmbeddedResourceStringLocalizer.cs" />
     <None Include="Manifest/model-artifacts.manifest.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -348,6 +357,17 @@
     <None Include="Manifest/model-artifacts.source-lock.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.zh-Hans.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.zh-Hans.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.zh-Hant.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.zh-Hant.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.en.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.en.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTask.fr.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoFishing.AutoFishingTask.fr.resources" />
   </ItemGroup>
 
 </Project>

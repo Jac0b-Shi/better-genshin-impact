@@ -22,7 +22,8 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 {
     public class AutoFishingTrigger : ITaskTrigger
     {
-        private readonly ILogger<AutoFishingTrigger> _logger = App.GetLogger<AutoFishingTrigger>();
+        private readonly IAutoFishingRuntimePlatform runtime = AutoFishingRuntimePlatform.Current;
+        private readonly ILogger<AutoFishingTrigger> _logger;
         private readonly IAutoFishingInput input = new TaskControlAutoFishingInput();
 
         public string Name => "自动钓鱼";
@@ -38,7 +39,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 
         private Blackboard blackboard;
 
-        private readonly BgiYoloPredictor _predictor = App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiFish);
+        private readonly BgiYoloPredictor _predictor;
 
         /// <summary>
         /// 辣条（误）
@@ -47,9 +48,11 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 
         public AutoFishingTrigger()
         {
+            _logger = runtime.GetLogger<AutoFishingTrigger>();
+            _predictor = runtime.CreateYoloPredictor(BgiOnnxModel.BgiFish);
             AutoFishingTaskParam autoFishingTaskParam =
-                AutoFishingTaskParam.BuildFromConfig(TaskContext.Instance().Config.AutoFishingConfig);
-            IOcrService ocrService = OcrFactory.Paddle;
+                AutoFishingTaskParam.BuildFromConfig(runtime.Config);
+            IOcrService ocrService = runtime.OcrService;
 
             this.blackboard = new Blackboard(_predictor, this.Sleep, AutoFishingAssets.Instance);
 
@@ -70,7 +73,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 
         public void Init()
         {
-            IsEnabled = TaskContext.Instance().Config.AutoFishingConfig.Enabled;
+            IsEnabled = runtime.Config.Enabled;
             IsExclusive = false;
         }
 

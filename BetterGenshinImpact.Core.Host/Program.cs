@@ -11,9 +11,12 @@ using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Model.Area;
+using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.Job;
+using BetterGenshinImpact.GameTask.Common.BgiVision;
+using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
 using Microsoft.Extensions.Logging;
@@ -64,6 +67,8 @@ var globalMethodRuntime = new MacGlobalMethodRuntime(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing);
 var gameTaskManagerPlatform = new MacGameTaskManagerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
+var bvSimpleOperationPlatform = new MacBvSimpleOperationPlatform(
+    layout, gameTaskManagerPlatform.SystemInfo);
 server.AttachPlatformAssetInitializer(() =>
 {
     MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
@@ -72,6 +77,13 @@ server.AttachPlatformAssetInitializer(() =>
         gameTaskManagerPlatform.SystemInfo);
     BetterGenshinImpact.GameTask.AutoFishing.Assets.AutoFishingAssets.Initialize(
         gameTaskManagerPlatform.SystemInfo);
+    AutoPickAssets.Initialize(
+        gameTaskManagerPlatform.SystemInfo,
+        new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+            bvSimpleOperationPlatform.AutoPickConfig,
+            PaddleOcrModelConfig.V5Auto,
+            "zh-Hans"),
+        loggerFactory.CreateLogger<AutoPickAssets>());
 });
 var imageRegionOcrService = new MacImageRegionOcrService(
     layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
@@ -81,7 +93,12 @@ TaskControlPlatform.Configure(new MacTaskControlPlatform(
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl")));
 AutoFightRuntimePlatform.Configure(new MacAutoFightRuntimePlatform(
     gameTaskManagerPlatform.SystemInfo, imageRegionOcrService));
-AutoFishingRuntimePlatform.Configure(new MacAutoFishingRuntimePlatform());
+var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
+    layout, gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
+AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
+TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
+    autoFishingRuntimePlatform.GameCultureInfoName));
+BvSimpleOperationPlatform.Configure(bvSimpleOperationPlatform);
 AutoSkipRuntimePlatform.Configure(new MacAutoSkipRuntimePlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));
 ExitAndReloginPlatform.Configure(new MacExitAndReloginPlatform());
