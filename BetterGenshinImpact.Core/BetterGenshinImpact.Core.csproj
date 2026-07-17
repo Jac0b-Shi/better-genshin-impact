@@ -164,6 +164,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Config/OtherConfig.cs" Link="Core/Config/OtherConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/RectConfig.cs" Link="Core/Config/RectConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/ConfigJson.cs" Link="Core/Config/ConfigJson.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Config/ScreenshotPrivacy.cs" Link="Core/Config/ScreenshotPrivacy.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/Global.cs" Link="Core/Config/Global.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/PathingPartyConfig.cs" Link="Core/Config/PathingPartyConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/PathingPartyTaskCycleConfig.cs" Link="Core/Config/PathingPartyTaskCycleConfig.cs" />

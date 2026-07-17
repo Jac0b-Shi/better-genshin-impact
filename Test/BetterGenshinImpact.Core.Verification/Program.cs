@@ -162,6 +162,17 @@ using (var fishBarFrame = new Mat(140, 1920, MatType.CV_8UC3, Scalar.Black))
         bars?.Count == 2, $"count={bars?.Count ?? 0}");
 }
 
+using (var privacyFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black))
+{
+    ScreenshotPrivacy.ApplyUidCover(privacyFrame, 1d);
+    var covered = privacyFrame.At<Vec3b>(1060, 1690);
+    var untouched = privacyFrame.At<Vec3b>(1000, 1600);
+    Assert("AutoFishing screenshot uses the shared upstream UID cover rectangle",
+        covered.Item0 == 255 && covered.Item1 == 255 && covered.Item2 == 255 &&
+        untouched.Item0 == 0 && untouched.Item1 == 0 && untouched.Item2 == 0,
+        $"covered={covered}, untouched={untouched}");
+}
+
 // ==== Scheduler lifecycle: real upstream TaskRunner algorithm ====
 Console.WriteLine("Scheduler lifecycle: TaskRunner lock/cancel/error/finally semantics");
 var taskRunnerPlatform = new RecordingTaskRunnerPlatform();

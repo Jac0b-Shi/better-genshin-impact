@@ -54,12 +54,7 @@ public sealed class WindowsAutoFishingRuntimePlatform : IAutoFishingRuntimePlatf
             {
                 using var copy = mat.Clone();
                 var assetScale = TaskContext.Instance().SystemInfo.ScaleTo1080PRatio;
-                var rect = new Rect(
-                    (int)(copy.Width - MaskWindowConfig.UidCoverRightBottomRect.X * assetScale),
-                    (int)(copy.Height - MaskWindowConfig.UidCoverRightBottomRect.Y * assetScale),
-                    (int)(MaskWindowConfig.UidCoverRightBottomRect.Width * assetScale),
-                    (int)(MaskWindowConfig.UidCoverRightBottomRect.Height * assetScale));
-                copy.Rectangle(rect, Scalar.White, -1);
+                ScreenshotPrivacy.ApplyUidCover(copy, assetScale);
                 Cv2.ImWrite(savePath, copy);
             });
         }

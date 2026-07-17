@@ -9,6 +9,7 @@ using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.Model;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using OpenCvSharp;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -19,6 +20,7 @@ public sealed class MacAutoFishingRuntimePlatform : IAutoFishingRuntimePlatform
     private readonly RuntimeLayout _layout;
     private readonly MacImageRegionOcrService _recognition;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly bool _screenshotUidCoverEnabled;
 
     public MacAutoFishingRuntimePlatform(
         RuntimeLayout layout,
@@ -30,7 +32,7 @@ public sealed class MacAutoFishingRuntimePlatform : IAutoFishingRuntimePlatform
         SystemInfo = systemInfo;
         _recognition = recognition;
         _loggerFactory = loggerFactory;
-        (Config, GameCultureInfoName) = LoadConfig();
+        (Config, GameCultureInfoName, _screenshotUidCoverEnabled) = LoadConfig();
     }
 
     public ISystemInfo SystemInfo { get; }
@@ -55,14 +57,26 @@ public sealed class MacAutoFishingRuntimePlatform : IAutoFishingRuntimePlatform
     }
     public Task SetTimeAsync(int hour, int minute, CancellationToken cancellationToken) =>
         new SetTimeTask().Start(hour, minute, cancellationToken);
-    public void SaveBehaviourScreenshot(ImageRegion imageRegion, string fileName) =>
-        throw new CapabilityUnavailableException(
-            "AutoFishing behavior screenshots require the Core-owned UID-cover configuration to be composed.");
+    public void SaveBehaviourScreenshot(ImageRegion imageRegion, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(imageRegion);
+        var safeName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeName) || safeName != fileName)
+            throw new ArgumentException("Screenshot file name must not contain a path.", nameof(fileName));
+        var directory = Path.Combine(_layout.RootPath, "log", "screenshot");
+        Directory.CreateDirectory(directory);
+        using var image = imageRegion.SrcMat.Clone();
+        if (_screenshotUidCoverEnabled)
+            ScreenshotPrivacy.ApplyUidCover(image, SystemInfo.ScaleTo1080PRatio);
+        var path = Path.Combine(directory, safeName);
+        if (!Cv2.ImWrite(path, image))
+            throw new IOException($"OpenCV failed to save AutoFishing screenshot '{safeName}'.");
+    }
 
-    private (AutoFishingConfig Config, string Culture) LoadConfig()
+    private (AutoFishingConfig Config, string Culture, bool ScreenshotUidCoverEnabled) LoadConfig()
     {
         var path = Path.Combine(_layout.UserPath, "config.json");
-        if (!File.Exists(path)) return (new AutoFishingConfig(), "zh-Hans");
+        if (!File.Exists(path)) return (new AutoFishingConfig(), "zh-Hans", true);
         var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
         {
             AllowTrailingCommas = true,
@@ -71,8 +85,9 @@ public sealed class MacAutoFishingRuntimePlatform : IAutoFishingRuntimePlatform
         var config = root["autoFishingConfig"]?.Deserialize<AutoFishingConfig>(ConfigJson.Options)
             ?? new AutoFishingConfig();
         var culture = root["otherConfig"]?["gameCultureInfoName"]?.GetValue<string>() ?? "zh-Hans";
+        var uidCover = root["commonConfig"]?["screenshotUidCoverEnabled"]?.GetValue<bool>() ?? true;
         _ = System.Globalization.CultureInfo.GetCultureInfo(culture);
-        return (config, culture);
+        return (config, culture, uidCover);
     }
 
     private void PersistConfig()
