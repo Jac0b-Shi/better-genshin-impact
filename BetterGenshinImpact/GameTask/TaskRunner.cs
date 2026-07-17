@@ -1,20 +1,11 @@
 using BetterGenshinImpact.Core.Script;
 using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception;
 
-using BetterGenshinImpact.View;
-using BetterGenshinImpact.View.Drawable;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using BetterGenshinImpact.Core.Simulator;
-using BetterGenshinImpact.Helpers;
-using Wpf.Ui.Violeta.Controls;
-using static BetterGenshinImpact.GameTask.Common.TaskControl;
 using BetterGenshinImpact.Service;
-using BetterGenshinImpact.Service.Notification;
-using BetterGenshinImpact.Service.Notification.Model.Enum;
-using BetterGenshinImpact.ViewModel;
 
 namespace BetterGenshinImpact.GameTask;
 
@@ -23,7 +14,7 @@ namespace BetterGenshinImpact.GameTask;
 /// </summary>
 public class TaskRunner
 {
-    private readonly ILogger<TaskRunner> _logger = App.GetLogger<TaskRunner>();
+    private ILogger _logger => TaskRunnerPlatform.Current.Logger;
 
     // private readonly DispatcherTimerOperationEnum _timerOperation = DispatcherTimerOperationEnum.None;
 
@@ -48,7 +39,8 @@ public class TaskRunner
     public async Task RunCurrentAsync(Func<Task> action, bool resetCancellationContext = true, bool clearCancellationContextOnLockFailure = false)
     {
         // 加锁
-        var hasLock = await TaskSemaphore.WaitAsync(0);
+        var taskSemaphore = TaskRunnerPlatform.Current.TaskSemaphore;
+        var hasLock = await taskSemaphore.WaitAsync(0);
         if (!hasLock)
         {
             _logger.LogError("任务启动失败：当前存在正在运行中的独立任务，请不要重复执行任务！");
@@ -74,7 +66,7 @@ public class TaskRunner
         }
         catch (NormalEndException e)
         {
-            Notify.Event(NotificationEvent.TaskCancel).Success("任务手动取消，或正常结束");
+            TaskRunnerPlatform.Current.NotifyCancellation("任务手动取消，或正常结束");
             _logger.LogInformation("任务中断:{Msg}", e.Message);
             if (RunnerContext.Instance.IsContinuousRunGroup)
             {
@@ -82,9 +74,9 @@ public class TaskRunner
                 throw;
             }
         }
-        catch (TaskCanceledException e)
+        catch (TaskCanceledException)
         {
-            Notify.Event(NotificationEvent.TaskCancel).Success("任务被手动取消");
+            TaskRunnerPlatform.Current.NotifyCancellation("任务被手动取消");
             _logger.LogInformation("任务中断:{Msg}", "任务被取消");
             if (RunnerContext.Instance.IsContinuousRunGroup)
             {
@@ -94,7 +86,7 @@ public class TaskRunner
         }
         catch (Exception e)
         {
-            Notify.Event(NotificationEvent.TaskError).Error("任务执行异常", e);
+            TaskRunnerPlatform.Current.NotifyError("任务执行异常", e);
             _logger.LogError(e.Message);
             _logger.LogDebug(e.StackTrace);
         }
@@ -109,7 +101,7 @@ public class TaskRunner
             // 释放锁
             if (hasLock)
             {
-                TaskSemaphore.Release();
+                taskSemaphore.Release();
             }
         }
     }
@@ -132,7 +124,7 @@ public class TaskRunner
         // 没启动的时候先启动
         bool waitForMainUi = soloTask.Name != "自动七圣召唤" && !soloTask.Name.Contains("自动音游") &&
                              !soloTask.Name.Contains("幽境危战");
-        await ScriptService.StartGameTask(waitForMainUi);
+        await ScriptServicePlatform.Current.StartGameTask(waitForMainUi);
         if (CancellationContext.Instance.IsCancellationRequested)
         {
             _logger.LogInformation("独立任务在启动阶段被取消: {Name}", soloTask.Name);
@@ -148,49 +140,12 @@ public class TaskRunner
 
     public void Init()
     {
-        if (!TaskContext.Instance().IsInitialized)
-        {
-            UIDispatcherHelper.Invoke(() => { Toast.Warning("请先在启动页，启动截图器再使用本功能"); });
-            throw new NormalEndException("请先在启动页，启动截图器再使用本功能");
-        }
-
-        // 清空实时任务触发器
-        TaskTriggerDispatcher.Instance().ClearTriggers();
-        
-        // 隐藏地图遮罩
-        UIDispatcherHelper.Invoke(() =>
-        {
-            if (MaskWindow.InstanceNullable() != null)
-            {
-                if (MaskWindow.Instance().DataContext is MaskWindowViewModel vm)
-                {
-                    vm.IsInBigMapUi = false;
-                }
-            }
-        });
-        VisionContext.Instance().DrawContent.ClearAll(); 
-        
-        // 激活原神窗口
-        var maskWindow = MaskWindow.Instance();
-        SystemControl.ActivateWindow();
-        maskWindow.Invoke(maskWindow.Show);
+        TaskRunnerPlatform.Current.InitializeTask();
     }
 
     public void End()
     {
-        if (!TaskContext.Instance().IsInitialized)
-        {
-            return;
-        }
-
-        Simulation.ReleaseAllKey();
-
-        // 还原实时任务触发器
-        TaskTriggerDispatcher.Instance().ClearTriggers();
-        TaskTriggerDispatcher.Instance().ReloadInitialTriggers();
-
-        VisionContext.Instance().DrawContent.ClearAll();
-        HtmlMaskWindow.CloseAll();
+        TaskRunnerPlatform.Current.EndTask();
     }
 
 }

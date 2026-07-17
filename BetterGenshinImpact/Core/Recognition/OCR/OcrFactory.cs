@@ -24,6 +24,7 @@ public class OcrFactory : IDisposable
     public static IOcrService Paddle => global::BetterGenshinImpact.App.ServiceProvider.GetRequiredService<OcrFactory>().PaddleOcr;
 #endif
     private IOcrService PaddleOcr => _paddleOcrService ??= Create(OcrEngineTypes.Paddle);
+    public IOcrService Service => PaddleOcr;
 
     private IOcrService? _paddleOcrService;
     private readonly ILogger<BgiOnnxFactory> _logger;
@@ -108,6 +109,7 @@ public class OcrFactory : IDisposable
         }
         catch (Exception e)
         {
+            _ = e;
             var result = new CultureInfo(new OtherConfig().GameCultureInfoName);
             _logger.LogInformation("获取游戏文化信息失败，使用默认文化信息: {CultureInfo}", result.Name);
             return result;
@@ -116,37 +118,39 @@ public class OcrFactory : IDisposable
 
     private PaddleOcrService CreatePaddleOcrInstance()
     {
+        var resourceResolver = _resourceResolver
+            ?? throw new InvalidOperationException("OCR resource resolver is not configured.");
         return _paddleModel switch
         {
             PaddleOcrModelConfig.V4Auto =>
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfoV4(GetCultureInfo()) ??
-                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V5Auto =>
                 new PaddleOcrService(_onnxFactory,
                     PaddleOcrService.PaddleOcrModelType.FromCultureInfo(GetCultureInfo()) ??
-                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V5 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V5, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V6 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V6, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V6, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V4 =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V4, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V4En =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V4En, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V4En, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V5Korean =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Korean, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V5Korean, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V5Latin =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Latin, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V5Latin, resourceResolver: resourceResolver),
             PaddleOcrModelConfig.V5Eslav =>
                 new PaddleOcrService(_onnxFactory,
-                    PaddleOcrService.PaddleOcrModelType.V5Eslav, resourceResolver: _resourceResolver),
+                    PaddleOcrService.PaddleOcrModelType.V5Eslav, resourceResolver: resourceResolver),
             _ => throw new ArgumentOutOfRangeException(nameof(_paddleModel),
                 _paddleModel, "不支持的 Paddle OCR 模型配置")
         };
@@ -178,8 +182,4 @@ public class OcrFactory : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~OcrFactory()
-    {
-        Dispose();
-    }
 }

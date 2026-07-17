@@ -536,7 +536,7 @@ public partial class AutoSkipTrigger : ITaskTrigger
                 return true;
             }
 
-            var fKey = AutoPickAssets.Instance.PickVk;
+            var fKey = AutoPickAssets.Instance.PickVk.ToWindowsVirtualKey();
             if (_config.IsClickFirstChatOption())
             {
                 _postMessageSimulator?.KeyPressBackground(fKey);
@@ -799,7 +799,7 @@ public partial class AutoSkipTrigger : ITaskTrigger
             using var pickRa = region.Find(AutoPickAssets.Instance.ChatPickRo);
             if (pickRa.IsExist())
             {
-                _postMessageSimulator?.KeyPressBackground(AutoPickAssets.Instance.PickVk);
+                _postMessageSimulator?.KeyPressBackground(AutoPickAssets.Instance.PickVk.ToWindowsVirtualKey());
                 AutoSkipLog("无气泡图标，但存在交互键，直接按下交互键");
             }
         }

@@ -91,7 +91,7 @@ public class MaskCalculator : IDisposable
         CalculateMinDist(temp, minDist);
         using var lut = Mat.FromPixelData(1, 256, MatType.CV_8UC1, minDist);
         Cv2.LUT(_angle, lut, temp);
-        Cv2.Compare(_radius, temp, temp, CmpType.LT);
+        Cv2.Compare(_radius, temp, temp, CmpTypes.LT);
         using var temp1 = new Mat();
         Cv2.InRange(bgrMat, Scalar.All(100), Scalar.All(255), temp1);
         Cv2.BitwiseOr(temp1, temp, _outMask, _outMask);
@@ -103,7 +103,7 @@ public class MaskCalculator : IDisposable
         using var cmin = new Mat();
         using var diff = new Mat();
         MaxMinChannels(bgrMat, cmax, cmin);
-        Cv2.Compare(cmax, cmin, _outMask, CmpType.EQ);
+        Cv2.Compare(cmax, cmin, _outMask, CmpTypes.EQ);
         Cv2.InRange(cmax, new Scalar(50), new Scalar(127), diff);
         Cv2.BitwiseAnd(diff, _outMask, _outMask);
         Cv2.Subtract(cmax, cmin, diff);

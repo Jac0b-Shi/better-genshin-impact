@@ -1,0 +1,239 @@
+using BetterGenshinImpact.Core.Host.Protocol;
+using BetterGenshinImpact.Core.Host.Runtime;
+using BetterGenshinImpact.Core.Host.Transport;
+using Newtonsoft.Json.Linq;
+using System.Net.Sockets;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+
+namespace BetterGenshinImpact.Core.Host;
+
+[SupportedOSPlatform("macos")]
+public sealed class CoreRpcServer(string socketPath, string sessionToken, RuntimeLayout layout)
+{
+    public const int ProtocolVersion = 1;
+    private readonly ScriptGroupCatalog _catalog = new(layout);
+    private readonly ScriptProjectCatalog _scriptProjectCatalog = new(layout);
+    private readonly PlatformCallbackChannel _platformCallbacks = new();
+    private SchedulerCoordinator? _scheduler;
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly object _connectionsLock = new();
+    private readonly HashSet<Task> _connections = [];
+    private MacScriptHostServices? _scriptHostServices;
+    private MacScriptServicePlatform? _scriptServicePlatform;
+    private MacPathExecutorPlatform? _pathExecutorPlatform;
+    private Action? _platformAssetInitializer;
+    private int _platformAssetsInitialized;
+    public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
+
+    private SchedulerCoordinator Scheduler => _scheduler ??= new SchedulerCoordinator(
+        layout, _platformCallbacks, sessionToken, _shutdown.Token);
+
+    public void AttachScriptHostServices(MacScriptHostServices services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (Interlocked.CompareExchange(ref _scriptHostServices, services, null) is not null)
+            throw new InvalidOperationException("Script host services have already been attached.");
+    }
+
+    public void AttachScriptServicePlatform(MacScriptServicePlatform platform)
+    {
+        ArgumentNullException.ThrowIfNull(platform);
+        if (Interlocked.CompareExchange(ref _scriptServicePlatform, platform, null) is not null)
+            throw new InvalidOperationException("Script service platform has already been attached.");
+    }
+
+    public void AttachPlatformAssetInitializer(Action initializer)
+    {
+        ArgumentNullException.ThrowIfNull(initializer);
+        if (Interlocked.CompareExchange(ref _platformAssetInitializer, initializer, null) is not null)
+            throw new InvalidOperationException("Platform asset initializer has already been attached.");
+    }
+
+    public void AttachPathExecutorPlatform(MacPathExecutorPlatform platform)
+    {
+        ArgumentNullException.ThrowIfNull(platform);
+        if (Interlocked.CompareExchange(ref _pathExecutorPlatform, platform, null) is not null)
+            throw new InvalidOperationException("PathExecutor platform has already been attached.");
+    }
+
+    public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        layout.EnsureCreated();
+        if (File.Exists(socketPath)) File.Delete(socketPath);
+        using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        listener.Bind(new UnixDomainSocketEndPoint(socketPath));
+        File.SetUnixFileMode(socketPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        listener.Listen(8);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+        try
+        {
+            while (!linked.IsCancellationRequested)
+            {
+                var socket = await listener.AcceptAsync(linked.Token);
+                var task = HandleConnectionAsync(socket, linked.Token);
+                lock (_connectionsLock) _connections.Add(task);
+                _ = task.ContinueWith(completed =>
+                {
+                    lock (_connectionsLock) _connections.Remove(completed);
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        finally
+        {
+            if (File.Exists(socketPath)) File.Delete(socketPath);
+            Task[] connections;
+            lock (_connectionsLock) connections = [.. _connections];
+            try { await Task.WhenAll(connections); } catch (OperationCanceledException) { }
+        }
+    }
+
+    private async Task HandleConnectionAsync(Socket socket, CancellationToken cancellationToken)
+    {
+        await using var connection = new FramedJsonConnection(socket);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            RpcRequest? request;
+            try { request = await connection.ReadRequestAsync(cancellationToken); }
+            catch (Exception ex)
+            {
+                await connection.WriteResponseAsync(RpcResponse.Failure("unknown", "InvalidRequest", ex.Message), cancellationToken);
+                return;
+            }
+            if (request is null) return;
+            if (request.Method == "platform.attach")
+            {
+                if (!TokenIsValid(request.SessionToken))
+                {
+                    await connection.WriteResponseAsync(RpcResponse.Failure(request.Id, "Unauthorized", "Invalid session token."), cancellationToken);
+                    return;
+                }
+                await connection.WriteResponseAsync(RpcResponse.Success(request.Id, new { attached = true }), cancellationToken);
+                try { await _platformCallbacks.AttachAsync(connection, cancellationToken); }
+                finally { _platformCallbacks.Detach(connection); }
+                return;
+            }
+            var response = await DispatchAsync(request);
+            await connection.WriteResponseAsync(response, cancellationToken);
+        }
+    }
+
+    private Task<RpcResponse> DispatchAsync(RpcRequest request)
+    {
+        if (!TokenIsValid(request.SessionToken))
+            return Task.FromResult(RpcResponse.Failure(request.Id, "Unauthorized", "Invalid session token."));
+
+        try
+        {
+            object? result = request.Method switch
+            {
+                "core.handshake" => Handshake(),
+                "core.initialize" => Initialize(request.Params),
+                "catalog.listScriptGroups" => _catalog.List(),
+                "catalog.getScriptGroup" => _catalog.Get(RequiredString(request.Params, "name")),
+                "catalog.saveScriptGroup" => _catalog.Save(
+                    RequiredString(request.Params, "name"),
+                    request.Params?["document"] as JObject ?? throw new ArgumentException("document is required.")),
+                "catalog.listScriptProjects" => _scriptProjectCatalog.List(),
+                "catalog.getScriptProject" => _scriptProjectCatalog.Get(RequiredString(request.Params, "folderName")),
+                "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
+                "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),
+                "scheduler.resume" => Scheduler.Resume(RequiredString(request.Params, "taskId")),
+                "scheduler.stop" => Scheduler.Stop(RequiredString(request.Params, "taskId")),
+                "core.shutdown" => Shutdown(),
+                _ => throw new MissingMethodException($"Unknown RPC method: {request.Method}")
+            };
+            return Task.FromResult(RpcResponse.Success(request.Id, result));
+        }
+        catch (CapabilityUnavailableException ex)
+        {
+            return Task.FromResult(RpcResponse.Failure(request.Id, "CapabilityUnavailable", ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(RpcResponse.Failure(request.Id, ex.GetType().Name, ex.Message));
+        }
+    }
+
+    private bool TokenIsValid(string token)
+    {
+        var providedToken = System.Text.Encoding.UTF8.GetBytes(token);
+        var expectedToken = System.Text.Encoding.UTF8.GetBytes(sessionToken);
+        return providedToken.Length == expectedToken.Length &&
+               CryptographicOperations.FixedTimeEquals(providedToken, expectedToken);
+    }
+
+    private object Handshake()
+    {
+        var dependencies = NativeDependencySmoke.Run();
+        return new
+        {
+            protocolVersion = ProtocolVersion,
+            runtimeVersion = dependencies.RuntimeVersion,
+            architecture = dependencies.Architecture,
+            openCvVersion = dependencies.OpenCvVersion,
+            clearScriptReady = dependencies.ClearScriptReady,
+            capabilities = new[]
+            {
+                "catalog.script-groups",
+                "catalog.script-projects",
+                "runtime-layout",
+                "opencv",
+                "clearscript-v8",
+                "scheduler.run"
+            }
+        };
+    }
+
+    private object Initialize(JObject? parameters)
+    {
+        var requestedRoot = parameters?.Value<string>("runtimeRoot");
+        if (!string.IsNullOrWhiteSpace(requestedRoot) && Path.GetFullPath(requestedRoot) != layout.RootPath)
+            throw new InvalidOperationException("Runtime root cannot change after process startup.");
+        layout.EnsureCreated();
+        if (_platformCallbacks.IsAttached && _platformAssetInitializer is not null &&
+            Interlocked.CompareExchange(ref _platformAssetsInitialized, 1, 0) == 0)
+        {
+            try { _platformAssetInitializer(); }
+            catch
+            {
+                Volatile.Write(ref _platformAssetsInitialized, 0);
+                throw;
+            }
+        }
+        if (parameters?.Value<double?>("serverTimeZoneOffsetHours") is { } offsetHours)
+            _scriptHostServices?.SetServerTimeZoneOffset(TimeSpan.FromHours(offsetHours));
+        if (parameters?.Value<bool?>("jsNotificationEnabled") is { } notificationsEnabled)
+            _scriptHostServices?.SetJsNotificationEnabled(notificationsEnabled);
+        if (parameters?.Value<string>("mapMatchingMethod") is { Length: > 0 } mapMatchingMethod)
+            _scriptServicePlatform?.SetMapMatchingMethod(mapMatchingMethod);
+        if (parameters?.Value<string>("autoFetchDispatchAdventurersGuildCountry") is { Length: > 0 } country)
+            _pathExecutorPlatform?.SetAutoFetchDispatchAdventurersGuildCountry(country);
+        return new
+        {
+            runtimeRoot = layout.RootPath,
+            scriptGroupPath = layout.ScriptGroupPath,
+            platformCallbackAttached = _platformCallbacks.IsAttached,
+            scriptHostServicesAttached = _scriptHostServices is not null,
+            scriptServicePlatformAttached = _scriptServicePlatform is not null,
+            platformAssetsInitialized = Volatile.Read(ref _platformAssetsInitialized) == 1,
+            mapMatchingMethod = _scriptServicePlatform?.MapMatchingMethod,
+            autoFetchDispatchAdventurersGuildCountry =
+                _pathExecutorPlatform?.AutoFetchDispatchAdventurersGuildCountry
+        };
+    }
+
+    private object Shutdown()
+    {
+        _shutdown.Cancel();
+        return new { stopping = true };
+    }
+
+    private static string RequiredString(JObject? parameters, string name) =>
+        parameters?.Value<string>(name) is { Length: > 0 } value
+            ? value
+            : throw new ArgumentException($"{name} is required.");
+}
+
+public sealed class CapabilityUnavailableException(string message) : Exception(message);

@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Threading;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Recognition.ONNX;
+using BetterGenshinImpact.Core.Runtime.Windows;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.Helpers;
 using BetterGenshinImpact.Helpers.Extensions;
@@ -220,6 +221,21 @@ public partial class App : Application
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
+        Service.ScriptServicePlatform.Configure(new Service.WindowsScriptServicePlatform());
+        GameTask.TaskRunnerPlatform.Configure(new GameTask.WindowsTaskRunnerPlatform());
+        GameTask.GameTaskManagerPlatform.Configure(new GameTask.WindowsGameTaskManagerPlatform());
+        Core.Recognition.OverlayDrawPlatform.Configure(new Core.Runtime.Windows.WindowsOverlayDrawPlatform());
+        Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(
+            _host.Services.GetRequiredService<Core.Recognition.OCR.OcrFactory>().Service);
+        GameTask.Common.TaskControlPlatform.Configure(new Core.Runtime.Windows.WindowsTaskControlPlatform());
+        GameTask.AutoPathing.PathExecutorPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorPlatform());
+        GameTask.AutoPathing.NavigationPlatform.Configure(new Core.Runtime.Windows.WindowsNavigationPlatform());
+        GameTask.Shell.ShellTaskPlatform.Configure(new GameTask.WindowsShellTaskPlatform());
+        Core.Recorder.KeyMouseMacroPlatform.Configure(new GameTask.WindowsKeyMouseMacroPlatform());
+        GameTask.AutoPathing.ScriptGroupExecutionServices.Configure(
+            new GameTask.WindowsScriptGroupExecutionServices());
+        Core.Script.Dependence.ScriptHostServices.Configure(
+            new WindowsScriptHostServices(_host.Services.GetRequiredService<ILoggerFactory>()));
         Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal;
         // Wine 平台适配
         WinePlatformAddon.ApplyApplicationConfig();

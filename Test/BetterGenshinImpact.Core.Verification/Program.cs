@@ -4,7 +4,6 @@ using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Adapters;
 using System.Security.Cryptography;
 using System.Text;
-using BetterGenshinImpact.Core.Adapters;
 using BetterGenshinImpact.Core.Composition;
 using BetterGenshinImpact.Core.Recognition.OCR.Engine;
 using BetterGenshinImpact.Core.Recognition.OCR.Engine.data;
@@ -18,19 +17,31 @@ using BetterGenshinImpact.Core.Runtime.Windows;
 using OpenCvSharp;
 using System.Text.Json;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
+using BetterGenshinImpact.Core.Script.Dependence;
+using BetterGenshinImpact.Core.Script;
+using BetterGenshinImpact.Core.Script.Group;
+using BetterGenshinImpact.GameTask.LogParse;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
+using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.Common.Map.Maps;
+using BetterGenshinImpact.GameTask.Common.Map.Maps.Base;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Platform.Abstractions;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
+using BetterGenshinImpact.Service;
+using BetterGenshinImpact.GameTask.Common.BgiVision;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
 var recorder = new RecordingInputBackend();
-PlatformServices.Input = recorder;
+OverlayDrawPlatform.Configure(new RecordingOverlayDrawPlatform());
+BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory CpuFactory(IOnnxModelPathResolver resolver) =>
+    new(new BetterGenshinImpact.Core.Runtime.Portable.CpuOnnxRuntimePlatform(resolver));
+DesktopRegionInputPlatform.Configure(recorder);
 DesktopRegion.DisplayWidth = 1920;
 DesktopRegion.DisplayHeight = 1080;
 
@@ -41,6 +52,161 @@ void Assert(string label, bool condition, string detail)
     else { Console.WriteLine($"  FAIL: {label} — {detail}"); failed++; }
 }
 
+Console.WriteLine("Main UI recognition: real upstream Paimon template body");
+var paimonPath = Path.Combine(Directory.GetCurrentDirectory(), "BetterGenshinImpact", "GameTask", "Common",
+    "Element", "Assets", "1920x1080", "paimon_menu.png");
+var confirmPath = Path.Combine(Directory.GetCurrentDirectory(), "BetterGenshinImpact", "GameTask", "AutoFight",
+    "Assets", "1920x1080", "confirm.png");
+using (var paimon = Cv2.ImRead(paimonPath, ImreadModes.Color))
+using (var confirm = Cv2.ImRead(confirmPath, ImreadModes.Color))
+using (var capture = new Mat(1080, 1920, MatType.CV_8UC4, Scalar.Black))
+using (var paimonBgra = new Mat())
+{
+    Cv2.CvtColor(paimon, paimonBgra, ColorConversionCodes.BGR2BGRA);
+    using (var target = new Mat(capture, new Rect(24, 20, paimon.Width, paimon.Height)))
+        paimonBgra.CopyTo(target);
+    var paimonRo = new RecognitionObject
+    {
+        Name = "PaimonMenu", RecognitionType = RecognitionTypes.TemplateMatch,
+        TemplateImageMat = paimon.Clone(), RegionOfInterest = new Rect(0, 0, 480, 270), DrawOnWindow = false
+    }.InitTemplate();
+    var confirmRo = new RecognitionObject
+    {
+        Name = "Confirm", RecognitionType = RecognitionTypes.TemplateMatch,
+        TemplateImageMat = confirm.Clone(), RegionOfInterest = new Rect(960, 540, 960, 540), DrawOnWindow = false
+    }.InitTemplate();
+    try
+    {
+        using var region = new ImageRegion(capture.Clone(), 0, 0);
+        Assert("Bv.IsInMainUi finds the actual upstream Paimon asset",
+            Bv.IsInMainUi(region, paimonRo, confirmRo, "复苏"), "main UI was not recognized");
+    }
+    finally
+    {
+        paimonRo.TemplateImageGreyMat?.Dispose();
+        paimonRo.TemplateImageMat?.Dispose();
+        confirmRo.TemplateImageGreyMat?.Dispose();
+        confirmRo.TemplateImageMat?.Dispose();
+    }
+}
+
+// ==== Scheduler lifecycle: real upstream TaskRunner algorithm ====
+Console.WriteLine("Scheduler lifecycle: TaskRunner lock/cancel/error/finally semantics");
+var taskRunnerPlatform = new RecordingTaskRunnerPlatform();
+TaskRunnerPlatform.Configure(taskRunnerPlatform);
+ScriptServicePlatform.Configure(new RecordingScriptServicePlatform());
+ScriptHostServices.Configure(new RecordingScriptHostServices());
+var taskRunner = new TaskRunner();
+var actionRuns = 0;
+await taskRunner.RunThreadAsync(() => { actionRuns++; return Task.CompletedTask; });
+Assert("TaskRunner executes action exactly once", actionRuns == 1, $"runs={actionRuns}");
+Assert("TaskRunner calls platform init/end", taskRunnerPlatform.InitializeCount == 1 && taskRunnerPlatform.EndCount == 1,
+    $"init={taskRunnerPlatform.InitializeCount}, end={taskRunnerPlatform.EndCount}");
+Assert("TaskRunner clears CancellationContext in finally", !CancellationContext.Instance.IsCancellationRequested,
+    "cancellation remained requested");
+
+await taskRunnerPlatform.TaskSemaphore.WaitAsync();
+try
+{
+    await taskRunner.RunThreadAsync(() => { actionRuns++; return Task.CompletedTask; });
+}
+finally
+{
+    taskRunnerPlatform.TaskSemaphore.Release();
+}
+Assert("TaskRunner refuses concurrent task without executing action", actionRuns == 1, $"runs={actionRuns}");
+
+await taskRunner.RunThreadAsync(() => throw new InvalidOperationException("recorded failure"));
+Assert("TaskRunner reports unexpected exception", taskRunnerPlatform.ErrorMessages.SequenceEqual(["任务执行异常"]),
+    string.Join(',', taskRunnerPlatform.ErrorMessages));
+Assert("TaskRunner still ends after exception", taskRunnerPlatform.EndCount == 2,
+    $"end={taskRunnerPlatform.EndCount}");
+
+RunnerContext.Instance.IsContinuousRunGroup = true;
+try
+{
+    await taskRunner.RunThreadAsync(() => throw new BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception.NormalEndException("normal end"));
+    Assert("continuous group NormalEndException must propagate", false, "exception was swallowed");
+}
+catch (BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception.NormalEndException)
+{
+    Assert("continuous group NormalEndException propagates", true, "");
+}
+finally
+{
+    RunnerContext.Instance.Reset();
+}
+Console.WriteLine();
+
+Console.WriteLine("Pathing model: real upstream route deserialize/round-trip");
+var realPathingFixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "雷音权现前往.json");
+var realPathingTask = PathingTask.BuildFromFilePath(realPathingFixture);
+Assert("real PathingTask loads", realPathingTask is not null, "BuildFromFilePath returned null");
+Assert("real PathingTask preserves two positions", realPathingTask?.Positions.Count == 2,
+    $"positions={realPathingTask?.Positions.Count}");
+Assert("PathingTask default map matching comes from platform config",
+    realPathingTask?.Info.MapMatchMethod == "TemplateMatch", realPathingTask?.Info.MapMatchMethod ?? "null");
+var realPathingJson = JsonSerializer.Serialize(realPathingTask, PathingJson.Options);
+Assert("Pathing JSON remains snake_case", realPathingJson.Contains("\"map_match_method\"", StringComparison.Ordinal),
+    "map_match_method missing");
+var roundTrippedPathingTask = PathingTask.BuildFromJson(realPathingJson);
+Assert("PathingTask round-trip preserves stop_flying",
+    roundTrippedPathingTask.Positions[1].Action == "stop_flying", roundTrippedPathingTask.Positions[1].Action ?? "null");
+
+var siftMap = MapManager.GetMap(MapTypes.Teyvat, "SIFT");
+var templateMap = MapManager.GetMap(MapTypes.Teyvat, "TemplateMatch");
+Assert("MapManager creates upstream SIFT implementation", siftMap is TeyvatMap, siftMap.GetType().FullName ?? "null");
+Assert("MapManager creates upstream template implementation", templateMap is TeyvatMapTest,
+    templateMap.GetType().FullName ?? "null");
+var genshinCoordinate = new Point2f(123.5f, -456.25f);
+var imageCoordinate = siftMap.ConvertGenshinMapCoordinatesToImageCoordinates(genshinCoordinate);
+var convertedBack = siftMap.ConvertImageCoordinatesToGenshinMapCoordinates(imageCoordinate);
+Assert("upstream map coordinate transform round-trips",
+    convertedBack.HasValue && Math.Abs(convertedBack.Value.X - genshinCoordinate.X) < 0.001f &&
+    Math.Abs(convertedBack.Value.Y - genshinCoordinate.Y) < 0.001f,
+    convertedBack?.ToString() ?? "null");
+Console.WriteLine();
+
+Console.WriteLine("Scheduler records: real ExecutionRecordStorage skip semantics");
+var recordGroup = new ScriptGroup
+{
+    Name = "record-group",
+    Config = new ScriptGroupConfig()
+};
+recordGroup.Config.PathingConfig.TaskCompletionSkipRuleConfig.Enable = true;
+recordGroup.Config.PathingConfig.TaskCompletionSkipRuleConfig.SkipPolicy = "SameNameSkipPolicy";
+recordGroup.Config.PathingConfig.TaskCompletionSkipRuleConfig.BoundaryTime = -1;
+recordGroup.Config.PathingConfig.TaskCompletionSkipRuleConfig.LastRunGapSeconds = 60;
+var recordProject = new ScriptGroupProject
+{
+    Name = "record-project",
+    FolderName = "folder",
+    Type = "Javascript",
+    GroupInfo = recordGroup
+};
+var recentRecord = new ExecutionRecord
+{
+    GroupName = "different-group",
+    ProjectName = recordProject.Name,
+    FolderName = "different-folder",
+    Type = recordProject.Type,
+    StartTime = DateTime.Now.AddSeconds(-2),
+    EndTime = DateTime.Now.AddSeconds(-1),
+    ServerStartTime = ScriptHostServices.ServerTimeNow.AddSeconds(-2),
+    IsSuccessful = true
+};
+var shouldSkipRecorded = ExecutionRecordStorage.IsSkipTask(recordProject, out var recordSkipMessage,
+    [new DailyExecutionRecord { Name = DateTime.Today.ToString("yyyyMMdd"), ExecutionRecords = [recentRecord] }]);
+Assert("SameNameSkipPolicy matches successful recent record", shouldSkipRecorded, recordSkipMessage);
+Assert("ExecutionRecordStorage reports match reason and GUID",
+    recordSkipMessage.Contains("名称相同", StringComparison.Ordinal) &&
+    recordSkipMessage.Contains(recentRecord.Id.ToString(), StringComparison.Ordinal), recordSkipMessage);
+recentRecord.IsSuccessful = false;
+Assert("failed execution record never triggers skip",
+    !ExecutionRecordStorage.IsSkipTask(recordProject, out _,
+        [new DailyExecutionRecord { ExecutionRecords = [recentRecord] }]), "failed record matched");
+Console.WriteLine();
+
 // ==== Native Smoke Test ====
 Console.WriteLine("Smoke: OpenCV native runtime");
 try
@@ -48,7 +214,7 @@ try
     using var mat = new OpenCvSharp.Mat(16, 16, OpenCvSharp.MatType.CV_8UC4);
     Assert("Mat created OK", mat.Width == 16 && mat.Height == 16, $"{mat.Width}x{mat.Height}");
     var ver = OpenCvSharp.Cv2.GetVersionString();
-    Assert("Cv2.GetVersionString works", !string.IsNullOrEmpty(ver), ver);
+    Assert("Cv2.GetVersionString works", !string.IsNullOrEmpty(ver), ver ?? "null");
     Console.WriteLine($"  OpenCV version: {ver}");
 }
 catch (Exception ex)
@@ -63,7 +229,7 @@ Console.WriteLine("Test 1: DesktopRegionMove(960, 540) @ 1920x1080");
 recorder.Clear();
 DesktopRegion.DesktopRegionMove(960, 540);
 Assert("MoveMouseTo called once", recorder.Calls.Count == 1, $"got {recorder.Calls.Count}: [{string.Join(", ", recorder.Calls)}]");
-var c1 = recorder.Calls.FirstOrDefault();
+var c1 = recorder.Calls.FirstOrDefault() ?? throw new InvalidOperationException("MoveMouseTo call was not recorded.");
 Assert("MoveMouseTo", c1.StartsWith("MoveMouseTo"), c1);
 Assert("X=960", c1.Contains("X=960"), c1);
 Assert("Y=540", c1.Contains("Y=540"), c1);
@@ -75,7 +241,7 @@ DesktopRegion.DisplayWidth = 3840; DesktopRegion.DisplayHeight = 2160;
 recorder.Clear();
 DesktopRegion.DesktopRegionMove(1920, 1080);
 Assert("MoveMouseTo called once", recorder.Calls.Count == 1, $"got {recorder.Calls.Count}");
-var c2 = recorder.Calls.FirstOrDefault();
+var c2 = recorder.Calls.FirstOrDefault() ?? throw new InvalidOperationException("MoveMouseTo call was not recorded.");
 Assert("X=1920", c2.Contains("X=1920"), c2);
 Assert("Y=1080", c2.Contains("Y=1080"), c2);
 Console.WriteLine();
@@ -154,7 +320,7 @@ var ocrResourceResolver = new BetterGenshinImpact.Core.Adapters.OcrResourcePathR
     System.IO.Path.GetTempPath());
 using var ocrFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
-    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
+    CpuFactory(onnxResolver),
     adapter,
     ocrResourceResolver);
 
@@ -172,7 +338,7 @@ Assert("OcrFactory GameCultureInfoName zh-Hans", actualCulture == "zh-Hans", $"g
 var deadProvider = new DeadProvider();
 using var fallbackFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
-    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
+    CpuFactory(onnxResolver),
     deadProvider,
     ocrResourceResolver);
 var fallbackModel = (PaddleOcrModelConfig)(modelField?.GetValue(fallbackFactory) ?? throw new InvalidOperationException());
@@ -188,7 +354,7 @@ Assert("Fallback culture matches default", fallbackCulture == expectedCulture, $
 var whiteProvider = new CultureOnlyProvider("   ");
 using var whitespaceFactory = new BetterGenshinImpact.Core.Recognition.OCR.OcrFactory(
     Microsoft.Extensions.Logging.Abstractions.NullLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>.Instance,
-    new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver),
+    CpuFactory(onnxResolver),
     whiteProvider,
     ocrResourceResolver);
 var whiteCulture = (string)(fallbackCultureField?.GetValue(whitespaceFactory) ?? throw new InvalidOperationException());
@@ -199,11 +365,8 @@ Console.WriteLine();
 Console.WriteLine("IOnnxModelPathResolver: path normalization");
 var normRoot = System.IO.Path.GetTempPath();
 var normResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(normRoot);
-var normResult = normResolver.ResolveModelPath(new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel
-{
-    Name = "Test",
-    ModelRelativePath = @"Assets\Model\PaddleOCR\Det\V5\ppocr_det_v5.onnx"
-});
+var normResult = normResolver.ResolveModelPath(
+    BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrDetV5);
 var normExpected = System.IO.Path.GetFullPath(System.IO.Path.Combine(normRoot, "Assets", "Model", "PaddleOCR", "Det", "V5", "ppocr_det_v5.onnx"));
 Assert("IOnnxModelPathResolver normalizes backslashes", normResult == normExpected, $"expected {normExpected}, got {normResult}");
 try { _ = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(""); Assert("empty root should reject", false, "accepted empty"); }
@@ -242,11 +405,12 @@ var manifestPath = System.IO.Path.Combine(
     "Manifest",
     "model-artifacts.manifest.json");
 using var manifestReadStream = System.IO.File.OpenRead(manifestPath);
-var manifest = BetterGenshinImpact.Core.Artifacts.ModelArtifactManifestLoader.Load(manifestReadStream);
+var manifest = BetterGenshinImpact.Core.Artifacts.ModelArtifactManifestLoader.Load(manifestReadStream)
+    ?? throw new InvalidDataException("Artifact manifest loader returned null.");
 Assert("B11.5 Loader leaves stream open", manifestReadStream.CanRead, "stream was closed by loader");
 manifestReadStream.Close();
 Assert("B11.5 Loader parses successfully", manifest != null, "null");
-Assert("B11.5 Manifest version is 1", manifest.Version == 1, $"got {manifest.Version}");
+Assert("B11.5 Manifest version is 1", manifest!.Version == 1, $"got {manifest.Version}");
 Assert("B11.5 Model artifacts count is 11", manifest.Artifacts.Count == 11, $"got {manifest.Artifacts.Count}");
 Assert("B11.5 Sidecar artifacts count is 2", manifest.SidecarArtifacts.Count == 2, $"got {manifest.SidecarArtifacts.Count}");
 // Physical file count: 11 model ONNX + 8 model-bound sidecars + 2 preheat sidecars = 21
@@ -406,7 +570,7 @@ Assert("B11.2.2 factory Create param 2 not optional", !factoryCreateParams[1].Is
 Assert("B11.2.2 factory Create param 3 not optional", !factoryCreateParams[2].IsOptional, "is optional");
 
 // 5. Null resolver fail-fast: PickTextInference
-var nullResolverFactory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(onnxResolver);
+var nullResolverFactory = CpuFactory(onnxResolver);
 try
 {
     _ = new BetterGenshinImpact.Core.Recognition.ONNX.SVTR.PickTextInference(nullResolverFactory, null!);
@@ -498,9 +662,10 @@ Console.WriteLine();
 
 // ==== B11.6.2 ArtifactDownloader source-lock loading ====
 Console.WriteLine("B11.6.2: ArtifactDownloader source-lock loading");
-var downloaderLock = BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader.LoadSourceLock(lockPath);
+var downloaderLock = BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader.LoadSourceLock(lockPath)
+    ?? throw new InvalidDataException("Artifact source lock loader returned null.");
 Assert("B11.6.2 Downloader loads source-lock", downloaderLock != null, "null");
-Assert("B11.6.2 Downloader schema version", downloaderLock.SchemaVersion == 1, $"got {downloaderLock.SchemaVersion}");
+Assert("B11.6.2 Downloader schema version", downloaderLock!.SchemaVersion == 1, $"got {downloaderLock.SchemaVersion}");
 Assert("B11.6.2 Downloader has 1 source", downloaderLock.Sources.Count == 1, $"got {downloaderLock.Sources.Count}");
 var dlSource = downloaderLock.Sources[0];
 Assert("B11.6.2 Downloader source has url", !string.IsNullOrEmpty(dlSource.Url), "");
@@ -825,7 +990,7 @@ Console.WriteLine("B12.2: Real ONNX InferenceSession load test");
         var realOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(realModelRoot);
 
         // Create a BgiOnnxFactory with the real resolver
-        var realFactory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(realOnnxResolver);
+        var realFactory = CpuFactory(realOnnxResolver);
 
         // Test each real ONNX file via InferenceSession
         var testModels = new[]
@@ -961,35 +1126,36 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
             var recV4EnYaml = Path.Combine(realBase, "PaddleOCR/Rec/V4/en_PP-OCRv4_mobile_rec_infer/inference.yml");
             var labels = ParseCharacterDictFromYaml(recV4EnYaml);
 
-            var factory = new BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory(
-                new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(Path.GetFullPath(Path.Combine(realBase, "../.."))));
+            var factory = CpuFactory(new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(
+                Path.GetFullPath(Path.Combine(realBase, "../.."))));
 
             using var recSession = factory.CreateInferenceSession(recV4EnModel);
             Assert("B12.3.2 RecV4En session created for inference", recSession != null, "");
 
             // Create a synthetic test image (grayscale, 100x32)
-            var testImage = new Mat(32, 100, MatType.CV_8UC1, Scalar.Black);
+            using var testImage = new Mat(32, 100, MatType.CV_8UC1, Scalar.Black);
             Cv2.PutText(testImage, "Hello", new OpenCvSharp.Point(10, 24),
                 HersheyFonts.HersheySimplex, 0.8, Scalar.White, 1);
 
             // Preprocess: resize + normalize (same as Rec.RunMulti)
             var modelHeight = 48; // from RecV4En config
             var maxWidth = (int)Math.Ceiling(1.0 * testImage.Width / testImage.Height * modelHeight);
-            var channel3 = testImage.CvtColor(ColorConversionCodes.GRAY2BGR);
-            var inputTensor = OcrUtils.ResizeNormImg(channel3, new OcrShape(3, maxWidth, modelHeight), out var owner);
+            using var channel3 = testImage.CvtColor(ColorConversionCodes.GRAY2BGR);
+            var inputTensor = OcrUtils.ResizeNormImg(channel3, new OcrShape(3, maxWidth, modelHeight), out var owner)
+                ?? throw new InvalidDataException("OCR preprocessing returned null.");
             Assert("B12.3.2 Preprocessed tensor created", inputTensor != null, "");
-            var inputDims = inputTensor.Dimensions.ToArray();
+            var inputDims = inputTensor!.Dimensions.ToArray();
             Console.WriteLine($"  RecV4En input tensor shape: [{string.Join(",", inputDims)}]");
-            channel3.Dispose();
 
             // Run inference
-            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results;
-            lock (recSession)
+            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> inferenceResults;
+            lock (recSession!)
             {
-                results = recSession.Run([
+                inferenceResults = recSession.Run([
                     NamedOnnxValue.CreateFromTensor(recSession.InputNames[0], inputTensor)
                 ]);
             }
+            using var results = inferenceResults;
             Assert("B12.3.3 Inference produced output", results.Count > 0, "");
             var output = results[0];
             Assert("B12.3.3 Output is float tensor", output.ElementType == TensorElementType.Float, "");
@@ -1028,12 +1194,9 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
             }
             var text = sb.ToString();
             Console.WriteLine($"  RecV4En decoded text: \"{text}\" (score={score:F2}, length={text.Length})");
-            Assert("B12.3.3 Text decoding produced result", text.Length >= 0, $"text={text}");
+            Assert("B12.3.3 Text decoding matches fixture", text == "Hello", $"text={text}");
 
             owner.Dispose();
-            results.Dispose();
-            testImage.Dispose();
-            channel3.Dispose();
             Console.WriteLine("B12.3: Real OCR pipeline (parse → preprocess → inference → decode) COMPLETE");
         }
         catch (Exception ex)
@@ -1044,7 +1207,8 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
     }
 }
 Console.WriteLine();
-var b5SystemInfo = new BetterGenshinImpact.GameTask.MacSystemInfo();
+Global.StartUpPath = Path.Combine(Environment.CurrentDirectory, "BetterGenshinImpact");
+var b5SystemInfo = new VerificationSystemInfo();
 var defaultLogger = NullLogger<AutoPickAssets>.Instance;
 var triggerLogger = NullLogger<AutoPickTrigger>.Instance;
 
@@ -1058,7 +1222,8 @@ AutoPickAssets.Initialize(b5SystemInfo,
 var stopCountProp = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
     .GetProperty("StopCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 var extField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
-    .GetField("_externalConfig", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+    .GetField("_externalConfig", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+    ?? throw new MissingFieldException("AutoPickTrigger._externalConfig");
 
 // Reusable default runtime state for tests where runtime state is not the focus.
 var defaultRuntimeState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(0);
@@ -1233,27 +1398,28 @@ var b7State = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(3);
 var b7ExtConfig = new AutoPickExternalConfig { ForceInteraction = true };
 var b7Recorder = new RecordingInputBackend();
 
-MacAutoPickComposition? comp7;
+MacAutoPickComposition comp7;
 {
     comp7 = (MacAutoPickComposition)composeMethod.Invoke(null,
         [b7Provider, b7State, b7Recorder, b5SystemInfo, defaultLogger, triggerLogger, testPaddle, testYap, b7ExtConfig])!;
     Assert("B7.1 Compose succeeds", comp7.Trigger != null, "trigger is null");
 }
+var comp7Trigger = comp7!.Trigger ?? throw new InvalidOperationException("B7 composition returned no trigger.");
 
 // B7.2: Compose preserves external config reference
 Assert("B7.2 _externalConfig preserved",
-    ReferenceEquals(extField.GetValue(comp7.Trigger), b7ExtConfig), "different reference");
+    ReferenceEquals(extField!.GetValue(comp7Trigger), b7ExtConfig), "different reference");
 
 // B7.3: Compose preserves runtime state reference
 Assert("B7.3 _runtimeState preserved",
-    ReferenceEquals(b7RuntimeStateField.GetValue(comp7.Trigger), b7State), "different reference");
+    ReferenceEquals(b7RuntimeStateField.GetValue(comp7Trigger), b7State), "different reference");
 
 // B7.4: Init() reads IsEnabled from provider
-Assert("B7.4 IsEnabled from provider (true)", comp7.Trigger.IsEnabled == true, $"got {comp7.Trigger.IsEnabled}");
+Assert("B7.4 IsEnabled from provider (true)", comp7Trigger.IsEnabled == true, $"got {comp7Trigger.IsEnabled}");
 
 // B7.5: _configProvider field preserved
 Assert("B7.5 _configProvider preserved",
-    ReferenceEquals(b7ConfigProvField.GetValue(comp7.Trigger), b7Provider), "different reference");
+    ReferenceEquals(b7ConfigProvField.GetValue(comp7Trigger), b7Provider), "different reference");
 
 // B7.6: Double Compose throws (Composed state)
 try
@@ -1347,7 +1513,7 @@ Assert("B7.12 After null state: valid Compose succeeds",
 resetForVerification.Invoke(null, null);
 int successCount = 0;
 int failCount = 0;
-var barrier = new Barrier(2);
+using var barrier = new Barrier(2);
 var concProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
@@ -1365,7 +1531,7 @@ void ConcurrentCompose()
     catch (TargetInvocationException ex)
     {
         Interlocked.Increment(ref failCount);
-        concurrentErrors.Enqueue(ex.InnerException);
+        concurrentErrors.Enqueue(ex.InnerException ?? ex);
     }
     catch (Exception ex)
     {
@@ -1513,14 +1679,19 @@ Assert("B8.1.1 Compose preserves _inputBackend",
 Assert("B8.1.1 trigger wired with externalConfig null",
     b811Comp.Trigger.IsEnabled == true, $"IsEnabled={b811Comp.Trigger.IsEnabled}");
 
-// ==== B8.2: Core shim AddTrigger preserves Assets singleton ====
-Console.WriteLine("B8.2: Core shim AddTrigger after Initialize preserves Assets singleton");
-
-// Tests the Core/macOS GameTaskManager shim's AddTrigger ("AutoPick") path.
-// Verifies it does NOT re-initialize AutoPickAssets.
-// NOT a test of the Windows production GameTaskManager.AddTrigger —
-// that comes from source diff review. The shim and Windows implementation
-// are separate compile units; this test prevents drift in the macOS path only.
+// ==== B8.2: shared GameTaskManager lifecycle and platform construction ====
+Console.WriteLine("B8.2: shared GameTaskManager lifecycle and platform construction");
+GameTaskManagerPlatform.Configure(new VerificationGameTaskManagerPlatform(b5SystemInfo, triggerLogger));
+var lowPriority = new VerificationTrigger("low", 1, false);
+var highPriority = new VerificationTrigger("high", 10, false);
+GameTaskManager.TriggerDictionary = new ConcurrentDictionary<string, ITaskTrigger>(
+    new[] { new KeyValuePair<string, ITaskTrigger>("low", lowPriority), new KeyValuePair<string, ITaskTrigger>("high", highPriority) });
+var orderedTriggers = GameTaskManager.ConvertToTriggerList(allEnabled: true);
+Assert("B8.2 shared manager initializes every trigger", lowPriority.InitCount == 1 && highPriority.InitCount == 1,
+    $"low={lowPriority.InitCount}, high={highPriority.InitCount}");
+Assert("B8.2 shared manager sorts descending priority", orderedTriggers.Select(x => x.Name).SequenceEqual(["high", "low"]),
+    string.Join(',', orderedTriggers.Select(x => x.Name)));
+Assert("B8.2 allEnabled enables every trigger", orderedTriggers.All(x => x.IsEnabled), "a trigger remained disabled");
 var b82Recorder = new RecordingInputBackend();
 var b82Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
@@ -1529,15 +1700,15 @@ var assetsBefore = AutoPickAssets.Instance;
 
 // Real AddTrigger call (not pseudo-trigger via new ctor)
 GameTaskManager.ClearTriggers();
-var added = GameTaskManager.AddTrigger("AutoPick", null, defaultRuntimeState, b82Recorder, b5SystemInfo, testConfigProvider, triggerLogger, testPaddle, testYap);
-Assert("B8.2 Core shim AddTrigger returns true", added, "returned false");
-Assert("B8.2 Core shim TriggerDictionary contains AutoPick",
+var added = GameTaskManager.AddTrigger("AutoPick", null, defaultRuntimeState, b82Recorder, b5SystemInfo, testConfigProvider, testPaddle, testYap);
+Assert("B8.2 shared AddTrigger returns true", added, "returned false");
+Assert("B8.2 shared TriggerDictionary contains AutoPick",
     GameTaskManager.TriggerDictionary?.ContainsKey("AutoPick") == true, "not found");
 var addedTrigger = GameTaskManager.TriggerDictionary?["AutoPick"];
-Assert("B8.2 Core shim added trigger is AutoPickTrigger",
+Assert("B8.2 platform-created trigger is AutoPickTrigger",
     addedTrigger is AutoPickTrigger, $"got {addedTrigger?.GetType().Name}");
 var assetsAfter = AutoPickAssets.Instance;
-Assert("B8.2 Core shim Assets singleton preserved after AddTrigger",
+Assert("B8.2 AddTrigger preserves Assets singleton",
     ReferenceEquals(assetsAfter, assetsBefore), "assets were replaced by duplicate Initialize");
 
 Console.WriteLine();
@@ -1624,15 +1795,6 @@ catch (ArgumentNullException) { Assert("B9.2 null paddle → ArgumentNullExcepti
 try { _ = new AutoPickTrigger(null, defaultRuntimeState, testConfigProvider, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, null!); Assert("null yap should throw", false, ""); }
 catch (ArgumentNullException) { Assert("B9.2 null yap → ArgumentNullException", true, ""); }
 
-// Unsupported placeholders throw
-using (var mat = new Mat(1, 1, MatType.CV_8UC3))
-{
-    try { new UnsupportedPaddleAutoPickTextRecognizer().Recognize(mat); Assert("UnsupportedPaddle should throw", false, ""); }
-    catch (NotSupportedException) { Assert("B9.2 UnsupportedPaddle → NotSupportedException", true, ""); }
-    try { new UnsupportedYapAutoPickTextRecognizer().Recognize(mat); Assert("UnsupportedYap should throw", false, ""); }
-    catch (NotSupportedException) { Assert("B9.2 UnsupportedYap → NotSupportedException", true, ""); }
-}
-
 // ==== B10.3: ConfigService removed — JSON equivalence ====
 Console.WriteLine("B10.3: ConfigService removed — JSON equivalence");
 
@@ -1654,7 +1816,8 @@ Assert("B10.3 empty array → empty set", b103EmptyCount == 0, $"got {b103EmptyC
 
 Console.WriteLine();
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
-Environment.Exit(failed > 0 ? 1 : 0);
+Microsoft.ML.OnnxRuntime.OrtEnv.Instance().Dispose();
+Environment.ExitCode = failed > 0 ? 1 : 0;
 
 class DeadProvider : BetterGenshinImpact.Core.Abstractions.Runtime.IOcrRuntimeConfigProvider
 {
@@ -1685,6 +1848,62 @@ class RecordingInputBackend : IInputBackend
     public void Scroll(int delta) => Calls.Add($"Scroll({delta})");
 }
 
+sealed class RecordingOverlayDrawPlatform : IOverlayDrawPlatform
+{
+    public List<string> Commands { get; } = [];
+    public void SetRectangles(string name, ImageRegion source, IReadOnlyList<Rect> rectangles) =>
+        Commands.Add($"set:{name}:{rectangles.Count}");
+    public void RemoveRectangles(string name) => Commands.Add($"remove:{name}");
+}
+
+sealed class VerificationSystemInfo : BetterGenshinImpact.GameTask.Model.ISystemInfo
+{
+    public System.Drawing.Size DisplaySize { get; } = new(1920, 1080);
+    public BgiRect GameScreenSize { get; } = new(0, 0, 1920, 1080);
+    public double AssetScale => 1;
+    public double ZoomOutMax1080PRatio => 1;
+    public double ScaleTo1080PRatio => 1;
+    public BgiRect CaptureAreaRect { get; set; } = new(0, 0, 1920, 1080);
+    public BgiRect ScaleMax1080PCaptureRect { get; set; } = new(0, 0, 1920, 1080);
+    public System.Diagnostics.Process? GameProcess => null;
+    public string GameProcessName => "Verification";
+    public int GameProcessId => 0;
+    public DesktopRegion DesktopRectArea { get; } = new(1920, 1080);
+}
+
+sealed class VerificationTrigger(string name, int priority, bool enabled) : ITaskTrigger
+{
+    public string Name => name;
+    public bool IsEnabled { get; set; } = enabled;
+    public int Priority => priority;
+    public bool IsExclusive => false;
+    public int InitCount { get; private set; }
+    public void Init() => InitCount++;
+    public void OnCapture(CaptureContent content) { }
+}
+
+sealed class VerificationGameTaskManagerPlatform(
+    BetterGenshinImpact.GameTask.Model.ISystemInfo systemInfo,
+    Microsoft.Extensions.Logging.ILogger<AutoPickTrigger> logger) : IGameTaskManagerPlatform
+{
+    public BetterGenshinImpact.GameTask.Model.ISystemInfo SystemInfo => systemInfo;
+    public IReadOnlyList<KeyValuePair<string, ITaskTrigger>> CreateInitialTriggers(
+        IInputBackend inputBackend, BetterGenshinImpact.GameTask.Model.ISystemInfo info,
+        IAutoPickRuntimeState runtimeState, IAutoPickConfigProvider configProvider,
+        IPaddleAutoPickTextRecognizer paddle, IYapAutoPickTextRecognizer yap) =>
+        throw new NotSupportedException("Not used by this verification.");
+    public KeyValuePair<string, ITaskTrigger>? CreateTrigger(
+        string name, object? externalConfig, IAutoPickRuntimeState runtimeState,
+        IInputBackend inputBackend, BetterGenshinImpact.GameTask.Model.ISystemInfo info,
+        IAutoPickConfigProvider configProvider, IPaddleAutoPickTextRecognizer paddle,
+        IYapAutoPickTextRecognizer yap) => name == "AutoPick"
+        ? new("AutoPick", new AutoPickTrigger(externalConfig as AutoPickExternalConfig,
+            runtimeState, configProvider, inputBackend, info, logger, paddle, yap))
+        : null;
+    public void ReloadAssets() { }
+    public void ClearOverlay() { }
+}
+
 sealed class ThrowingAutoPickConfigProvider : IAutoPickConfigProvider
 {
     public AutoPickConfig AutoPickConfig =>
@@ -1699,4 +1918,54 @@ sealed class FakePaddleAutoPickTextRecognizer : IPaddleAutoPickTextRecognizer
 sealed class FakeYapAutoPickTextRecognizer : IYapAutoPickTextRecognizer
 {
     public string Recognize(Mat textRegion) => "FakeYapResult";
+}
+
+sealed class RecordingTaskRunnerPlatform : ITaskRunnerPlatform
+{
+    public Microsoft.Extensions.Logging.ILogger Logger => NullLogger.Instance;
+    public Microsoft.Extensions.Logging.ILogger RunnerLogger => NullLogger.Instance;
+    public SemaphoreSlim TaskSemaphore { get; } = new(1, 1);
+    public int InitializeCount { get; private set; }
+    public int EndCount { get; private set; }
+    public List<string> ErrorMessages { get; } = [];
+
+    public void InitializeTask() => InitializeCount++;
+    public void EndTask() => EndCount++;
+    public void NotifyCancellation(string message) { }
+    public void NotifyError(string message, Exception exception) => ErrorMessages.Add(message);
+}
+
+sealed class RecordingScriptServicePlatform : IScriptServicePlatform
+{
+    public Microsoft.Extensions.Logging.ILogger Logger => NullLogger.Instance;
+    public string AutoPathingRoot => Path.GetTempPath();
+    public string MapMatchingMethod => "TemplateMatch";
+    public IReadOnlyList<BetterGenshinImpact.Core.Script.Group.ScriptGroup> ScriptGroups => [];
+    public bool FarmingPlanEnabled => false;
+    public SchedulerRestartPolicy RestartPolicy => new(false, 0, false, false, false);
+    public bool IsDailyFarmingLimitReached(
+        BetterGenshinImpact.GameTask.FarmingPlan.FarmingSession farmingSession,
+        out string message)
+    {
+        message = "";
+        return false;
+    }
+    public void ClearTriggers() { }
+    public void SetCurrentScriptProject(ScriptGroupProject project) { }
+    public Task StartGameTask(bool waitForMainUi) => throw new NotSupportedException();
+    public Task HandleBlessingOfTheWelkinMoon(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public void NotifyGroupStart(string groupName) => throw new NotSupportedException();
+    public void NotifyGroupEndSuccess(string groupName) => throw new NotSupportedException();
+    public void NotifyGroupEndError(string message) => throw new NotSupportedException();
+    public void CloseGame() => throw new NotSupportedException();
+    public void RestartApplication(string taskProgressName) => throw new NotSupportedException();
+}
+
+sealed class RecordingScriptHostServices : IScriptHostServices
+{
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName) => NullLogger.Instance;
+    public ScriptGroupProject? CurrentProject => null;
+    public TimeSpan ServerTimeZoneOffset => TimeSpan.FromHours(8);
+    public bool JsNotificationEnabled => true;
+    public void EmitNotification(ScriptNotificationKind kind, string message) { }
 }

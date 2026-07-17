@@ -1,5 +1,8 @@
 using BetterGenshinImpact.GameTask.Model.Area.Converter;
+using BetterGenshinImpact.Core.Recognition;
+#if BGI_FULL_WINDOWS
 using BetterGenshinImpact.View.Drawable;
+#endif
 using OpenCvSharp;
 using System;
 using System.Drawing;
@@ -11,7 +14,7 @@ namespace BetterGenshinImpact.GameTask.Model.Area;
 /// 游戏捕获区域类
 /// 主要用于转换到遮罩窗口的坐标
 /// </summary>
-public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = null, INodeConverter? converter = null, DrawContent? drawContent = null) : ImageRegion(mat, initX, initY, owner, converter, drawContent)
+public class GameCaptureRegion(Mat mat, int initX, int initY, Region? owner = null, INodeConverter? converter = null, IOverlayDrawPlatform? drawContent = null) : ImageRegion(mat, initX, initY, owner, converter, drawContent)
 {
     /// <summary>
     /// 在游戏捕获图像的坐标维度进行转换到遮罩窗口的坐标维度

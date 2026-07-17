@@ -265,8 +265,12 @@ public class RecognitionObject
             MaskColor = this.MaskColor,
             MaskMat = this.MaskMat, // 注意：Mat 是引用类型，克隆后仍然指向同一内存
             DrawOnWindow = this.DrawOnWindow,
+#if BGI_FULL_WINDOWS
             DrawOnWindowPen = this.DrawOnWindowPen != null
                 ? new Pen(this.DrawOnWindowPen.Color, this.DrawOnWindowPen.Width) : null,
+#else
+            DrawOnWindowPen = null,
+#endif
             MaxMatchCount = this.MaxMatchCount,
             
             // 颜色匹配相关属性

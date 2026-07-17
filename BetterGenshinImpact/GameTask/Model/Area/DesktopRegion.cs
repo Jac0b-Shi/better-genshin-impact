@@ -1,70 +1,48 @@
+#if !BGI_PLATFORM_MAC
+using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask.Model.Area.Converter;
+using BetterGenshinImpact.Helpers;
+using Fischless.WindowsInput;
 using OpenCvSharp;
 
 namespace BetterGenshinImpact.GameTask.Model.Area;
 
-/// <summary>
-/// 桌面区域类。
-/// IInputBackend 使用屏幕像素坐标（非 0–65535 SendInput 体系）。
-/// 0–65535 转换由 Windows InputBackend adapter 内部处理。
-/// </summary>
+/// <summary>Windows desktop-region implementation retained from upstream.</summary>
+public class DesktopRegion : Region
+{
+    private readonly IMouseSimulator mouse;
+
+    public DesktopRegion(int w, int h, IMouseSimulator? iMouse = null) : base(0, 0, w, h) => mouse = iMouse ?? Simulation.SendInput.Mouse;
+    public DesktopRegion() : base(0, 0, PrimaryScreen.WorkingArea.Width, PrimaryScreen.WorkingArea.Height) => mouse = Simulation.SendInput.Mouse;
+    public DesktopRegion(IMouseSimulator mouse) : base(0, 0, PrimaryScreen.WorkingArea.Width, PrimaryScreen.WorkingArea.Height) => this.mouse = mouse;
+
+    public void DesktopRegionClick(int x, int y, int w, int h) => mouse.MoveMouseTo((x + w / 2d) * 65535 / Width, (y + h / 2d) * 65535 / Height).LeftButtonDown().Sleep(50).LeftButtonUp().Sleep(50);
+    public void DesktopRegionMove(int x, int y, int w, int h) => mouse.MoveMouseTo((x + w / 2d) * 65535 / Width, (y + h / 2d) * 65535 / Height);
+    public static void DesktopRegionClick(double x, double y) => Simulation.SendInput.Mouse.MoveMouseTo(x * 65535 / PrimaryScreen.WorkingArea.Width, y * 65535 / PrimaryScreen.WorkingArea.Height).LeftButtonDown().Sleep(50).LeftButtonUp().Sleep(50);
+    public static void DesktopRegionMove(double x, double y) => Simulation.SendInput.Mouse.MoveMouseTo(x * 65535 / PrimaryScreen.WorkingArea.Width, y * 65535 / PrimaryScreen.WorkingArea.Height);
+    public static void DesktopRegionMoveBy(double x, double y) => Simulation.SendInput.Mouse.MoveMouseBy((int)x, (int)y);
+    public GameCaptureRegion Derive(Mat captureMat, int x, int y) => new(captureMat, x, y, this, new TranslationConverter(x, y));
+}
+#else
+using BetterGenshinImpact.GameTask.Model.Area.Converter;
+using OpenCvSharp;
+using System;
+using System.Threading;
+
+namespace BetterGenshinImpact.GameTask.Model.Area;
+
+/// <summary>macOS Core implementation; input is supplied by composition.</summary>
 public class DesktopRegion : Region
 {
     public static int DisplayWidth { get; set; }
     public static int DisplayHeight { get; set; }
-
     public DesktopRegion(int w, int h) : base(0, 0, w, h) { }
-
-    public DesktopRegion() : this(DisplayWidth, DisplayHeight)
-    {
-        if (DisplayWidth == 0 || DisplayHeight == 0)
-            throw new InvalidOperationException(
-                "DesktopRegion.DisplayWidth/Height must be initialized via platform window service before using the parameterless constructor.");
-    }
-
-    // --- Instance methods: coords are desktop-region-relative pixels ---
-
-    public void DesktopRegionClick(int x, int y, int w, int h)
-    {
-        var input = PlatformServices.Input;
-        var cx = x + w / 2;
-        var cy = y + h / 2;
-        input.MoveMouseTo(cx, cy);
-        input.LeftButtonDown();
-        Thread.Sleep(50);
-        input.LeftButtonUp();
-        Thread.Sleep(50);
-    }
-
-    public void DesktopRegionMove(int x, int y, int w, int h)
-    {
-        PlatformServices.Input.MoveMouseTo(x + w / 2, y + h / 2);
-    }
-
-    // --- Static methods: cx, cy are desktop screen pixels ---
-
-    public static void DesktopRegionClick(double cx, double cy)
-    {
-        var input = PlatformServices.Input;
-        input.MoveMouseTo((int)Math.Round(cx), (int)Math.Round(cy));
-        input.LeftButtonDown();
-        Thread.Sleep(50);
-        input.LeftButtonUp();
-        Thread.Sleep(50);
-    }
-
-    public static void DesktopRegionMove(double cx, double cy)
-    {
-        PlatformServices.Input.MoveMouseTo((int)Math.Round(cx), (int)Math.Round(cy));
-    }
-
-    public static void DesktopRegionMoveBy(double dx, double dy)
-    {
-        PlatformServices.Input.MoveMouseBy((int)dx, (int)dy);
-    }
-
-    public GameCaptureRegion Derive(Mat captureMat, int x, int y)
-    {
-        return new GameCaptureRegion(captureMat, x, y, this, new TranslationConverter(x, y));
-    }
+    public DesktopRegion() : this(DisplayWidth, DisplayHeight) { if (DisplayWidth == 0 || DisplayHeight == 0) throw new InvalidOperationException("Desktop size is not initialized."); }
+    public void DesktopRegionClick(int x, int y, int w, int h) { var input = DesktopRegionInputPlatform.Current; input.MoveMouseTo(x + w / 2, y + h / 2); input.LeftButtonDown(); Thread.Sleep(50); input.LeftButtonUp(); }
+    public void DesktopRegionMove(int x, int y, int w, int h) => DesktopRegionInputPlatform.Current.MoveMouseTo(x + w / 2, y + h / 2);
+    public static void DesktopRegionClick(double x, double y) { var input = DesktopRegionInputPlatform.Current; input.MoveMouseTo((int)Math.Round(x), (int)Math.Round(y)); input.LeftButtonDown(); Thread.Sleep(50); input.LeftButtonUp(); }
+    public static void DesktopRegionMove(double x, double y) => DesktopRegionInputPlatform.Current.MoveMouseTo((int)Math.Round(x), (int)Math.Round(y));
+    public static void DesktopRegionMoveBy(double x, double y) => DesktopRegionInputPlatform.Current.MoveMouseBy((int)x, (int)y);
+    public GameCaptureRegion Derive(Mat captureMat, int x, int y) => new(captureMat, x, y, this, new TranslationConverter(x, y));
 }
+#endif

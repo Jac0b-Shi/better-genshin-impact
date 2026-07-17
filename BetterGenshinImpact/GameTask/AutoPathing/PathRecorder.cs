@@ -24,15 +24,7 @@ public class PathRecorder : Singleton<PathRecorder>
 {
     private WebpageWindow? _webWindow;
 
-    public static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, // 下划线
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    public static JsonSerializerOptions JsonOptions => PathingJson.Options;
 
     private PathingTask _pathingTask = new();
 

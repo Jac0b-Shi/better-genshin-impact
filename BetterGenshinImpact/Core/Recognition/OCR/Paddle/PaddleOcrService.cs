@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition.OCR.Engine;
@@ -19,6 +20,7 @@ namespace BetterGenshinImpact.Core.Recognition.OCR.Paddle;
 
 public class PaddleOcrService : IOcrService, IDisposable
 {
+    private int _disposed;
     /// <summary>
     ///     Usage:
     ///     https://github.com/sdcb/PaddleSharp/blob/master/docs/ocr.md
@@ -378,8 +380,12 @@ public class PaddleOcrService : IOcrService, IDisposable
 
     public void Dispose()
     {
-        _localDetModel.Dispose();
-        _localRecModel.Dispose();
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _localDetModel.Dispose();
+            _localRecModel.Dispose();
+        }
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

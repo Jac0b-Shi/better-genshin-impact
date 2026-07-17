@@ -15,10 +15,10 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
     private readonly ILogger<AutoPickAssets> _logger;
 
     // Template-only assets (no config dependency)
-    public RecognitionObject FRo;
-    public RecognitionObject ChatIconRo;
-    public RecognitionObject SettingsIconRo;
-    public RecognitionObject LRo;
+    public RecognitionObject FRo = null!;
+    public RecognitionObject ChatIconRo = null!;
+    public RecognitionObject SettingsIconRo = null!;
+    public RecognitionObject LRo = null!;
 
     // Config-dependent assets — property-backed with instance-level guard
     private BgiKey _pickVk = BgiKey.F;

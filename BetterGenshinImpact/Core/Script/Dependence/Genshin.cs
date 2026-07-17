@@ -21,7 +21,7 @@ namespace BetterGenshinImpact.Core.Script.Dependence;
 
 public class Genshin
 {
-    private RECT captureAreaRect = TaskContext.Instance().SystemInfo.CaptureAreaRect;
+    private RECT captureAreaRect = TaskContext.Instance().SystemInfo.CaptureAreaRect.ToWindowsRect();
 
     /// <summary>
     /// 游戏宽度

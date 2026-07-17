@@ -19,14 +19,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.GameTask.Common.BgiVision;
 
-public enum GameUiCategory
-{
-    Unknown,
-    Main,
-    Talk,
-    BigMap
-}
-
 public static partial class Bv
 {
     public static GameUiCategory WhichGameUi()
@@ -78,8 +70,10 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInMainUi(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(ElementAssets.Instance.PaimonMenuRo);
-        return ra.IsExist() && !IsInRevivePrompt(captureRa);
+        CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
+        IStringLocalizer stringLocalizer = App.GetService<IStringLocalizer<BvResxHelper>>() ?? throw new Exception();
+        string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
+        return IsInMainUi(captureRa, ElementAssets.Instance.PaimonMenuRo, AutoFightAssets.Instance.ConfirmRa, revival);
     }
 
     /// <summary>
@@ -247,25 +241,10 @@ public static partial class Bv
     /// <returns></returns>
     internal static bool IsInRevivePrompt(ImageRegion region)
     {
-        using var confirmRectArea = region.Find(AutoFightAssets.Instance.ConfirmRa);
-        if (!confirmRectArea.IsEmpty())
-        {
-            var list = region.FindMulti(new RecognitionObject
-            {
-                RecognitionType = RecognitionTypes.Ocr,
-                RegionOfInterest = new Rect(0, 0, region.Width, region.Height / 2)
-            });
-
-            CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
-            IStringLocalizer stringLocalizer = App.GetService<IStringLocalizer<BvResxHelper>>() ?? throw new Exception();
-            string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
-            if (list.Any(r => r.Text.Contains(revival)))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
+        IStringLocalizer stringLocalizer = App.GetService<IStringLocalizer<BvResxHelper>>() ?? throw new Exception();
+        string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
+        return IsInRevivePrompt(region, AutoFightAssets.Instance.ConfirmRa, revival);
     }
 
     /// <summary>
@@ -313,16 +292,8 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInBlessingOfTheWelkinMoon(ImageRegion captureRa)
     {
-        var ra = captureRa;
-
-        using var girlRa = ra.Find(GameLoadingAssets.Instance.GirlMoonRo);
-        if (girlRa.IsExist())
-        {
-            return true;
-        }
-
-        using var moonRa = ra.Find(GameLoadingAssets.Instance.WelkinMoonRo);
-        return moonRa.IsExist();
+        return IsInBlessingOfTheWelkinMoon(
+            captureRa, GameLoadingAssets.Instance.GirlMoonRo, GameLoadingAssets.Instance.WelkinMoonRo);
     }
 
     /// <summary>

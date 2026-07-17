@@ -47,7 +47,7 @@ public partial class AutoPickTrigger : ITaskTrigger
     /// </summary>
     private HashSet<string> _whiteList = [];
 
-    private RecognitionObject _pickRo;
+    private RecognitionObject _pickRo = null!;
 
     // 外部配置
     private AutoPickExternalConfig? _externalConfig;

@@ -340,7 +340,7 @@ public class GeniusInvokationControl
     /// </summary>
     public void ClickGameWindowCenter()
     {
-        var p = TaskContext.Instance().SystemInfo.CaptureAreaRect.GetCenterPoint();
+        var p = TaskContext.Instance().SystemInfo.CaptureAreaRect.ToWindowsRect().GetCenterPoint();
         p.Click();
     }
 

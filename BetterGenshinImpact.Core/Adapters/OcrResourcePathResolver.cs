@@ -20,7 +20,7 @@ public sealed class OcrResourcePathResolver : IOcrResourcePathResolver
 
     public string ResolveModelPath(BgiOnnxModel model)
     {
-        var normalized = NormalizePath(model.ModelRelativePath);
+        var normalized = NormalizePath(ModelArtifactPathCatalog.RelativePath(model));
         return Path.GetFullPath(Path.Combine(_modelRoot, normalized));
     }
 

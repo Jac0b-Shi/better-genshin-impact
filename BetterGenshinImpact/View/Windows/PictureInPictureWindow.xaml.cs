@@ -65,7 +65,7 @@ public partial class PictureInPictureWindow : Window
                 _cacheSize = mat.Size();
                 if (!_initializedPosition)
                 {
-                    PositionNearGame(TaskContext.Instance().SystemInfo.CaptureAreaRect);
+                    PositionNearGame(TaskContext.Instance().SystemInfo.CaptureAreaRect.ToWindowsRect());
                     _initializedPosition = true;
                 }
             }
@@ -106,7 +106,7 @@ public partial class PictureInPictureWindow : Window
                 UpdateClip();
                 if (!_initializedPosition)
                 {
-                    PositionNearGame(TaskContext.Instance().SystemInfo.CaptureAreaRect);
+                    PositionNearGame(TaskContext.Instance().SystemInfo.CaptureAreaRect.ToWindowsRect());
                     _initializedPosition = true;
                 }
             }

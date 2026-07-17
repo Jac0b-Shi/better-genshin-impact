@@ -4,7 +4,10 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.GameLoading;
+using BetterGenshinImpact.GameTask.AutoPick.Assets;
+using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Helpers;
+using BetterGenshinImpact.Platform.Abstractions;
 using BetterGenshinImpact.View;
 using Fischless.GameCapture;
 using Fischless.GameCapture.Graphics;
@@ -288,7 +291,7 @@ namespace BetterGenshinImpact.GameTask
             TryCleanup("clear local triggers", () => _triggers?.Clear());
             _triggers = null;
 
-            TryCleanup("destroy AutoPickAssets", AutoPickAssets.AutoPickAssets.DestroyInstance);
+            TryCleanup("destroy AutoPickAssets", AutoPickAssets.DestroyInstance);
         }
 
         private void TryCleanup(string operation, Action action)
@@ -597,7 +600,7 @@ namespace BetterGenshinImpact.GameTask
                 }
 
                 _gameRect = new RECT(currentRect);
-                TaskContext.Instance().SystemInfo.CaptureAreaRect = currentRect;
+                TaskContext.Instance().SystemInfo.CaptureAreaRect = new BgiRect(currentRect.X, currentRect.Y, currentRect.Width, currentRect.Height);
                 MaskWindow.Instance().RefreshPosition();
                 HtmlMaskWindow.UpdateAllPositions();
                 return true;

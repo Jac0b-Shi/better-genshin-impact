@@ -11,6 +11,7 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<LangVersion>12.0</LangVersion>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<DefineConstants>$(DefineConstants);BGI_FULL_WINDOWS</DefineConstants>
 		<ApplicationIcon>Resources\Images\logo.ico</ApplicationIcon>
 		<Platforms>x64</Platforms>
 		<DebugType>embedded</DebugType>
@@ -38,6 +39,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Using Include="BetterGenshinImpact.Core.Simulator.Extensions" />
+		<Using Include="BetterGenshinImpact.Core.Runtime.Windows" />
 		<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
 		<PackageReference Include="BehaviourTree" Version="1.0.73" />
 
@@ -71,9 +74,9 @@
 		<PackageReference Include="MimeKit" Version="4.15.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
-		<PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.11.0.20250507" />
-		<PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250507" />
-		<PackageReference Include="OpenCvSharp4.Windows" Version="4.11.0.20250507" />
+		<PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.13.0.20260627" />
+		<PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260627" />
+		<PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260627" />
 		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.122" />
 		<PackageReference Include="Microsoft.ClearScript.V8" Version="7.4.5" />
 		<PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.4.5" />
@@ -86,7 +89,7 @@
 		<PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
 		<PackageReference Include="Serilog.Sinks.RichTextBoxEx.Wpf" Version="1.1.0.1" />
 <!--		<PackageReference Include="supabase-csharp" Version="0.16.2" />-->
-		<PackageReference Include="System.Drawing.Common" Version="10.0.7" />
+		<PackageReference Include="System.Drawing.Common" Version="10.0.9" />
 		<PackageReference Include="System.IO.Hashing" Version="9.0.4" />
 		<PackageReference Include="TorchSharp" Version="0.105.0" />
 		<PackageReference Include="Vanara.PInvoke.CoreAudio" Version="4.1.3" />

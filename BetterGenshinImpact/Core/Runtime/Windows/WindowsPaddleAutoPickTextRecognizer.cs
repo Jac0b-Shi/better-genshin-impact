@@ -1,6 +1,7 @@
 using BetterGenshinImpact.Core.Abstractions.Recognition;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.GameTask.AutoPick;
 using OpenCvSharp;
 using System.Diagnostics;
 

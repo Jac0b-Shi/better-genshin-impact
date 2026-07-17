@@ -1,0 +1,65 @@
+using BetterGenshinImpact.Core.Host.Protocol;
+using BetterGenshinImpact.Core.Script.Group;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Text;
+
+namespace BetterGenshinImpact.Core.Host.Runtime;
+
+public sealed class ScriptGroupCatalog(RuntimeLayout layout)
+{
+    public IReadOnlyList<ScriptGroupDocument> List()
+    {
+        layout.EnsureCreated();
+        return Directory.EnumerateFiles(layout.ScriptGroupPath, "*.json", SearchOption.TopDirectoryOnly)
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+            .Select(Read)
+            .ToArray();
+    }
+
+    public ScriptGroupDocument Get(string name)
+    {
+        var path = Resolve(name);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Script group does not exist: {name}", path);
+        return Read(path);
+    }
+
+    public ScriptGroupDocument Save(string name, JObject document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        layout.EnsureCreated();
+        var path = Resolve(name);
+        var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        var group = ScriptGroup.FromJson(document.ToString(Formatting.None));
+        if (!string.Equals(group.Name, name, StringComparison.Ordinal))
+            throw new InvalidDataException($"Script group document name '{group.Name}' does not match target name '{name}'.");
+        var json = Normalize(group);
+        File.WriteAllText(tempPath, json, new UTF8Encoding(false));
+        File.Move(tempPath, path, true);
+        return Read(path);
+    }
+
+    private ScriptGroupDocument Read(string path)
+    {
+        var text = File.ReadAllText(path, Encoding.UTF8);
+        var group = ScriptGroup.FromJson(text);
+        var document = JObject.Parse(group.ToJson());
+        var name = group.Name;
+        if (string.IsNullOrWhiteSpace(name))
+            name = Path.GetFileNameWithoutExtension(path);
+        return new ScriptGroupDocument(name, Path.GetRelativePath(layout.RootPath, path), document);
+    }
+
+    private static string Normalize(ScriptGroup group) =>
+        JObject.Parse(group.ToJson()).ToString(Formatting.Indented) + Environment.NewLine;
+
+    private string Resolve(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Script group name cannot be empty.", nameof(name));
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name is "." or ".." || name.Contains('/') || name.Contains('\\'))
+            throw new ArgumentException("Script group name contains invalid path characters.", nameof(name));
+        return Path.Combine(layout.ScriptGroupPath, name + ".json");
+    }
+}

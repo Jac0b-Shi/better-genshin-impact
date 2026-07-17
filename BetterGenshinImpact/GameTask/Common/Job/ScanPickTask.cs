@@ -25,7 +25,7 @@ public class ScanPickTask
 {
     private readonly BgiYoloPredictor _predictor = App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiWorld);
     private readonly double _dpi = TaskContext.Instance().DpiScale;
-    private readonly RECT _realCaptureRect = TaskContext.Instance().SystemInfo.CaptureAreaRect;
+    private readonly RECT _realCaptureRect = TaskContext.Instance().SystemInfo.CaptureAreaRect.ToWindowsRect();
 
 
     public async Task Start(CancellationToken ct)

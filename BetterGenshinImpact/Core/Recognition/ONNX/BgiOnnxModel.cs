@@ -159,12 +159,6 @@ public class BgiOnnxModel
     private static BgiOnnxModel Register(string name, string modelRelativePath, string cacheRelativePath)
     {
         var model = new BgiOnnxModel(name, modelRelativePath, cacheRelativePath);
-        var cachePath = model.CachePath;
-        if (!Directory.Exists(cachePath))
-        {
-            Directory.CreateDirectory(cachePath);
-        }
-
         RegisteredModels.Add(model);
         return model;
     }

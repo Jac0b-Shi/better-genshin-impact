@@ -1,4 +1,5 @@
 using BetterGenshinImpact.Platform.Abstractions;
+using System;
 
 namespace BetterGenshinImpact.Helpers;
 

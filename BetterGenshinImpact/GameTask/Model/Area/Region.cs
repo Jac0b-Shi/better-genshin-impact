@@ -1,6 +1,6 @@
 using BetterGenshinImpact.GameTask.Model.Area.Converter;
-using BetterGenshinImpact.View.Drawable;
 #if BGI_FULL_WINDOWS
+using BetterGenshinImpact.View.Drawable;
 using Fischless.WindowsInput;
 using Vanara.PInvoke;
 #endif
@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.Core.Recognition;
 
 namespace BetterGenshinImpact.GameTask.Model.Area;
 
@@ -59,7 +60,7 @@ public class Region : IDisposable
     }
 
     public Region(int x, int y, int width, int height, Region? owner = null, INodeConverter? converter = null,
-        DrawContent? drawContent = null)
+        IOverlayDrawPlatform? drawContent = null)
     {
         X = x;
         Y = y;
@@ -67,7 +68,7 @@ public class Region : IDisposable
         Height = height;
         Prev = owner;
         PrevConverter = converter;
-        this.drawContent = drawContent ?? VisionContext.Instance().DrawContent;
+        this.drawContent = drawContent ?? OverlayDrawPlatform.Current;
     }
 
     public Region(Rect rect, Region? owner = null, INodeConverter? converter = null) : this(rect.X, rect.Y, rect.Width, rect.Height, owner, converter)
@@ -84,7 +85,7 @@ public class Region : IDisposable
     /// <summary>
     /// 绘图上下文 (Windows/WPF overlay only; no-op stub on other platforms via DrawableStubs)
     /// </summary>
-    protected readonly DrawContent drawContent;
+    protected readonly IOverlayDrawPlatform drawContent = null!;
 
     // public List<Region>? NextChildren { get; protected set; }
 
@@ -217,13 +218,13 @@ public class Region : IDisposable
     public void DrawRect(int x, int y, int w, int h, string name, Pen? pen = null)
     {
         var drawable = ToRectDrawable(x, y, w, h, name, pen);
-        drawContent.PutRect(name, drawable);
+        VisionContext.Instance().DrawContent.PutRect(name, drawable);
     }
 
     public void DrawRect(Rect rect, string name, Pen? pen = null)
     {
         var drawable = ToRectDrawable(rect.X, rect.Y, rect.Width, rect.Height, name, pen);
-        drawContent.PutRect(name, drawable);
+        VisionContext.Instance().DrawContent.PutRect(name, drawable);
     }
 
     /// <summary>
@@ -287,7 +288,7 @@ public class Region : IDisposable
     public void DrawLine(int x1, int y1, int x2, int y2, string name, Pen? pen = null)
     {
         var drawable = ToLineDrawable(x1, y1, x2, y2, name, pen);
-        drawContent.PutLine(name, drawable);
+        VisionContext.Instance().DrawContent.PutLine(name, drawable);
     }
 #endif
 

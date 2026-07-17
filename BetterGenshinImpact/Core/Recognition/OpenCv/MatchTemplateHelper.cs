@@ -62,6 +62,8 @@ public class MatchTemplateHelper
 #if !BGI_PLATFORM_MAC
             _logger.LogError(ex.Message);
             _logger.LogDebug(ex, ex.Message);
+#else
+            _ = ex;
 #endif
             return default;
         }
@@ -107,11 +109,14 @@ public class MatchTemplateHelper
 #if !BGI_PLATFORM_MAC
             _logger.LogError(ex.Message);
             _logger.LogDebug(ex, ex.Message);
+#else
+            _ = ex;
 #endif
             return points;
         }
     }
 
+    [Obsolete]
     public static List<Point> MatchTemplateMulti(Mat srcMat, Mat dstMat, double threshold)
     {
         return MatchTemplateMulti(srcMat, dstMat, null, threshold);

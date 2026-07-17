@@ -1,0 +1,46 @@
+# BetterGI macOS Core extraction map
+
+This file is the source-of-truth map for the first macOS extraction. A row is
+only marked `complete` when the linked source is used by the macOS composition
+and has behaviour coverage. Compiling a substitute API is not completion.
+
+| Upstream source | Core compile location | macOS composition | State | Acceptance evidence |
+| --- | --- | --- | --- | --- |
+| `Core/Config/Global.cs`, `ConfigJson.cs` | linked under `Core/Config` | `RuntimeLayout` supplies the runtime root | partial | Runtime root creates the canonical `User`, `Repos`, `Assets`, `Cache`, and `Run` layout. |
+| `Core/Script/PackageDocumentLoader.cs` | linked under `Core/Script` | `ScriptProject` | complete | Host verification evaluates a package import and rejects a path escape. |
+| `Core/Script/Project/{Manifest,ScriptProject}.cs` | linked under `Core/Script/Project` | `ScriptProjectCatalog`, `MacScriptProjectHostInitializer` | partial | Manifest, settings, package and module DTOs are read by Core. The real `ExitGameMultipleMode` project executes its Alt+F4 branch through ClearScript and the acknowledged macOS input callback in upstream keyDown/keyUp order. Full scheduler execution remains unavailable until all EngineExtend host objects are real. |
+| `Core/Script/Group/{ScriptGroup,ScriptGroupProject,ScriptGroupConfig}.cs` | linked under `Core/Script/Group`, including the real execution partial | `ScriptGroupCatalog`, `SchedulerCoordinator` | partial | Host verification round-trips the upstream model and directly executes real JavaScript, KeyMouse and Shell branches. Full Pathing execution remains pending. |
+| `Service/ScriptService.cs` | linked into Core; only UI/process effects delegate through `ScriptServicePlatform` | Windows uses `WindowsScriptServicePlatform`; macOS uses `MacScriptServicePlatform` and `SchedulerCoordinator` | partial | Host verification now drives RPC through `RunMulti`, recognizes a synthetic 1920x1080 frame containing the real Paimon asset, enters the real `TaskRunner` and Shell branch, verifies the shell artifact, and observes `running → completed`. Pathing still fails explicitly at its uncomposed executor boundary. |
+| `GameTask/{TaskRunner,RunnerContext,TaskProgress}.cs` | linked scheduler lifecycle state; combat recognition remains in the same `RunnerContext` partial type and will join its task slice | Windows uses `WindowsTaskRunnerPlatform`; macOS uses activation, notification and release-all callbacks | partial | Core behavior tests execute the real lock, concurrent rejection, cancellation-finally cleanup, exception notification and continuous-group `NormalEndException` propagation. RPC pause/resume uses the same `RunnerContext.IsSuspend` toggled by upstream Windows UI. |
+| `Core/Script/EngineExtend.cs` and host objects | canonical global registration moved into linked `GlobalMethod`; `ScriptHostServices`, `Log`, `LimitedFile`, `Http`, `ServerTime`, `StrategyFile`, `CustomHostFunctions`, `Notification` linked; remaining objects pending | `MacGlobalMethodRuntime`, `MacScriptHostServices`, `MacScriptProjectHostInitializer`, Swift callback adapter | partial | Windows EngineExtend and macOS consume one canonical global-function name list. Real ClearScript, packages, settings, file/HTTP permissions, input ACK, capture ring and notifications are composed. Remaining Bv/genshin/pathing breadth fails at explicit capability boundaries rather than falling back. |
+| KeyMouse, Pathing, Shell entries | The upstream KeyMouse parser, DPI/rectangle adaptation, event timing and ordering now compile in Core; Pathing model, JSON/control-file merge, `FarmingSession`, shared `TaskControl`, `CameraRotateTask`, the complete upstream mini-map orientation algorithm, `NavigationInstance`, `MapManager`, every upstream scene-map implementation, SIFT feature matching, template matching, and the upstream `ShellTask` contract are linked; every direct input and pressed-key read in the upstream `PathExecutor` source now crosses `TaskControlPlatform`; game-window validation, current-route publication and expedition-country configuration cross `PathExecutorPlatform`; only Navigation's UI position notification crosses `NavigationPlatform`, while all visual localization decisions remain in C# Core; remaining PathExecutor closure is pending | macOS KeyMouse and `GIActions` dispatch use acknowledged semantic RPC through Swift's safety gate; pressed-action state is read from real `CGEventSource` keyboard/mouse state; game dimensions come from `window.metrics`; current route and matched position DTOs are emitted to Swift as presentation-only callbacks; Core owns the expedition-country value initialized through `core.initialize`; `MacShellTaskPlatform` executes `/bin/zsh -lc` | partial | Core verification constructs the real SIFT and template-map implementations and proves the upstream game/image coordinate transform round-trip; Host verification executes real KeyMouse ordering, shared hold-action focus/key-up ordering, platform key-state query, 1920x1080 PathExecutor window validation data, Core-owned pathing config, current-route metadata and OpenCV-coordinate callbacks, plus a real two-line zsh command. Core builds its genuine OpenCV mini-map camera-orientation and localization pipelines with explicit `MapAssets` initialization from `ISystemInfo`; Windows retains native TaskContext/SendInput/Messenger/cmd.exe behavior. A tracked real route round-trips with waypoint/action preservation. Unsupported remaining Pathing execution remains unavailable rather than succeeding as a no-op. |
+| `GameTask/LogParse/ExecutionRecord*` | linked under `GameTask/LogParse` | runtime-root log storage and `ScriptHostServices` server time | partial | Behavior tests cover recent-success `SameNameSkipPolicy`, reason/GUID reporting and failed-record exclusion. Other policies and physical persistence remain to be added to the gate. |
+| OCR/ONNX/OpenCV pipeline | linked under `Core/Recognition` | portable CPU ONNX runtime plus lazy real Paddle OCR | partial | Real native V8/OpenCV smoke, 3 real ONNX 1.21.0 sessions and deterministic OCR run. `ImageRegion` OCR/OcrMatch/ColorRangeAndOcr now use a composed real service on macOS; process teardown explicitly disposes `OrtEnv`. Model artifact clean-install gate remains pending. |
+| `GameTaskManager`, regions, draw output | linked shared manager/regions/overlay command boundary | macOS window metrics, semantic input and acknowledged `overlay.command` callbacks | partial | All Core `Shim/` files are deleted. Shared manager initialization/order tests and real main-UI template fixture pass; the complete macOS trigger set remains pending. |
+
+## Non-negotiable production boundary
+
+`scheduler.run`, `scheduler.pause`, `scheduler.resume`, and `scheduler.stop`
+are owned by Core and call the shared `ScriptService.RunMulti` chain. Swift may
+only display catalog/state and issue these RPCs; it must not call the existing
+Swift/Rust scheduler. An individual uncomposed task branch (currently full
+Pathing) must terminate with structured `CapabilityUnavailable`, never success.
+
+## Required real-world compatibility fixture
+
+The local runtime contains `User/ScriptGroup/狗粮+锄地.json`. It is the first
+non-synthetic scheduler fixture. It references enabled JavaScript projects
+under `User/JsScript`: `WeeklyThousandStarRealm`, `AutoHoeingOneDragon`,
+`AAA-Artifacts-Bulk-Supply`, `AbundantOre`, and `ExitGameMultipleMode`. It
+exercises populated Pathing/AutoPick/AutoFight/Shell configuration, per-project
+settings, and manifest `saved_files` globs. Scheduler compatibility is not
+proven until Core loads the full fixture and every referenced manifest/settings
+declaration without Swift-side interpretation.
+
+## Composition rule
+
+The shared C# sources remain the semantic owner. Platform code may provide only
+runtime-root storage, capture, semantic input dispatch, window metrics,
+dialogs, notifications, and draw-command presentation. `#if BGI_PLATFORM_MAC`
+may isolate a WPF/Win32 host implementation, never change a script, task, or
+scheduler decision.

@@ -128,15 +128,4 @@ public partial class PathingPartyConfig : ObservableObject
 
     [ObservableProperty]
     private AutoFightConfig _autoFightConfig = new();
-    public static PathingPartyConfig BuildDefault()
-    {
-        // 即便是不启用的情况下也设置默认值，减少后续使用的判断
-        var pathingConditionConfig = TaskContext.Instance().Config.PathingConditionConfig;
-        return new PathingPartyConfig
-        {
-            OnlyInTeleportRecover = pathingConditionConfig.OnlyInTeleportRecover,
-            UseGadgetIntervalMs = pathingConditionConfig.UseGadgetIntervalMs,
-            AutoEatEnabled = pathingConditionConfig.AutoEatEnabled
-        };
-    }
 }
