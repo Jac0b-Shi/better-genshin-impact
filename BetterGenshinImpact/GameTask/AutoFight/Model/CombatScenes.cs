@@ -5,6 +5,7 @@ using BetterGenshinImpact.Core.Recognition.OpenCv;
 using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.AutoFight.Config;
+using BetterGenshinImpact.GameTask.AutoFight.Script;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Model;
@@ -30,7 +31,7 @@ namespace BetterGenshinImpact.GameTask.AutoFight.Model;
 /// <summary>
 /// 战斗场景
 /// </summary>
-public class CombatScenes : IDisposable
+public class CombatScenes : IDisposable, ICombatCommandScene
 {
     /// <summary>
     /// 当前配队
@@ -113,6 +114,10 @@ public class CombatScenes : IDisposable
     {
         return Avatars.AsReadOnly();
     }
+
+    ICombatCommandAvatar? ICombatCommandScene.SelectAvatar(string name) => SelectAvatar(name);
+
+    ICombatCommandAvatar ICombatCommandScene.SelectAvatar(int avatarIndex) => SelectAvatar(avatarIndex);
 
 
     /// <summary>

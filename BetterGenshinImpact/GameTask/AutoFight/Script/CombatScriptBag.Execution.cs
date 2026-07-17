@@ -1,15 +1,14 @@
-using BetterGenshinImpact.GameTask.AutoFight.Model;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using static BetterGenshinImpact.GameTask.Common.TaskControl;
 
 namespace BetterGenshinImpact.GameTask.AutoFight.Script;
 
 public partial class CombatScriptBag
 {
-    public List<CombatCommand> FindCombatScript(ReadOnlyCollection<Avatar> avatars)
+    public List<CombatCommand> FindCombatScript<TAvatar>(IReadOnlyCollection<TAvatar> avatars)
+        where TAvatar : ICombatCommandAvatar
     {
         foreach (var combatScript in CombatScripts)
         {

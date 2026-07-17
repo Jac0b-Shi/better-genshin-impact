@@ -1,4 +1,3 @@
-using BetterGenshinImpact.GameTask.AutoFight.Model;
 using System;
 using TimeSpan = System.TimeSpan;
 
@@ -6,9 +5,9 @@ namespace BetterGenshinImpact.GameTask.AutoFight.Script;
 
 public partial class CombatCommand
 {
-    public void Execute(CombatScenes combatScenes, CombatCommand? lastCommand = null)
+    public void Execute(ICombatCommandScene combatScenes, CombatCommand? lastCommand = null)
     {
-        Avatar? avatar;
+        ICombatCommandAvatar? avatar;
         if (Name == CombatScriptParser.CurrentAvatarName)
         {
             avatar = combatScenes.SelectAvatar(1);
@@ -48,7 +47,7 @@ public partial class CombatCommand
         Execute(avatar);
     }
 
-    public void Execute(Avatar avatar)
+    public void Execute(ICombatCommandAvatar avatar)
     {
         if (Method == Method.Skill)
         {

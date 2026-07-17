@@ -174,6 +174,17 @@ Assert("embedded combat_script preserves command order and arguments",
     && combatWaypointForTrack.CombatScript.CombatCommands[1].Args?.Single() == "0.6"
     && combatWaypointForTrack.CombatScript.CombatCommands[2].Method == Method.KeyUp,
     string.Join(',', combatWaypointForTrack.CombatScript?.CombatCommands.Select(command => command.Method.Alias[0]) ?? []));
+var recordingCombatAvatar = new RecordingCombatCommandAvatar("当前角色");
+var recordingCombatScene = new RecordingCombatCommandScene(recordingCombatAvatar);
+CombatCommand? previousCombatCommand = null;
+foreach (var command in combatWaypointForTrack.CombatScript!.CombatCommands)
+{
+    command.Execute(recordingCombatScene, previousCombatCommand);
+    previousCombatCommand = command;
+}
+Assert("upstream combat command execution preserves macro dispatch order",
+    recordingCombatAvatar.Calls.SequenceEqual(["KeyDown(q)", "Wait(600)", "KeyUp(q)"]),
+    string.Join(',', recordingCombatAvatar.Calls));
 try
 {
     _ = new CombatCommand("当前角色", "keydown(VK_VOLUME_UP)");
@@ -2011,4 +2022,39 @@ sealed class VerificationCombatCommandPlatform : ICombatCommandPlatform
         if (normalized is "LBUTTON" or "RBUTTON" or "MBUTTON" or "SPACE" or "ESCAPE") return;
         throw new ArgumentException($"Unsupported verification key: {keyName}", nameof(keyName));
     }
+}
+
+sealed class RecordingCombatCommandScene(ICombatCommandAvatar avatar) : ICombatCommandScene
+{
+    public ICombatCommandAvatar? SelectAvatar(string name) => avatar.Name == name ? avatar : null;
+
+    public ICombatCommandAvatar SelectAvatar(int avatarIndex) => avatarIndex == 1
+        ? avatar
+        : throw new ArgumentOutOfRangeException(nameof(avatarIndex));
+}
+
+sealed class RecordingCombatCommandAvatar(string name) : ICombatCommandAvatar
+{
+    public string Name { get; } = name;
+    public List<string> Calls { get; } = [];
+    public bool IsSkillReady(bool printLog = false) { Calls.Add($"IsSkillReady({printLog})"); return true; }
+    public Task WaitSkillCd(CancellationToken ct = default) { Calls.Add("WaitSkillCd()"); return Task.CompletedTask; }
+    public void Switch() => Calls.Add("Switch()");
+    public void UseSkill(bool hold = false) => Calls.Add($"UseSkill({hold})");
+    public void UseBurst() => Calls.Add("UseBurst()");
+    public void Attack(int ms = 0) => Calls.Add($"Attack({ms})");
+    public void Charge(int ms = 0) => Calls.Add($"Charge({ms})");
+    public void Walk(string key, int ms) => Calls.Add($"Walk({key},{ms})");
+    public void Wait(int ms) => Calls.Add($"Wait({ms})");
+    public void Ready() => Calls.Add("Ready()");
+    public void Dash(int ms = 0) => Calls.Add($"Dash({ms})");
+    public void Jump() => Calls.Add("Jump()");
+    public void MouseDown(string key = "left") => Calls.Add($"MouseDown({key})");
+    public void MouseUp(string key = "left") => Calls.Add($"MouseUp({key})");
+    public void Click(string key = "left") => Calls.Add($"Click({key})");
+    public void MoveBy(int x, int y) => Calls.Add($"MoveBy({x},{y})");
+    public void KeyDown(string key) => Calls.Add($"KeyDown({key})");
+    public void KeyUp(string key) => Calls.Add($"KeyUp({key})");
+    public void KeyPress(string key) => Calls.Add($"KeyPress({key})");
+    public void Scroll(int scrollAmountInClicks) => Calls.Add($"Scroll({scrollAmountInClicks})");
 }

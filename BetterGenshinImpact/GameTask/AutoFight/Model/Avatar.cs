@@ -36,7 +36,7 @@ namespace BetterGenshinImpact.GameTask.AutoFight.Model;
 /// <summary>
 /// 队伍内的角色
 /// </summary>
-public class Avatar
+public class Avatar : ICombatCommandAvatar
 {
     /// <summary>
     /// 配置文件中的角色信息
