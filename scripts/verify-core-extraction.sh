@@ -40,6 +40,10 @@ if rg -n '\bBGIScriptGroup(Project|Config)?\b|getScriptGroup\(|saveScriptGroup\(
   fail "Swift interprets or persists the upstream ScriptGroup document instead of consuming Core DTOs"
 fi
 
+if rg -n 'coreTriggerNames|id:\s*"auto-(pickup|dialog|heal)' MacGI/Sources/MacGI/App; then
+  fail "Swift hard-codes a parallel trigger catalog instead of consuming trigger.list DTOs"
+fi
+
 if rg -n '仍为 Mock|Mock UI|Mock Capture' MacGI/Sources/MacGI/Views; then
   fail "production UI exposes a fake runnable control"
 fi

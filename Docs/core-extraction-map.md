@@ -36,6 +36,9 @@ Historical Swift translations of BetterGI tasks, script-repository semantics,
 template/OCR/YOLO recognition, and big-/mini-map localization are removed from
 the App source tree. Swift no longer links ONNX Runtime; model loading and
 deterministic OCR are mandatory C# Core verification gates.
+The realtime-feature page and HUD are likewise populated from `trigger.list`;
+Swift owns only presentation metadata and sends the returned Core trigger name
+unchanged to `trigger.setEnabled`.
 
 ## Required real-world compatibility fixture
 

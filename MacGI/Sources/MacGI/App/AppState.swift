@@ -311,72 +311,7 @@ final class AppState: ObservableObject {
     @Published var logLevelFilter: LogLevel = .trace
     @Published var logSearchText = ""
     @Published var inputActionLog: [String] = []
-    @Published var features: [MacGIFeature] = [
-        MacGIFeature(
-            id: "auto-pickup",
-            name: "自动拾取",
-            detail: "选项不是NPC对话且不在黑名单时，自动按下 F 拾取/交互。",
-            statusText: "C# Core",
-            icon: .symbol("hand.wave"),
-            isEnabled: true
-        ),
-        MacGIFeature(
-            id: "auto-dialog",
-            name: "自动剧情",
-            detail: "快速跳过剧情文本、自动选择选项、自动提交物品等。",
-            statusText: "Interval 450 ms",
-            icon: .fgi("\u{f075}"),
-            isEnabled: true
-        ),
-        MacGIFeature(
-            id: "auto-hangout",
-            name: "自动邀约",
-            detail: "自动剧情开启的情况下此功能才会生效，自动选择邀约选项。",
-            statusText: "Disabled",
-            icon: .fgi("\u{e5c8}"),
-            isEnabled: false
-        ),
-        MacGIFeature(
-            id: "semi-auto-fishing",
-            name: "半自动钓鱼",
-            detail: "半自动钓鱼需要手动抛竿。",
-            statusText: "Manual",
-            icon: .fgi("\u{f578}"),
-            isEnabled: false
-        ),
-        MacGIFeature(
-            id: "auto-heal",
-            name: "自动吃药",
-            detail: "检测角色红血状态，自动使用便携营养袋回复生命值。",
-            statusText: "C# Core",
-            icon: .fgi("\u{f0f1}"),
-            isEnabled: false
-        ),
-        MacGIFeature(
-            id: "quick-teleport",
-            name: "快速传送",
-            detail: "在大地图上点击传送点时，自动点击传送。",
-            statusText: "C# Core",
-            icon: .fgi("\u{f3c5}"),
-            isEnabled: false
-        ),
-        MacGIFeature(
-            id: "map-overlay",
-            name: "地图遮罩",
-            detail: "在遮罩窗口中显示大地图位置与标点信息。",
-            statusText: "HUD",
-            icon: .fgi("\u{f279}"),
-            isEnabled: false
-        ),
-        MacGIFeature(
-            id: "cooldown-reminder",
-            name: "冷却提示",
-            detail: "在头像旁显示角色元素战技剩余冷却时间。",
-            statusText: "C# Core",
-            icon: .symbol("timer"),
-            isEnabled: false
-        )
-    ]
+    @Published var features: [MacGIFeature] = []
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -466,13 +401,14 @@ final class AppState: ObservableObject {
     }
 
     var overlayStatusItems: [OverlayStatusItem] {
-        [
-            OverlayStatusItem(id: "pickup", glyph: "\u{f256}", name: "拾取", isEnabled: featureEnabled("auto-pickup")),
-            OverlayStatusItem(id: "dialog", glyph: "\u{f075}", name: "剧情", isEnabled: featureEnabled("auto-dialog")),
-            OverlayStatusItem(id: "hangout", glyph: "\u{e5c8}", name: "邀约", isEnabled: featureEnabled("auto-hangout")),
-            OverlayStatusItem(id: "fishing", glyph: "\u{f578}", name: "钓鱼", isEnabled: featureEnabled("semi-auto-fishing")),
-            OverlayStatusItem(id: "teleport", glyph: "\u{f3c5}", name: "传送", isEnabled: featureEnabled("quick-teleport"))
-        ]
+        features.map { feature in
+            OverlayStatusItem(
+                id: feature.id,
+                glyph: Self.triggerPresentation[feature.id]?.glyph ?? "\u{f0e7}",
+                name: feature.name,
+                isEnabled: feature.isEnabled
+            )
+        }
     }
 
     var overlayMetricDisplayItems: [OverlayDisplayMetric] {
@@ -666,19 +602,18 @@ final class AppState: ObservableObject {
     }
 
     func canControlFeature(_ id: String) -> Bool {
-        betterGICoreSupervisor != nil && Self.coreTriggerNames[id] != nil
+        betterGICoreSupervisor != nil && features.contains(where: { $0.id == id })
     }
 
     func setFeature(_ id: String, enabled: Bool) {
-        guard let triggerName = Self.coreTriggerNames[id],
-              let featureName = features.first(where: { $0.id == id })?.name,
+        guard let featureName = features.first(where: { $0.id == id })?.name,
               let supervisor = betterGICoreSupervisor else {
             addLog(.error, "Feature \(id) is not exposed by BetterGI Core.")
             return
         }
         Task { [weak self] in
             do {
-                try await supervisor.setTriggerEnabled(name: triggerName, enabled: enabled)
+                try await supervisor.setTriggerEnabled(name: id, enabled: enabled)
                 await self?.loadTriggerStatesFromCore()
                 self?.addLog(.info, "Core \(featureName) \(enabled ? "enabled" : "disabled")")
             } catch {
@@ -687,36 +622,34 @@ final class AppState: ObservableObject {
         }
     }
 
-    private static let coreTriggerNames: [String: String] = [
-        "auto-pickup": "AutoPick",
-        "auto-dialog": "AutoSkip",
-        "semi-auto-fishing": "AutoFish",
-        "auto-heal": "AutoEat",
-        "quick-teleport": "QuickTeleport",
-        "map-overlay": "MapMask",
-        "cooldown-reminder": "SkillCd",
+    private static let triggerPresentation: [String: (detail: String, icon: BGIIcon, glyph: String)] = [
+        "GameLoading": ("处理游戏启动和加载界面。", .symbol("hourglass"), "\u{f252}"),
+        "AutoPick": ("自动拾取和交互。", .symbol("hand.wave"), "\u{f256}"),
+        "AutoSkip": ("自动推进剧情和选择对话选项。", .fgi("\u{f075}"), "\u{f075}"),
+        "AutoFish": ("半自动钓鱼触发器。", .fgi("\u{f578}"), "\u{f578}"),
+        "AutoEat": ("检测低血量并使用营养袋。", .fgi("\u{f0f1}"), "\u{f0f1}"),
+        "QuickTeleport": ("自动完成大地图传送确认。", .fgi("\u{f3c5}"), "\u{f3c5}"),
+        "MapMask": ("输出地图遮罩绘制命令。", .fgi("\u{f279}"), "\u{f279}"),
+        "SkillCd": ("显示角色技能冷却状态。", .symbol("timer"), "\u{f017}"),
     ]
 
     private func loadTriggerStatesFromCore() async {
         guard let supervisor = betterGICoreSupervisor else { return }
         do {
             let states = try await supervisor.listTriggers()
-            let byName = Dictionary(uniqueKeysWithValues: states.map { ($0.name, $0) })
-            for index in features.indices {
-                guard let triggerName = Self.coreTriggerNames[features[index].id],
-                      let state = byName[triggerName] else {
-                    features[index].isEnabled = false
-                    features[index].statusText = "Core unavailable"
-                    continue
-                }
-                features[index].isEnabled = state.enabled
-                features[index].statusText = "C# Core · P\(state.priority)"
+            features = states.sorted { $0.priority > $1.priority }.map { state in
+                let presentation = Self.triggerPresentation[state.name]
+                return MacGIFeature(
+                    id: state.name,
+                    name: state.displayName,
+                    detail: presentation?.detail ?? "BetterGI C# Core 实时触发器。",
+                    statusText: "C# Core · P\(state.priority)\(state.exclusive ? " · Exclusive" : "")",
+                    icon: presentation?.icon ?? .symbol("bolt"),
+                    isEnabled: state.enabled
+                )
             }
         } catch {
-            for index in features.indices {
-                features[index].isEnabled = false
-                features[index].statusText = "Core unavailable"
-            }
+            features = []
             addLog(.error, "BetterGI Core trigger catalog failed: \(error.localizedDescription)")
         }
     }
