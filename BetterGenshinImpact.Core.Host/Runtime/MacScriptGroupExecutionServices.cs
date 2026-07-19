@@ -69,8 +69,7 @@ public sealed class MacScriptGroupExecutionServices : IScriptGroupExecutionServi
     public PathingFailurePolicy PathingFailurePolicy => _failurePolicy;
 
     public void RecordFarmingSession(FarmingSession session, FarmingRouteInfo route) =>
-        throw new CapabilityUnavailableException(
-            "Farming statistics persistence requires the remaining shared FarmingStatsRecorder closure.");
+        FarmingStatsRecorder.RecordFarmingSession(session, route);
 
     private static JsonObject? LoadRoot(RuntimeLayout layout)
     {

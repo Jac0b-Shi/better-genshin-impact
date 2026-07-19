@@ -18,6 +18,7 @@ using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
+using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.Helpers;
@@ -140,6 +141,8 @@ var scriptServicePlatform = new MacScriptServicePlatform(
     layout, loggerFactory.CreateLogger("BetterGenshinImpact.Service.ScriptService"), scriptHostServices,
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing, gameTaskManagerPlatform);
 ScriptServicePlatform.Configure(scriptServicePlatform);
+FarmingStatsRuntimePlatform.Configure(new MacFarmingStatsRuntimePlatform(
+    layout, loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.FarmingPlan.FarmingStatsRecorder")));
 server.AttachScriptServicePlatform(scriptServicePlatform);
 ShellTaskPlatform.Configure(new MacShellTaskPlatform(server.PlatformCallbacks, sessionToken, shutdown.Token));
 KeyMouseMacroPlatform.Configure(new MacKeyMouseMacroPlatform(

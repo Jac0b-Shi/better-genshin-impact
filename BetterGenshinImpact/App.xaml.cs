@@ -225,6 +225,8 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         Service.ScriptServicePlatform.Configure(new Service.WindowsScriptServicePlatform());
+        GameTask.FarmingPlan.FarmingStatsRuntimePlatform.Configure(
+            new Core.Runtime.Windows.WindowsFarmingStatsRuntimePlatform());
         GameTask.TaskRunnerPlatform.Configure(new GameTask.WindowsTaskRunnerPlatform());
         GameTask.GameTaskManagerPlatform.Configure(new GameTask.WindowsGameTaskManagerPlatform());
         Core.Recognition.OverlayDrawPlatform.Configure(new Core.Runtime.Windows.WindowsOverlayDrawPlatform());

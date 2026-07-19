@@ -16,6 +16,7 @@ using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoSkip;
+using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Shell;
 using Microsoft.Extensions.Logging;
@@ -157,7 +158,11 @@ using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), """
     {
       "otherConfig": {
-        "farmingPlanConfig": { "enabled": true },
+        "farmingPlanConfig": {
+          "enabled": true,
+          "dailyEliteCap": 10,
+          "dailyMobCap": 20
+        },
         "autoRestartConfig": {
           "enabled": true,
           "failureCount": 7,
@@ -189,6 +194,41 @@ Require(scriptServicePlatform.RestartPolicy is
     { Enabled: true, FailureCount: 7, RestartGameTogether: true,
       LinkedStartEnabled: true, AutoEnterGameEnabled: false },
     "macOS scheduler did not load the upstream restart/start configuration");
+FarmingStatsRuntimePlatform.Configure(new MacFarmingStatsRuntimePlatform(
+    layout, loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.FarmingPlan.FarmingStatsRecorder")));
+var farmingSession = new FarmingSession
+{
+    AllowFarmingCount = true,
+    EliteMobCount = 2,
+    NormalMobCount = 3,
+    PrimaryTarget = "elite"
+};
+FarmingStatsRecorder.RecordFarmingSession(farmingSession, new FarmingRouteInfo
+{
+    GroupName = "验证组",
+    ProjectName = "验证路径",
+    FolderName = "fixture"
+});
+var recordedFarmingData = FarmingStatsRecorder.ReadDailyFarmingData();
+Require(recordedFarmingData.TotalEliteMobCount == 2 &&
+        recordedFarmingData.TotalNormalMobCount == 3 &&
+        recordedFarmingData.Records is [{ GroupName: "验证组", ProjectName: "验证路径" }],
+    "shared FarmingStatsRecorder did not persist the upstream counters and route record");
+Require(!scriptServicePlatform.IsDailyFarmingLimitReached(farmingSession, out _),
+    "shared FarmingStatsRecorder reported a configured cap before it was reached");
+FarmingStatsRecorder.RecordFarmingSession(new FarmingSession
+{
+    AllowFarmingCount = true,
+    EliteMobCount = 8,
+    PrimaryTarget = "elite"
+}, new FarmingRouteInfo { GroupName = "验证组", ProjectName = "补足上限", FolderName = "fixture" });
+Require(scriptServicePlatform.IsDailyFarmingLimitReached(new FarmingSession
+    {
+        AllowFarmingCount = true,
+        EliteMobCount = 1,
+        PrimaryTarget = "elite"
+    }, out var farmingLimitMessage) && farmingLimitMessage.Contains("精英超上限", StringComparison.Ordinal),
+    "shared FarmingStatsRecorder did not enforce the upstream daily elite cap");
 ScriptServicePlatform.Configure(scriptServicePlatform);
 server.AttachScriptServicePlatform(scriptServicePlatform);
 TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(

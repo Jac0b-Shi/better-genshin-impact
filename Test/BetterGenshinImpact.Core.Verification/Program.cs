@@ -42,6 +42,7 @@ using System.Globalization;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoFight.Script;
+using BetterGenshinImpact.GameTask.FarmingPlan;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -64,6 +65,38 @@ void Assert(string label, bool condition, string detail)
     if (condition) { Console.WriteLine($"  PASS: {label}"); passed++; }
     else { Console.WriteLine($"  FAIL: {label} — {detail}"); failed++; }
 }
+
+var farmingVerificationRoot = Path.Combine("/tmp", "bgi-farming-" + Guid.NewGuid().ToString("N"));
+var farmingPlatform = new VerificationFarmingStatsRuntimePlatform(farmingVerificationRoot)
+{
+    ServerTimeNow = new DateTimeOffset(2026, 7, 19, 3, 59, 0, TimeSpan.FromHours(8))
+};
+FarmingStatsRuntimePlatform.Configure(farmingPlatform);
+var beforeReset = FarmingStatsRecorder.ReadDailyFarmingData();
+Assert("Farming stats 04:00 boundary uses previous server day",
+    beforeReset.FilePath.EndsWith("20260718.json", StringComparison.Ordinal), beforeReset.FilePath);
+farmingPlatform.ServerTimeNow = new DateTimeOffset(2026, 7, 19, 4, 0, 0, TimeSpan.FromHours(8));
+var afterReset = FarmingStatsRecorder.ReadDailyFarmingData();
+Assert("Farming stats 04:00 boundary switches to current server day",
+    afterReset.FilePath.EndsWith("20260719.json", StringComparison.Ordinal), afterReset.FilePath);
+FarmingStatsRecorder.RecordFarmingSession(new FarmingSession
+{
+    AllowFarmingCount = true,
+    NormalMobCount = 6,
+    EliteMobCount = 4,
+    PrimaryTarget = "normal"
+}, new FarmingRouteInfo { GroupName = "group", ProjectName = "route", FolderName = "folder" });
+var farmingRoundTrip = FarmingStatsRecorder.ReadDailyFarmingData();
+Assert("Farming stats preserves upstream counters and record metadata",
+    farmingRoundTrip.TotalNormalMobCount == 6 && farmingRoundTrip.TotalEliteMobCount == 4 &&
+    farmingRoundTrip.Records is [{ GroupName: "group", ProjectName: "route", FolderName: "folder" }],
+    "persisted farming JSON did not round-trip");
+farmingPlatform.Config.DailyMobCap = 6;
+Assert("Farming stats enforces upstream primary-target cap",
+    FarmingStatsRecorder.IsDailyFarmingLimitReached(new FarmingSession
+    {
+        AllowFarmingCount = true, NormalMobCount = 1, EliteMobCount = 1, PrimaryTarget = "normal"
+    }, out var capMessage) && capMessage.Contains("小怪超上限", StringComparison.Ordinal), capMessage);
 
 Console.WriteLine("Main UI recognition: real upstream Paimon template body");
 var paimonPath = Path.Combine(Directory.GetCurrentDirectory(), "BetterGenshinImpact", "GameTask", "Common",
@@ -2259,4 +2292,14 @@ sealed class RecordingCombatCommandAvatar(string name) : ICombatCommandAvatar
     public void KeyUp(string key) => Calls.Add($"KeyUp({key})");
     public void KeyPress(string key) => Calls.Add($"KeyPress({key})");
     public void Scroll(int scrollAmountInClicks) => Calls.Add($"Scroll({scrollAmountInClicks})");
+}
+
+sealed class VerificationFarmingStatsRuntimePlatform(string root) : IFarmingStatsRuntimePlatform
+{
+    public string LogDirectory { get; } = root;
+    public OtherConfig.FarmingPlan Config { get; } = new();
+    public Microsoft.Extensions.Logging.ILogger Logger => NullLogger.Instance;
+    public DateTimeOffset ServerTimeNow { get; set; }
+    public Task UpdateMiyousheDataAsync(CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Miyoushe synchronization is outside this deterministic store verification.");
 }

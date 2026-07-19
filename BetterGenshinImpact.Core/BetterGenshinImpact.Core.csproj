@@ -317,6 +317,10 @@
     <Compile Include="../BetterGenshinImpact/Core/Simulator/Extensions/Enums.cs" Link="Core/Simulator/Extensions/Enums.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/FarmingSession.cs" Link="GameTask/FarmingPlan/FarmingSession.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/FarmingRouteInfo.cs" Link="GameTask/FarmingPlan/FarmingRouteInfo.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/FarmingRecord.cs" Link="GameTask/FarmingPlan/FarmingRecord.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/DailyFarmingData.cs" Link="GameTask/FarmingPlan/DailyFarmingData.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/FarmingStatsRecorder.cs" Link="GameTask/FarmingPlan/FarmingStatsRecorder.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/FarmingPlan/FarmingStatsRuntimePlatform.cs" Link="GameTask/FarmingPlan/FarmingStatsRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/LogParse/ExecutionRecord.cs" Link="GameTask/LogParse/ExecutionRecord.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/LogParse/DailyExecutionRecord.cs" Link="GameTask/LogParse/DailyExecutionRecord.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/LogParse/ExecutionRecordStorage.cs" Link="GameTask/LogParse/ExecutionRecordStorage.cs" />

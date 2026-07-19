@@ -41,7 +41,7 @@ public sealed class MacScriptServicePlatform(
         .ToArray();
     public bool FarmingPlanEnabled => LoadOtherConfig().FarmingPlanConfig.Enabled;
     public bool IsDailyFarmingLimitReached(FarmingSession farmingSession, out string message) =>
-        throw Unavailable("farming-plan statistics");
+        FarmingStatsRecorder.IsDailyFarmingLimitReached(farmingSession, out message);
     public void ClearTriggers() => GameTaskManager.ClearTriggers();
     public SchedulerRestartPolicy RestartPolicy
     {
