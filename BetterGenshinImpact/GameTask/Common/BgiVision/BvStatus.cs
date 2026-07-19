@@ -181,9 +181,9 @@ public static partial class Bv
         }
 
         // 原先这里的起止区间和config里写死的值差1
-        var start = TaskContext.Instance().Config.TpConfig.ZoomStartY;
-        var end = TaskContext.Instance().Config.TpConfig.ZoomEndY;
-        var cur = (scaleRa.Y + scaleRa.Height / 2.0) * TaskContext.Instance().SystemInfo.ZoomOutMax1080PRatio; // 转换到1080p坐标系,主要是小于1080p的情况
+        var start = BetterGenshinImpact.GameTask.AutoTrackPath.TpTaskRuntimePlatform.Current.TpConfig.ZoomStartY;
+        var end = BetterGenshinImpact.GameTask.AutoTrackPath.TpTaskRuntimePlatform.Current.TpConfig.ZoomEndY;
+        var cur = (scaleRa.Y + scaleRa.Height / 2.0) * BetterGenshinImpact.GameTask.AutoTrackPath.TpTaskRuntimePlatform.Current.SystemInfo.ZoomOutMax1080PRatio; // 转换到1080p坐标系,主要是小于1080p的情况
 
         return (end * 1.0 - cur) / (end - start);
     }
@@ -195,8 +195,8 @@ public static partial class Bv
     /// <returns></returns>
     internal static bool IsInRevivePrompt(ImageRegion region)
     {
-        CultureInfo cultureInfo = new CultureInfo(TaskContext.Instance().Config.OtherConfig.GameCultureInfoName);
-        IStringLocalizer stringLocalizer = App.GetService<IStringLocalizer<BvResxHelper>>() ?? throw new Exception();
+        CultureInfo cultureInfo = new CultureInfo(BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GameCultureInfoName);
+        IStringLocalizer stringLocalizer = BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GetStringLocalizer<BvResxHelper>();
         string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
         return IsInRevivePrompt(region, AutoFightAssets.Instance.ConfirmRa, revival);
     }
@@ -230,7 +230,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool CurrentAvatarIsLowHp(ImageRegion captureRa)
     {
-        var assetScale = TaskContext.Instance().SystemInfo.AssetScale;
+        var assetScale = BetterGenshinImpact.GameTask.AutoFight.AutoFightRuntimePlatform.Current.SystemInfo.AssetScale;
 
         // 获取 (808, 1010) 位置的像素颜色
         var pixelColor = captureRa.SrcMat.At<Vec3b>((int)(1010 * assetScale), (int)(808 * assetScale));
@@ -302,7 +302,7 @@ public static partial class Bv
             var y = 1051;
             var width = 234;
             var height = 28;
-            var scaleTo1080PRatio = TaskContext.Instance().SystemInfo.ScaleTo1080PRatio;
+            var scaleTo1080PRatio = BetterGenshinImpact.GameTask.AutoFight.AutoFightRuntimePlatform.Current.SystemInfo.ScaleTo1080PRatio;
             
             x = (int)Math.Round(x * scaleTo1080PRatio);
             y = (int)Math.Round(y * scaleTo1080PRatio);

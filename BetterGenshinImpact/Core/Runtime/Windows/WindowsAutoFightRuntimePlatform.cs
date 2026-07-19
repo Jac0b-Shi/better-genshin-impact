@@ -5,6 +5,7 @@ using BetterGenshinImpact.GameTask.AutoFight.Config;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Model;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.Core.Runtime.Windows;
 
@@ -15,6 +16,7 @@ public sealed class WindowsAutoFightRuntimePlatform : IAutoFightRuntimePlatform
     public IOcrService OcrService => OcrFactory.Paddle;
     public double DpiScale => TaskContext.Instance().DpiScale;
     public int CombatMacroPriority => TaskContext.Instance().Config.MacroConfig.CombatMacroPriority;
+    public ILogger<T> GetLogger<T>() => App.GetLogger<T>();
     public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) =>
         App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(model);
 }

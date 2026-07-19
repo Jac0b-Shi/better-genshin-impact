@@ -77,6 +77,10 @@ server.AttachPlatformAssetInitializer(() =>
         gameTaskManagerPlatform.SystemInfo);
     BetterGenshinImpact.GameTask.AutoFishing.Assets.AutoFishingAssets.Initialize(
         gameTaskManagerPlatform.SystemInfo);
+    BetterGenshinImpact.GameTask.GameLoading.Assets.GameLoadingAssets.Initialize(
+        gameTaskManagerPlatform.SystemInfo);
+    BetterGenshinImpact.GameTask.AutoWood.Assets.AutoWoodAssets.Initialize(
+        gameTaskManagerPlatform.SystemInfo);
     BetterGenshinImpact.GameTask.AutoSkip.Assets.AutoSkipAssets.Initialize(
         gameTaskManagerPlatform.SystemInfo);
     BetterGenshinImpact.GameTask.QuickTeleport.Assets.QuickTeleportAssets.Initialize(
@@ -96,17 +100,20 @@ TaskControlPlatform.Configure(new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing,
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl")));
 AutoFightRuntimePlatform.Configure(new MacAutoFightRuntimePlatform(
-    gameTaskManagerPlatform.SystemInfo, imageRegionOcrService));
+    layout, gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory));
 var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
     layout, gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
 BvSimpleOperationPlatform.Configure(bvSimpleOperationPlatform);
+TpTaskRuntimePlatform.Configure(new MacTpTaskRuntimePlatform(
+    layout, gameTaskManagerPlatform.SystemInfo));
 AutoSkipRuntimePlatform.Configure(new MacAutoSkipRuntimePlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));
 ExitAndReloginPlatform.Configure(new MacExitAndReloginPlatform());
 var pathExecutorPlatform = new MacPathExecutorPlatform(
+    layout, imageRegionOcrService,
     server.PlatformCallbacks, sessionToken, shutdown.Token);
 PathExecutorPlatform.Configure(pathExecutorPlatform);
 PathExecutorAutoSkipPlatform.Configure(new MacPathExecutorAutoSkipPlatform());

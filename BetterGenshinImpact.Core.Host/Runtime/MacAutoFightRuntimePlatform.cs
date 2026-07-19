@@ -4,19 +4,46 @@ using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFight.Config;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Model;
+using BetterGenshinImpact.Core.Config;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
-public sealed class MacAutoFightRuntimePlatform(
-    ISystemInfo systemInfo,
-    MacImageRegionOcrService recognition) : IAutoFightRuntimePlatform
+public sealed class MacAutoFightRuntimePlatform : IAutoFightRuntimePlatform
 {
-    public ISystemInfo SystemInfo { get; } = systemInfo;
-    public IOcrService OcrService => recognition;
+    private readonly MacImageRegionOcrService _recognition;
+    private readonly ILoggerFactory _loggerFactory;
+
+    public MacAutoFightRuntimePlatform(RuntimeLayout layout, ISystemInfo systemInfo,
+        MacImageRegionOcrService recognition, ILoggerFactory loggerFactory)
+    {
+        SystemInfo = systemInfo;
+        _recognition = recognition;
+        _loggerFactory = loggerFactory;
+        (AutoFightConfig, CombatMacroPriority) = LoadConfig(layout);
+    }
+
+    public ISystemInfo SystemInfo { get; }
+    public IOcrService OcrService => _recognition;
     public double DpiScale => TaskControlPlatform.Current.DpiScale;
-    public AutoFightConfig AutoFightConfig => throw new CapabilityUnavailableException(
-        "AutoFightConfig has not been attached from the executing ScriptGroup yet.");
-    public int CombatMacroPriority => throw new CapabilityUnavailableException(
-        "Combat macro priority has not been initialized from Core-owned configuration yet.");
-    public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) => recognition.CreateYoloPredictor(model);
+    public AutoFightConfig AutoFightConfig { get; }
+    public int CombatMacroPriority { get; }
+    public ILogger<T> GetLogger<T>() => _loggerFactory.CreateLogger<T>();
+    public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) => _recognition.CreateYoloPredictor(model);
+
+    private static (AutoFightConfig Config, int CombatMacroPriority) LoadConfig(RuntimeLayout layout)
+    {
+        var path = Path.Combine(layout.UserPath, "config.json");
+        if (!File.Exists(path)) return (new AutoFightConfig(), 0);
+        var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
+        return (
+            root["autoFightConfig"]?.Deserialize<AutoFightConfig>(ConfigJson.Options) ?? new AutoFightConfig(),
+            root["macroConfig"]?["combatMacroPriority"]?.GetValue<int>() ?? 0);
+    }
 }

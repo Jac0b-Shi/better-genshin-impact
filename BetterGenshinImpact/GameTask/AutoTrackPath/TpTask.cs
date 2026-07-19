@@ -38,10 +38,10 @@ namespace BetterGenshinImpact.GameTask.AutoTrackPath;
 public class TpTask
 {
     private readonly QuickTeleportAssets _assets = QuickTeleportAssets.Instance;
-    private readonly Rect _captureRect = TaskContext.Instance().SystemInfo.ScaleMax1080PCaptureRect;
-    private readonly double _zoomOutMax1080PRatio = TaskContext.Instance().SystemInfo.ZoomOutMax1080PRatio;
-    private readonly TpConfig _tpConfig = TaskContext.Instance().Config.TpConfig;
-    private readonly string _mapMatchingMethod = TaskContext.Instance().Config.PathingConditionConfig.MapMatchingMethod;
+    private readonly Rect _captureRect = TpTaskRuntimePlatform.Current.SystemInfo.ScaleMax1080PCaptureRect;
+    private readonly double _zoomOutMax1080PRatio = TpTaskRuntimePlatform.Current.SystemInfo.ZoomOutMax1080PRatio;
+    private readonly TpConfig _tpConfig = TpTaskRuntimePlatform.Current.TpConfig;
+    private readonly string _mapMatchingMethod = TpTaskRuntimePlatform.Current.MapMatchingMethod;
     private readonly BlessingOfTheWelkinMoonTask _blessingOfTheWelkinMoonTask = new();
 
     private readonly CancellationToken ct;
@@ -51,12 +51,12 @@ public class TpTask
     /// <summary>
     /// 直接通过缩放比例按钮计算放大按钮的Y坐标
     /// </summary>
-    private readonly int _zoomInButtonY = TaskContext.Instance().Config.TpConfig.ZoomStartY - 24; //  y-coordinate for zoom-in button  = _zoomStartY - 24
+    private readonly int _zoomInButtonY = TpTaskRuntimePlatform.Current.TpConfig.ZoomStartY - 24; //  y-coordinate for zoom-in button  = _zoomStartY - 24
 
     /// <summary>
     /// 直接通过缩放比例按钮计算缩小按钮的Y坐标
     /// </summary>
-    private readonly int _zoomOutButtonY = TaskContext.Instance().Config.TpConfig.ZoomEndY + 24; //  y-coordinate for zoom-out button = _zoomEndY + 24
+    private readonly int _zoomOutButtonY = TpTaskRuntimePlatform.Current.TpConfig.ZoomEndY + 24; //  y-coordinate for zoom-out button = _zoomEndY + 24
 
     private const double DisplayTpPointZoomLevel = 4.4; // 传送点显示的时候的地图比例
 
@@ -728,7 +728,7 @@ public class TpTask
 
     private async Task MouseMoveMap(int pixelDeltaX, int pixelDeltaY, int steps = 10)
     {
-        double dpi = TaskContext.Instance().DpiScale;
+        double dpi = TpTaskRuntimePlatform.Current.DpiScale;
         int[] stepX = GenerateSteps((int)(pixelDeltaX / dpi), steps);
         int[] stepY = GenerateSteps((int)(pixelDeltaY / dpi), steps);
 
@@ -1121,7 +1121,7 @@ public class TpTask
                 }
 
                 Logger.LogInformation("传送：点击 {Option}", textRegion.Text.Replace(">", ""));
-                var time = TaskContext.Instance().Config.QuickTeleportConfig.TeleportListClickDelay;
+                var time = TpTaskRuntimePlatform.Current.QuickTeleportConfig.TeleportListClickDelay;
                 time = time < 500 ? 500 : time;
                 Thread.Sleep(time);
                 ra.Click();

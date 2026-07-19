@@ -243,6 +243,8 @@ public partial class App : Application
             new Core.Runtime.Windows.WindowsTaskParameterPlatform());
         GameTask.Common.BgiVision.BvSimpleOperationPlatform.Configure(
             new Core.Runtime.Windows.WindowsBvSimpleOperationPlatform());
+        GameTask.AutoTrackPath.TpTaskRuntimePlatform.Configure(
+            new Core.Runtime.Windows.WindowsTpTaskRuntimePlatform());
         GameTask.AutoSkip.AutoSkipRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsAutoSkipRuntimePlatform());
         GameTask.Common.Job.ExitAndReloginPlatform.Configure(

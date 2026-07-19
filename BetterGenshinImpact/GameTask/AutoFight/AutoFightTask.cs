@@ -37,17 +37,17 @@ public class AutoFightTask : ISoloTask
 
     private CancellationToken _ct;
 
-    private readonly BgiYoloPredictor _predictor;
+    private readonly BgiYoloPredictor? _predictor;
 
     private DateTime _lastFightFlagTime = DateTime.Now; // 战斗标志最近一次出现的时间
 
-    private readonly double _dpi = TaskContext.Instance().DpiScale;
+    private readonly double _dpi = AutoFightRuntimePlatform.Current.DpiScale;
     
     public static bool FightStatusFlag { get; set; } = false;
     
     private static readonly object PickLock = new object(); 
     
-    private readonly double _assetScale = TaskContext.Instance().SystemInfo.AssetScale;
+    private readonly double _assetScale = AutoFightRuntimePlatform.Current.SystemInfo.AssetScale;
     
     private readonly ReturnMainUiTask _returnMainUiTask = new();
 
@@ -201,7 +201,7 @@ public class AutoFightTask : ISoloTask
 
         if (_taskParam.FightFinishDetectEnabled)
         {
-            _predictor = App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiWorld);
+            _predictor = AutoFightRuntimePlatform.Current.CreateYoloPredictor(BgiOnnxModel.BgiWorld);
         }
 
         _finishDetectConfig = new TaskFightFinishDetectConfig(_taskParam.FinishDetectConfig);
@@ -964,7 +964,9 @@ public class AutoFightTask : ISoloTask
         // {
         //     imageRegion.SrcMat.SaveImage(Global.Absolute(@"log\fight\" + $"{DateTime.Now:yyyyMMdd_HHmmss_ffff}.png"));
         // }
-        var dict = _predictor.Detect(imageRegion);
+        var predictor = _predictor ?? throw new InvalidOperationException(
+            "Fight-finish predictor was requested while fight-finish detection is disabled.");
+        var dict = predictor.Detect(imageRegion);
         return dict.ContainsKey("health_bar") || dict.ContainsKey("enemy_identify");
     }
 

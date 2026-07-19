@@ -2,15 +2,23 @@ using BetterGenshinImpact.Core.Host.Transport;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using Newtonsoft.Json.Linq;
+using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Recognition.OCR;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 public sealed class MacPathExecutorPlatform(
+    RuntimeLayout layout,
+    MacImageRegionOcrService recognition,
     PlatformCallbackChannel callbacks,
     string sessionToken,
     CancellationToken cancellationToken) : IPathExecutorPlatform
 {
     private string _autoFetchDispatchAdventurersGuildCountry = "无";
+    public PathingConditionConfig PathingConditionConfig { get; } = LoadConfig(layout);
+    public IOcrService OcrService => recognition;
     public (int Width, int Height) GetGameScreenSize()
     {
         var metrics = Invoke("window.metrics", null);
@@ -49,4 +57,17 @@ public sealed class MacPathExecutorPlatform(
     private static int RequiredInt(JObject value, string name) =>
         value.Value<int?>(name)
         ?? throw new InvalidDataException($"window.metrics did not return {name}.");
+
+    private static PathingConditionConfig LoadConfig(RuntimeLayout layout)
+    {
+        var path = Path.Combine(layout.UserPath, "config.json");
+        if (!File.Exists(path)) return new PathingConditionConfig();
+        var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
+        return root["pathingConditionConfig"]?.Deserialize<PathingConditionConfig>(ConfigJson.Options)
+            ?? new PathingConditionConfig();
+    }
 }

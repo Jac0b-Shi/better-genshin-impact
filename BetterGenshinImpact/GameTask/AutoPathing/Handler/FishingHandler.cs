@@ -18,7 +18,7 @@ public class FishingHandler : IActionHandler
     public async Task RunAsync(CancellationToken ct, WaypointForTrack? waypointForTrack = null, object? config = null)
     {
         // 钓鱼
-        AutoFishingTask autoFishingTask = new(AutoFishingTaskParam.BuildFromConfig(TaskContext.Instance().Config.AutoFishingConfig));
+        AutoFishingTask autoFishingTask = new(AutoFishingTaskParam.BuildFromConfig(AutoFishingRuntimePlatform.Current.Config));
 
         await autoFishingTask.Start(ct);
 

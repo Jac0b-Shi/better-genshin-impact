@@ -15,11 +15,11 @@ public interface IPathExecutorAutoSkipSession
 /// <summary>
 /// PathExecutor 的自动剧情能力边界。
 /// Windows 组合提供基于 AutoSkipTrigger 的实现；
-/// 尚未具备该能力的平台返回 null，PathExecutor 记录警告后跳过本次自动剧情。
+/// 尚未具备该能力的平台必须抛出结构化能力错误，不允许继续并伪装成功。
 /// </summary>
 public interface IPathExecutorAutoSkipPlatform
 {
-    IPathExecutorAutoSkipSession? CreateSession();
+    IPathExecutorAutoSkipSession CreateSession();
 }
 
 public static class PathExecutorAutoSkipPlatform

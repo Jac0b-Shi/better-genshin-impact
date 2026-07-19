@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.GameTask.AutoFight.Config;
 using BetterGenshinImpact.GameTask.Model;
+using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.GameTask.AutoFight;
 
@@ -14,6 +15,7 @@ public interface IAutoFightRuntimePlatform
     IOcrService OcrService { get; }
     double DpiScale { get; }
     int CombatMacroPriority { get; }
+    ILogger<T> GetLogger<T>();
     BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model);
 }
 

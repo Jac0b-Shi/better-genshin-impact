@@ -57,8 +57,15 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTask.cs" Link="GameTask/AutoTrackPath/TpTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpConfig.cs" Link="GameTask/AutoTrackPath/TpConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTaskParam.cs" Link="GameTask/AutoTrackPath/TpTaskParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTaskRuntimePlatform.cs" Link="GameTask/AutoTrackPath/TpTaskRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutor.cs" Link="GameTask/AutoPathing/PathExecutor.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/CombatScenes.cs" Link="GameTask/AutoFight/Model/CombatScenes.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightParam.cs" Link="GameTask/AutoFight/AutoFightParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightTask.cs" Link="GameTask/AutoFight/AutoFightTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightSeek.cs" Link="GameTask/AutoFight/AutoFightSeek.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/ExperienceDetector.cs" Link="GameTask/AutoFight/ExperienceDetector.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightJsonTask.cs" Link="GameTask/AutoFight/AutoFightJsonTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Factory/*.cs" Link="GameTask/AutoFight/Factory/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/Avatar.cs" Link="GameTask/AutoFight/Model/Avatar.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/AvatarActiveCheckContext.cs" Link="GameTask/AutoFight/Model/AvatarActiveCheckContext.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/AvatarMacro.cs" Link="GameTask/AutoFight/Model/AvatarMacro.cs" />
@@ -75,9 +82,18 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvImage.cs" Link="GameTask/Common/BgiVision/BvImage.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvOcr.cs" Link="GameTask/Common/BgiVision/BvOcr.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvSkill.cs" Link="GameTask/Common/BgiVision/BvSkill.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvStatus.cs" Link="GameTask/Common/BgiVision/BvStatus.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/TpPointNotActivate.cs" Link="GameTask/Common/Exceptions/TpPointNotActivate.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/PartySetupFailedException.cs" Link="GameTask/Common/Exceptions/PartySetupFailedException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/BlessingOfTheWelkinMoonTask.cs" Link="GameTask/Common/Job/BlessingOfTheWelkinMoonTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/EnterAndExitWonderlandJob.cs" Link="GameTask/Common/Job/EnterAndExitWonderlandJob.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ExitAndReloginJob.cs" Link="GameTask/Common/Job/ExitAndReloginJob.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ScanPickTask.cs" Link="GameTask/Common/Job/ScanPickTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SwitchPartyTask.cs" Link="GameTask/Common/Job/SwitchPartyTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/LinneaMiningTask.cs" Link="GameTask/Common/Job/LinneaMiningTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/GoToAdventurersGuildTask.cs" Link="GameTask/Common/Job/GoToAdventurersGuildTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/Assets/AutoWoodAssets.cs" Link="GameTask/AutoWood/Assets/AutoWoodAssets.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/Assets/GameLoadingAssets.cs" Link="GameTask/GameLoading/Assets/GameLoadingAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/CameraRotateTask.cs" Link="GameTask/AutoPathing/CameraRotateTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorPlatform.cs" Link="GameTask/AutoPathing/PathExecutorPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorAutoSkipPlatform.cs" Link="GameTask/AutoPathing/PathExecutorAutoSkipPlatform.cs" />
@@ -192,6 +208,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Config/ScreenshotPrivacy.cs" Link="Core/Config/ScreenshotPrivacy.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/Global.cs" Link="Core/Config/Global.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/PathingPartyConfig.cs" Link="Core/Config/PathingPartyConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Config/PathingConditionConfig.cs" Link="Core/Config/PathingConditionConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/PathingPartyTaskCycleConfig.cs" Link="Core/Config/PathingPartyTaskCycleConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/TaskCompletionSkipRuleConfig.cs" Link="Core/Config/TaskCompletionSkipRuleConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Config/PreExecutionPriorityConfig.cs" Link="Core/Config/PreExecutionPriorityConfig.cs" />
@@ -218,6 +235,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Suspend/ISuspendable.cs" Link="GameTask/AutoPathing/Suspend/ISuspendable.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Suspend/PathExecutorSuspend.cs" Link="GameTask/AutoPathing/Suspend/PathExecutorSuspend.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/RunnerContext.cs" Link="GameTask/RunnerContext.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/RunnerContext.Combat.cs" Link="GameTask/RunnerContext.Combat.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/TaskRunner.cs" Link="GameTask/TaskRunner.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/TaskRunnerPlatform.cs" Link="GameTask/TaskRunnerPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/NormalEndException.cs" Link="GameTask/Common/Exceptions/NormalEndException.cs" />
@@ -245,11 +263,13 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScript.cs" Link="GameTask/AutoFight/Script/CombatScript.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptBag.cs" Link="GameTask/AutoFight/Script/CombatScriptBag.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptBag.Execution.cs" Link="GameTask/AutoFight/Script/CombatScriptBag.Execution.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Handler/IActionHandler.cs" Link="GameTask/AutoPathing/Handler/IActionHandler.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Handler/CombatScriptHandler.cs" Link="GameTask/AutoPathing/Handler/CombatScriptHandler.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Handler/*.cs" Link="GameTask/AutoPathing/Handler/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptParser.cs" Link="GameTask/AutoFight/Script/CombatScriptParser.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/Method.cs" Link="GameTask/AutoFight/Script/Method.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/ESkillCdTracker.cs" Link="GameTask/AutoFight/Script/ESkillCdTracker.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/ConditionEvaluator.cs" Link="GameTask/AutoFight/Script/ConditionEvaluator.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/JsonCombatStrategy.cs" Link="GameTask/AutoFight/Script/JsonCombatStrategy.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/JsonCombatStrategyParser.cs" Link="GameTask/AutoFight/Script/JsonCombatStrategyParser.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" Link="GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Assets/AutoSkipAssets.cs" Link="GameTask/AutoSkip/Assets/AutoSkipAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ExitAndReloginPlatform.cs" Link="GameTask/Common/Job/ExitAndReloginPlatform.cs" />

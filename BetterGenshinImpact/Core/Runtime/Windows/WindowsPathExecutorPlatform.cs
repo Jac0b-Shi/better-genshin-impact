@@ -3,6 +3,8 @@ using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask;
 using CommunityToolkit.Mvvm.Messaging;
 using CommunityToolkit.Mvvm.Messaging.Messages;
+using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Recognition.OCR;
 
 namespace BetterGenshinImpact.Core.Runtime.Windows;
 
@@ -20,4 +22,6 @@ public sealed class WindowsPathExecutorPlatform : IPathExecutorPlatform
 
     public string AutoFetchDispatchAdventurersGuildCountry =>
         TaskContext.Instance().Config.OtherConfig.AutoFetchDispatchAdventurersGuildCountry;
+    public PathingConditionConfig PathingConditionConfig => TaskContext.Instance().Config.PathingConditionConfig;
+    public IOcrService OcrService => OcrFactory.Paddle;
 }

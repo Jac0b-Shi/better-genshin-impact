@@ -42,7 +42,6 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
     private readonly TrapEscaper _trapEscaper;
     private readonly BlessingOfTheWelkinMoonTask _blessingOfTheWelkinMoonTask = new();
     private IPathExecutorAutoSkipSession? _autoSkipSession;
-    private bool _autoSkipUnavailableLogged;
     public int SuccessFight = 0;
     //路径追踪完全走完所有路径结束的标识
     public bool SuccessEnd = false;
@@ -62,7 +61,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
 
     public PathingPartyConfig PartyConfig
     {
-        get => _partyConfig ?? PathingPartyConfig.BuildDefault();
+        get => _partyConfig ?? ScriptGroupExecutionServices.Current.DefaultPartyConfig;
         set => _partyConfig = value;
     }
 
@@ -446,7 +445,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
 
     private static string? FilterPartyNameByConditionConfig(PathingTask task)
     {
-        var pathingConditionConfig = TaskContext.Instance().Config.PathingConditionConfig;
+        var pathingConditionConfig = PathExecutorPlatform.Current.PathingConditionConfig;
         var materialName = task.GetMaterialName();
         var specialActions = task.Positions
             .Select(p => p.Action)
@@ -472,7 +471,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
 
         // 没有强制配置的情况下，使用地图追踪内的条件配置
         // 必须放在这里，因为要通过队伍识别来得到最终结果
-        var pathingConditionConfig = TaskContext.Instance().Config.PathingConditionConfig;
+        var pathingConditionConfig = PathExecutorPlatform.Current.PathingConditionConfig;
         var skipPartySwitch = PartyConfig.SkipPartySwitch;
         if (PartyConfig is { Enabled: false })
         {
@@ -685,7 +684,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             var ra1 = CaptureToRectArea();
             var textRect = new Rect(60, 20, 160, 260);
             var textMat = new Mat(ra1.SrcMat, textRect);
-            string text = OcrFactory.Paddle.Ocr(textMat);
+            string text = PathExecutorPlatform.Current.OcrService.Ocr(textMat);
             if (text.Contains("探索派遣奖励"))
             {
                 changeBigMap = true;
@@ -1357,15 +1356,6 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             if (_autoSkipSession == null)
             {
                 _autoSkipSession = PathExecutorAutoSkipPlatform.Current.CreateSession();
-                if (_autoSkipSession == null)
-                {
-                    if (!_autoSkipUnavailableLogged)
-                    {
-                        Logger.LogWarning("当前平台未提供自动剧情能力，跳过自动剧情处理");
-                        _autoSkipUnavailableLogged = true;
-                    }
-                    return;
-                }
             }
 
             Logger.LogWarning("进入剧情，自动点击剧情直到结束");

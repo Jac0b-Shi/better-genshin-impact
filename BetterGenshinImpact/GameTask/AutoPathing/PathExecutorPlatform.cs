@@ -1,4 +1,6 @@
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Recognition.OCR;
 using System;
 using System.Threading;
 
@@ -9,6 +11,8 @@ public interface IPathExecutorPlatform
     (int Width, int Height) GetGameScreenSize();
     void PublishCurrentPathing(PathingTask task);
     string AutoFetchDispatchAdventurersGuildCountry { get; }
+    PathingConditionConfig PathingConditionConfig { get; }
+    IOcrService OcrService { get; }
 }
 
 public static class PathExecutorPlatform

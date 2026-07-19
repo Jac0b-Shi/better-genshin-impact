@@ -5,6 +5,7 @@ using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
+using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.Model.Area;
 using OpenCvSharp;
 
@@ -23,7 +24,7 @@ public static partial class Bv
             return string.Empty;
         }
 
-        var scale = TaskContext.Instance().SystemInfo.AssetScale;
+        var scale = AutoFightRuntimePlatform.Current.SystemInfo.AssetScale;
         var textRect = new Rect(foundRectArea.X + (int)(115 * scale), foundRectArea.Y,
             (int)((400 - 115) * scale), foundRectArea.Height);
         if (textRect.X + textRect.Width > region.SrcMat.Width
@@ -41,11 +42,11 @@ public static partial class Bv
             // 截取只包含文字的区域
             var textOnlyMat = new Mat(textMat, new Rect(0, 0,
                 boundingRect.Right + 3 < textMat.Width ? boundingRect.Right + 3 : textMat.Width, textMat.Height));
-            return OcrFactory.Paddle.OcrWithoutDetector(textOnlyMat);
+            return AutoFightRuntimePlatform.Current.OcrService.OcrWithoutDetector(textOnlyMat);
         }
         else
         {
-            return OcrFactory.Paddle.Ocr(textMat);
+            return AutoFightRuntimePlatform.Current.OcrService.Ocr(textMat);
         }
     }
 }

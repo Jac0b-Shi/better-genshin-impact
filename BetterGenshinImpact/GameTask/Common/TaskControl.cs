@@ -114,6 +114,11 @@ public class TaskControl
     public static void RightButtonUp() => TaskControlPlatform.Current.RightButtonUp();
 
     public static void MiddleButtonClick() => TaskControlPlatform.Current.MiddleButtonClick();
+    public static void MiddleButtonDown() => TaskControlPlatform.Current.MiddleButtonDown();
+    public static void MiddleButtonUp() => TaskControlPlatform.Current.MiddleButtonUp();
+    public static void LeftButtonDown() => TaskControlPlatform.Current.LeftButtonDown();
+    public static void LeftButtonUp() => TaskControlPlatform.Current.LeftButtonUp();
+    public static void LeftButtonClick() => TaskControlPlatform.Current.LeftButtonClick();
 
     public static void PressEscape() => TaskControlPlatform.Current.PressEscape();
 
