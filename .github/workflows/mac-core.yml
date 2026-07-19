@@ -48,6 +48,16 @@ jobs:
           dotnet run
           --project Test/BetterGenshinImpact.Core.Host.Verification/BetterGenshinImpact.Core.Host.Verification.csproj
           -c Debug --no-build
+      - name: Publish and sign bundled Core Helper
+        env:
+          TARGET_BUILD_DIR: ${{ runner.temp }}/bettergi-app
+          WRAPPER_NAME: MacGI.app
+          EXPANDED_CODE_SIGN_IDENTITY: "-"
+        run: MacGI/scripts/package-bettergi-core.sh
+      - name: Verify bundled Core Helper
+        run: >
+          "${{ runner.temp }}/bettergi-app/MacGI.app/Contents/Helpers/BetterGICore/BetterGenshinImpact.Core.Host"
+          --dependency-smoke
       - name: Test Swift UI and platform adapters
         working-directory: MacGI
         run: swift test
