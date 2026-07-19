@@ -225,9 +225,9 @@ struct OverlayMapPoint: Identifiable {
 final class AppState: ObservableObject {
     @Published var selectedPage: NavigationPage = .launch
     @Published var appStatus: AppStatus = .idle
-    @Published var gameWindowStatus: RuntimeStatus = .mock
+    @Published var gameWindowStatus: RuntimeStatus = .missing
     @Published var captureStatus: RuntimeStatus = .ok
-    @Published var inputStatus: RuntimeStatus = .mock
+    @Published var inputStatus: RuntimeStatus = .missing
     @Published var coreStatus: RuntimeStatus = .error
     @Published var isHUDVisible = true {
         didSet { onHUDVisibilityChanged?(isHUDVisible) }
@@ -275,9 +275,7 @@ final class AppState: ObservableObject {
     @Published var selectedWindow: WindowInfo = .mock()
 
     /// Available game windows from the tracker.
-    @Published var availableWindows: [WindowInfo] = [
-        .mock(), .mock(title: "Genshin Impact (Mock)")
-    ]
+    @Published var availableWindows: [WindowInfo] = []
 
     /// Most recently captured frame (nil if no capture session).
     @Published var lastCapturedFrame: CapturedFrame?
@@ -317,11 +315,11 @@ final class AppState: ObservableObject {
     }
 
     var frameSize: String {
-        lastCapturedFrame?.sizeDescription ?? "2560 × 1440"
+        lastCapturedFrame?.sizeDescription ?? "Unavailable"
     }
 
     var pixelFormat: String {
-        lastCapturedFrame?.pixelFormatName ?? "BGRA8888"
+        lastCapturedFrame?.pixelFormatName ?? "Unavailable"
     }
 
     var lastFrameTime: String {
@@ -578,27 +576,20 @@ final class AppState: ObservableObject {
 
     // MARK: - Computed properties for DebugPage / runtime status
 
-    /// Minimal asset coverage placeholder.
-    /// Real implementation should query BGIAssetResolver / BGIModelAssetResolver.
-    struct AssetCoverage {
-        let total: Int
-        let missing: [String]
-    }
-
-    var bgiAssetCoverage: AssetCoverage {
-        AssetCoverage(total: 9, missing: [])
+    var bgiAssetCoverage: BGIAssetCoverage {
+        BGIAssetResolver.coverage(for: recognitionObjects)
     }
 
     var bgiAssetStatusText: String {
-        "Asset coverage: placeholder"
+        bgiAssetCoverage.summary
     }
 
-    var bgiModelAssetCoverage: AssetCoverage {
-        AssetCoverage(total: 3, missing: [])
+    var bgiModelAssetCoverage: BGIModelAssetCoverage {
+        BGIModelAssetResolver.coverage(for: BGIOnnxModel.upstreamRegisteredModels)
     }
 
     var bgiModelAssetStatusText: String {
-        "Model coverage: placeholder"
+        bgiModelAssetCoverage.summary
     }
 
     var isPaddleOCRRuntimeReady: Bool {
@@ -824,10 +815,10 @@ final class AppState: ObservableObject {
     func refreshWindows() {
         let windows = QuartzWindowEnumerator.enumerateApplicationWindows()
         if windows.isEmpty {
-            availableWindows = [.mock(), .mock(title: "Genshin Impact (Mock)")]
-            selectedWindow = availableWindows[0]
-            gameWindowStatus = .mock
-            addLog(.warn, "Quartz window list empty; using mock game windows")
+            availableWindows = []
+            selectedWindow = .mock(title: "No game window selected")
+            gameWindowStatus = .missing
+            addLog(.warn, "Quartz window list contains no selectable game window")
             return
         }
 
@@ -863,7 +854,8 @@ final class AppState: ObservableObject {
 
     func captureSelectedWindowOnce() {
         if selectedWindow.isMock {
-            saveDebugFrameMock()
+            captureStatus = .error
+            addLog(.error, "Capture rejected: no real on-screen game window is selected")
             return
         }
 
@@ -978,13 +970,13 @@ final class AppState: ObservableObject {
         schedulerExecutionTask?.cancel()
         schedulerExecutionTask = nil
         appStatus = .idle
-        gameWindowStatus = .mock
+        gameWindowStatus = .missing
         captureStatus = .ok
-        inputStatus = .mock
-        coreStatus = .mock
+        inputStatus = .missing
+        coreStatus = .error
         debugConfidence = 0.86
         selectedWindow = .mock()
-        availableWindows = [.mock(), .mock(title: "Genshin Impact (Mock)")]
+        availableWindows = []
         lastCapturedFrame = nil
         lastCaptureImageFrame = nil
         runtimeSnapshot = .empty
