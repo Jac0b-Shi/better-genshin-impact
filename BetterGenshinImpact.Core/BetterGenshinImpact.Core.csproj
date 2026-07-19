@@ -106,7 +106,6 @@
     <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/Assets/GameLoadingAssets.cs" Link="GameTask/GameLoading/Assets/GameLoadingAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/GameLoadingRuntimePlatform.cs" Link="GameTask/GameLoading/GameLoadingRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/GameLoading.cs" Link="GameTask/GameLoading/GameLoading.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/Placeholder/PlaceholderTrigger.cs" Link="GameTask/Placeholder/PlaceholderTrigger.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/MapMask/MapMaskConfig.cs" Link="GameTask/MapMask/MapMaskConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/MapMask/MapPointApiProvider.cs" Link="GameTask/MapMask/MapPointApiProvider.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/MapMask/MapMaskRuntimePlatform.cs" Link="GameTask/MapMask/MapMaskRuntimePlatform.cs" />
