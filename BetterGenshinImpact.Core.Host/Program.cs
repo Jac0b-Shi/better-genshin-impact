@@ -92,26 +92,9 @@ var triggerDispatcher = new MacTriggerDispatcher(
     loggerFactory.CreateLogger<MacTriggerDispatcher>(), shutdown.Token);
 server.AttachPlatformAssetInitializer(() =>
 {
-    MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
-    ElementAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.AutoFight.Assets.AutoFightAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.AutoFishing.Assets.AutoFishingAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.GameLoading.Assets.GameLoadingAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.AutoWood.Assets.AutoWoodAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.AutoSkip.Assets.AutoSkipAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.AutoEat.Assets.AutoEatAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    BetterGenshinImpact.GameTask.QuickTeleport.Assets.QuickTeleportAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo);
-    AutoPickAssets.Initialize(
-        gameTaskManagerPlatform.SystemInfo,
-        autoPickConfigProvider,
-        loggerFactory.CreateLogger<AutoPickAssets>());
+    GameTaskManager.LoadInitialTriggers(
+        semanticInputBackend, gameTaskManagerPlatform.SystemInfo, autoPickRuntimeState,
+        autoPickConfigProvider, paddleAutoPickRecognizer, yapAutoPickRecognizer);
     triggerDispatcher.Start();
 });
 BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageRegionOcrService);

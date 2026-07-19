@@ -41,8 +41,24 @@ public sealed class MacGameTaskManagerPlatform(
     public IReadOnlyList<KeyValuePair<string, ITaskTrigger>> CreateInitialTriggers(
         IInputBackend inputBackend, ISystemInfo systemInfo, IAutoPickRuntimeState runtimeState,
         IAutoPickConfigProvider autoPickConfigProvider,
-        IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer) =>
-        throw Unavailable("initial trigger set");
+        IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer)
+    {
+        InitializeAssets(systemInfo, autoPickConfigProvider);
+        return
+        [
+            new("RecognitionTest", new TestTrigger()),
+            new("GameLoading", new GameLoadingTrigger()),
+            new("AutoPick", new AutoPickTrigger(null, runtimeState, autoPickConfigProvider,
+                inputBackend, systemInfo, loggerFactory.CreateLogger<AutoPickTrigger>(),
+                paddleRecognizer, yapRecognizer)),
+            new("QuickTeleport", new QuickTeleportTrigger()),
+            new("AutoSkip", new AutoSkipTrigger()),
+            new("AutoFish", new AutoFishingTrigger()),
+            new("AutoEat", new AutoEatTrigger()),
+            new("MapMask", new MapMaskTrigger()),
+            new("SkillCd", new SkillCdTrigger()),
+        ];
+    }
 
     public KeyValuePair<string, ITaskTrigger>? CreateTrigger(
         string name, object? externalConfig, IAutoPickRuntimeState runtimeState,
@@ -90,6 +106,20 @@ public sealed class MacGameTaskManagerPlatform(
         AutoEatAssets.DestroyInstance();
     }
     public void ClearOverlay() => BetterGenshinImpact.Core.Recognition.OverlayDrawPlatform.Current.ClearAll();
+
+    private void InitializeAssets(ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider)
+    {
+        MapAssets.Initialize(systemInfo);
+        ElementAssets.Initialize(systemInfo);
+        AutoFightAssets.Initialize(systemInfo);
+        AutoFishingAssets.Initialize(systemInfo);
+        GameLoadingAssets.Initialize(systemInfo);
+        AutoWoodAssets.Initialize(systemInfo);
+        AutoSkipAssets.Initialize(systemInfo);
+        AutoEatAssets.Initialize(systemInfo);
+        QuickTeleportAssets.Initialize(systemInfo);
+        AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider, loggerFactory.CreateLogger<AutoPickAssets>());
+    }
 
     private JObject Metrics() => callbacks.InvokeAsync(
             "window.metrics", null, sessionToken, cancellationToken).GetAwaiter().GetResult() as JObject
