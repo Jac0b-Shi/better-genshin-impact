@@ -8,6 +8,7 @@ using BetterGenshinImpact.Core.Script;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script.Group;
 using BetterGenshinImpact.Core.Script.Dependence;
+using BetterGenshinImpact.Core.Script.Dependence.Model;
 using BetterGenshinImpact.Core.Recorder;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.Model.Area;
@@ -622,18 +623,34 @@ try
     Console.WriteLine("PathExecutor platform passed: real ScriptGroup executor, window metrics, Core-owned config, current-route metadata and Navigation callbacks.");
 
     GlobalMethod.Configure(globalRuntime);
+    var dispatcherRuntime = new VerificationDispatcherRuntimePlatform(cancellation.Token);
+    DispatcherRuntimePlatform.Configure(dispatcherRuntime);
     ScriptProjectHost.Configure(new MacScriptProjectHostInitializer());
-    using (var hostSurfaceEngine = new V8ScriptEngine(V8ScriptEngineFlags.EnableTaskPromiseConversion))
+    using (var hostSurfaceEngine = new V8ScriptEngine(
+               V8ScriptEngineFlags.UseCaseInsensitiveMemberBinding |
+               V8ScriptEngineFlags.EnableTaskPromiseConversion))
     {
         new MacScriptProjectHostInitializer().Initialize(
             hostSurfaceEngine, Path.Combine(layout.UserPath, "JsScript"), [], null);
         var missingHostNames = Convert.ToString(hostSurfaceEngine.Evaluate("""
-            ["keyMouseScript", "pathingScript", "genshin", "RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
+            ["keyMouseScript", "pathingScript", "genshin", "dispatcher", "RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
              "CombatScenes", "Avatar", "OpenCvSharp", "AutoFightParam", "AutoSkipConfig",
              "RealtimeTimer", "SoloTask", "CancellationTokenSource", "CancellationToken"].filter(name => typeof globalThis[name] === "undefined").join(",")
             """));
         Require(string.IsNullOrEmpty(missingHostNames),
             $"macOS ClearScript host surface is missing: {missingHostNames}");
+        hostSurfaceEngine.Execute("dispatcher.addTimer(new RealtimeTimer('AutoPick')); dispatcher.getLinkedCancellationToken();");
+    }
+    Require(dispatcherRuntime.ClearCount == 1 && dispatcherRuntime.AddedNames.SequenceEqual(["AutoPick"]),
+        "ClearScript dispatcher did not preserve AddTimer clear-then-add semantics");
+    var sharedDispatcher = new Dispatcher(new object());
+    try
+    {
+        await sharedDispatcher.RunTask(new SoloTask("AutoDomain"));
+        throw new InvalidOperationException("Dispatcher accepted an unavailable task as successful.");
+    }
+    catch (CapabilityUnavailableException)
+    {
     }
     var realFixtureSource = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ExitGameMultipleMode");
     var realFixtureTarget = Path.Combine(layout.UserPath, "JsScript", "ExitGameMultipleMode");
@@ -967,4 +984,29 @@ sealed class VerificationTrigger : ITaskTrigger
     public bool IsExclusive => false;
     public void Init() { }
     public void OnCapture(CaptureContent content) { }
+}
+
+sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellationToken) : IDispatcherRuntimePlatform
+{
+    public CancellationToken GlobalCancellationToken { get; } = cancellationToken;
+    public int AutoWoodRoundNum => throw new CapabilityUnavailableException("AutoWood");
+    public int AutoWoodDailyMaxCount => throw new CapabilityUnavailableException("AutoWood");
+    public string AutoBossStrategyName => throw new CapabilityUnavailableException("AutoBoss");
+    public DispatcherAutoEatSettings AutoEatSettings => throw new CapabilityUnavailableException("AutoEat");
+    public int ClearCount { get; private set; }
+    public List<string> AddedNames { get; } = [];
+    public void ClearTriggers() => ClearCount++;
+    public bool AddTrigger(string name, object? config)
+    {
+        AddedNames.Add(name);
+        return true;
+    }
+    public bool GetTcgStrategy(out string content) =>
+        throw new CapabilityUnavailableException("AutoGeniusInvokation");
+    public bool GetFightStrategy(string? strategyName, out string path) =>
+        throw new CapabilityUnavailableException("AutoDomain");
+    public Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
+        CancellationToken cancellationToken) => throw new CapabilityUnavailableException(request.Name);
+    public Task<object?> RunParameterizedTask(string name, object parameter,
+        CancellationToken cancellationToken) => throw new CapabilityUnavailableException(name);
 }

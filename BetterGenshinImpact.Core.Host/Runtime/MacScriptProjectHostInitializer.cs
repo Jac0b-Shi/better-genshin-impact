@@ -25,6 +25,7 @@ public sealed class MacScriptProjectHostInitializer : IScriptProjectHostInitiali
         engine.AddHostObject("keyMouseScript", new KeyMouseScript(workDir));
         engine.AddHostObject("pathingScript", new AutoPathingScript(workDir, config));
         engine.AddHostObject("genshin", new Genshin());
+        engine.AddHostObject("dispatcher", new Dispatcher(config ?? new object()));
         engine.AddHostObject("file", new LimitedFile(workDir));
         engine.AddHostObject("http", new Http());
         engine.AddHostObject("notification", new Notification());

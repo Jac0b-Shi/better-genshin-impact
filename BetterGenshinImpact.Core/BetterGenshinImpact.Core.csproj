@@ -360,6 +360,9 @@
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Genshin.cs" Link="Core/Script/Dependence/Genshin.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/GenshinRuntimePlatform.cs" Link="Core/Script/Dependence/GenshinRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/DispatcherRuntimePlatform.cs" Link="Core/Script/Dependence/DispatcherRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Dispatcher.cs" Link="Core/Script/Dependence/Dispatcher.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/FoodEffectType.cs" Link="GameTask/AutoEat/FoodEffectType.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/GridScreenName.cs" Link="GameTask/Model/GameUI/GridScreenName.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/CraftMaterialResult.cs" Link="GameTask/Common/Job/CraftMaterialResult.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Reward/RewardItem.cs" Link="GameTask/Common/Reward/RewardItem.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Model/RealTimeTimer.cs" Link="Core/Script/Dependence/Model/RealTimeTimer.cs" />
