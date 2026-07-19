@@ -9,12 +9,8 @@ using BetterGenshinImpact.GameTask.Common.Map.Maps;
 using BetterGenshinImpact.GameTask.Common.Map.Maps.Base;
 using BetterGenshinImpact.GameTask.Common.Map.Maps.Layer;
 using BetterGenshinImpact.GameTask.Model.Area;
-using BetterGenshinImpact.Helpers;
-using BetterGenshinImpact.View;
-using BetterGenshinImpact.ViewModel;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-using Rect = System.Windows.Rect;
 
 namespace BetterGenshinImpact.GameTask.MapMask;
 
@@ -23,7 +19,8 @@ namespace BetterGenshinImpact.GameTask.MapMask;
 /// </summary>
 public class MapMaskTrigger : ITaskTrigger
 {
-    private readonly ILogger<MapMaskTrigger> _logger = App.GetLogger<MapMaskTrigger>();
+    private readonly IMapMaskRuntimePlatform _platform = MapMaskRuntimePlatform.Current;
+    private ILogger<MapMaskTrigger> Logger => _platform.Logger;
 
     public string Name => "地图遮罩";
     public bool IsEnabled { get; set; }
@@ -32,8 +29,7 @@ public class MapMaskTrigger : ITaskTrigger
 
     public GameUiCategory SupportedGameUiCategory => GameUiCategory.Unknown;
 
-    private readonly MapMaskConfig _config = TaskContext.Instance().Config.MapMaskConfig;
-    private readonly string _mapMatchingMethod = TaskContext.Instance().Config.PathingConditionConfig.MapMatchingMethod;
+    private MapMaskConfig Config => _platform.Config;
 
     private readonly TemplateMatchStabilityDetector _detector = new();
 
@@ -42,7 +38,6 @@ public class MapMaskTrigger : ITaskTrigger
     // 图像连续稳定次数
     private int _stableCount = 0;
 
-    private ISceneMap _teyvatMap => MapManager.GetMap(MapTypes.Teyvat, _mapMatchingMethod);
     private OpenCvSharp.Rect _prevRect = default;
     private readonly object _prevRectLock = new();
 
@@ -53,8 +48,8 @@ public class MapMaskTrigger : ITaskTrigger
     private sealed class PendingUiUpdate
     {
         public bool? IsInBigMapUi { get; init; }
-        public Rect? BigMapViewport { get; init; }
-        public Rect? MiniMapViewport { get; init; }
+        public MapMaskViewport? BigMapViewport { get; init; }
+        public MapMaskViewport? MiniMapViewport { get; init; }
     }
 
     private PendingUiUpdate? _pendingUiUpdate;
@@ -82,7 +77,7 @@ public class MapMaskTrigger : ITaskTrigger
     /// </summary>
     public void Init()
     {
-        IsEnabled = _config.Enabled;
+        IsEnabled = Config.Enabled;
 
         // 关闭时隐藏UI
         if (!IsEnabled)
@@ -94,20 +89,7 @@ public class MapMaskTrigger : ITaskTrigger
 
             Interlocked.Exchange(ref _pendingUiUpdate, null);
 
-            UIDispatcherHelper.BeginInvoke(() =>
-            {
-                if (MaskWindow.InstanceNullable() != null)
-                {
-                    var window = MaskWindow.Instance();
-                    if (window.DataContext is MaskWindowViewModel vm)
-                    {
-                        vm.IsInBigMapUi = false;
-                    }
-
-                    window.PointsCanvasControl.UpdateViewport(0, 0, 0, 0);
-                    window.MiniMapPointsCanvasControl.UpdateViewport(0, 0, 0, 0);
-                }
-            });
+            _platform.Publish(new(false, new(0, 0, 0, 0), new(0, 0, 0, 0)));
         }
     }
 
@@ -128,7 +110,7 @@ public class MapMaskTrigger : ITaskTrigger
         {
             var region = content.CaptureRectArea;
             var inBigMapUi = content.CurrentGameUiCategory == GameUiCategory.BigMap || Bv.IsInBigMapUi(region);
-            var mapMatchingMethod = TaskContext.Instance().Config.PathingConditionConfig.MapMatchingMethod;
+            var mapMatchingMethod = _platform.MapMatchingMethod;
             PendingUiUpdate? update = null;
 
             if (inBigMapUi)
@@ -159,7 +141,7 @@ public class MapMaskTrigger : ITaskTrigger
             else
             {
                 // 主界面上展示小地图
-                if (_config.MiniMapMaskEnabled)
+                if (Config.MiniMapMaskEnabled)
                 {
                     if (Bv.IsInMainUi(region))
                     {
@@ -171,14 +153,14 @@ public class MapMaskTrigger : ITaskTrigger
                         });
 
                         // 自动记录路径
-                        if (_config.PathAutoRecordEnabled)
+                        if (Config.PathAutoRecordEnabled)
                         {
                             // ...
                         }
                     }
                     else
                     {
-                        update = new PendingUiUpdate { MiniMapViewport = new Rect(0, 0, 0, 0) };
+                        update = new PendingUiUpdate { MiniMapViewport = new MapMaskViewport(0, 0, 0, 0) };
                     }
                 }
 
@@ -201,7 +183,7 @@ public class MapMaskTrigger : ITaskTrigger
         }
         catch (Exception e)
         {
-            _logger.LogDebug(e, "实时地图定位时发生异常");
+            Logger.LogDebug(e, "实时地图定位时发生异常");
         }
     }
 
@@ -260,7 +242,7 @@ public class MapMaskTrigger : ITaskTrigger
             }
             catch (Exception e)
             {
-                _logger.LogDebug(e, "地图遮罩异步计算时发生异常");
+                Logger.LogDebug(e, "地图遮罩异步计算时发生异常");
             }
             finally
             {
@@ -294,7 +276,7 @@ public class MapMaskTrigger : ITaskTrigger
             }
             catch (Exception e)
             {
-                _logger.LogDebug(e, "地图遮罩异步计算时发生异常");
+                Logger.LogDebug(e, "地图遮罩异步计算时发生异常");
             }
             finally
             {
@@ -340,7 +322,7 @@ public class MapMaskTrigger : ITaskTrigger
         }
 
         const int s = TeyvatMap.BigMap256ScaleTo2048;
-        var rect2048 = new Rect(rect256.X * s, rect256.Y * s, rect256.Width * s, rect256.Height * s);
+        var rect2048 = new MapMaskViewport(rect256.X * s, rect256.Y * s, rect256.Width * s, rect256.Height * s);
         QueueUiUpdate(new PendingUiUpdate { BigMapViewport = rect2048 });
     }
 
@@ -364,7 +346,7 @@ public class MapMaskTrigger : ITaskTrigger
             double viewportSize = MapAssets.MimiMapRect1080P.Width / 3.0 * 10;
             QueueUiUpdate(new PendingUiUpdate
             {
-                MiniMapViewport = new Rect(
+                MiniMapViewport = new MapMaskViewport(
                     miniPoint.X - viewportSize / 2.0,
                     miniPoint.Y - viewportSize / 2.0,
                     viewportSize,
@@ -373,7 +355,7 @@ public class MapMaskTrigger : ITaskTrigger
         }
         else
         {
-            QueueUiUpdate(new PendingUiUpdate { MiniMapViewport = new Rect(0, 0, 0, 0) });
+            QueueUiUpdate(new PendingUiUpdate { MiniMapViewport = new MapMaskViewport(0, 0, 0, 0) });
         }
     }
 
@@ -394,7 +376,7 @@ public class MapMaskTrigger : ITaskTrigger
     {
         if (Interlocked.Exchange(ref _uiApplyScheduled, 1) == 0)
         {
-            UIDispatcherHelper.BeginInvoke(ApplyPendingUiUpdate);
+            Task.Run(ApplyPendingUiUpdate);
         }
     }
 
@@ -406,34 +388,9 @@ public class MapMaskTrigger : ITaskTrigger
         var update = Interlocked.Exchange(ref _pendingUiUpdate, null);
         if (update != null)
         {
-            var window = MaskWindow.Instance();
-            if (!_config.Enabled)
-            {
-                if (window.DataContext is MaskWindowViewModel vmWhenDisabled)
-                {
-                    vmWhenDisabled.IsInBigMapUi = false;
-                }
-
-                window.PointsCanvasControl.UpdateViewport(0, 0, 0, 0);
-                window.MiniMapPointsCanvasControl.UpdateViewport(0, 0, 0, 0);
-                Interlocked.Exchange(ref _uiApplyScheduled, 0);
-                return;
-            }
-
-            if (update.IsInBigMapUi is { } isInBigMapUi && window.DataContext is MaskWindowViewModel vm)
-            {
-                vm.IsInBigMapUi = isInBigMapUi;
-            }
-
-            if (update.BigMapViewport is { } bigMapViewport)
-            {
-                window.PointsCanvasControl.UpdateViewport(bigMapViewport.X, bigMapViewport.Y, bigMapViewport.Width, bigMapViewport.Height);
-            }
-
-            if (update.MiniMapViewport is { } miniMapViewport)
-            {
-                window.MiniMapPointsCanvasControl.UpdateViewport(miniMapViewport.X, miniMapViewport.Y, miniMapViewport.Width, miniMapViewport.Height);
-            }
+            _platform.Publish(Config.Enabled
+                ? new(update.IsInBigMapUi, update.BigMapViewport, update.MiniMapViewport)
+                : new(false, new(0, 0, 0, 0), new(0, 0, 0, 0)));
         }
 
         Interlocked.Exchange(ref _uiApplyScheduled, 0);

@@ -22,6 +22,7 @@ using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.GameLoading;
+using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.Helpers;
@@ -133,6 +134,8 @@ AutoEatRuntimePlatform.Configure(new MacAutoEatRuntimePlatform(layout, loggerFac
 GameLoadingRuntimePlatform.Configure(new MacGameLoadingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, loggerFactory,
     server.PlatformCallbacks, sessionToken, shutdown.Token));
+MapMaskRuntimePlatform.Configure(new MacMapMaskRuntimePlatform(
+    layout, loggerFactory, server.PlatformCallbacks, sessionToken, shutdown.Token));
 ExitAndReloginPlatform.Configure(new MacExitAndReloginPlatform());
 var pathExecutorPlatform = new MacPathExecutorPlatform(
     layout, imageRegionOcrService,
