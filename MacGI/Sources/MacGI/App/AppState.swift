@@ -253,6 +253,7 @@ final class AppState: ObservableObject {
     @Published var dispatcherIntervalMs = 50
     @Published var allowRuntimeRealInput = false
     @Published var schedulerGroups: [BetterGIScriptGroupSummary] = []
+    @Published var scriptProjects: [BetterGIScriptProjectSummary] = []
     @Published var schedulerCatalogIssues: [CoreCatalogIssue] = []
     @Published var schedulerCatalogStatus = "Core unavailable"
     @Published var selectedSchedulerGroupName = ""
@@ -344,6 +345,7 @@ final class AppState: ObservableObject {
             addLog(.info, "BetterGI Core \(handshake.runtimeVersion) connected (\(handshake.architecture))")
             await loadTriggerStatesFromCore()
             await loadSchedulerGroupsFromCore()
+            await loadScriptProjectsFromCore()
         } catch {
             betterGICoreSupervisor = nil
             coreStatus = .error
@@ -374,8 +376,25 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func loadScriptProjectsFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            scriptProjects = []
+            return
+        }
+        do {
+            scriptProjects = try await supervisor.listScriptProjects().sorted {
+                $0.folderName.localizedStandardCompare($1.folderName) == .orderedAscending
+            }
+            addLog(.info, "Script catalog loaded \(scriptProjects.count) project(s) through BetterGI Core")
+        } catch {
+            scriptProjects = []
+            addLog(.error, "BetterGI Core script catalog load failed: \(error.localizedDescription)")
+        }
+    }
+
     private func setCoreCatalogUnavailable(_ error: Error) {
         schedulerGroups = []
+        scriptProjects = []
         selectedSchedulerGroupName = ""
         schedulerCatalogStatus = "Core unavailable"
         schedulerCatalogIssues = [

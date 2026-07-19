@@ -65,7 +65,7 @@ extension BetterGIListPage {
     ]
 
     static let jsScriptItems = [
-        BetterGIListItem(icon: .symbol("doc.text"), title: "JS 脚本列表", subtitle: "查看本地和仓库脚本，后续接入脚本运行器"),
+        BetterGIListItem(icon: .symbol("doc.text"), title: "JS 脚本列表", subtitle: "C# Core 已负责脚本目录和 ClearScript 执行；此入口尚未接入 catalog DTO"),
         BetterGIListItem(icon: .symbol("square.and.arrow.down"), title: "导入脚本", subtitle: "从剪贴板、文件或仓库导入脚本"),
         BetterGIListItem(icon: .symbol("curlybraces"), title: "脚本调试", subtitle: "查看脚本参数、日志和运行状态")
     ]
@@ -73,7 +73,7 @@ extension BetterGIListPage {
     static let mapTrackingItems = [
         BetterGIListItem(icon: .symbol("map"), title: "地图追踪", subtitle: "按路径文件执行自动寻路和采集"),
         BetterGIListItem(icon: .fgi("\u{e411}"), title: "路径配置", subtitle: "管理路径组、队伍、循环与触发条件"),
-        BetterGIListItem(icon: .fgi("\u{f279}"), title: "地图遮罩点位", subtitle: "未来显示在游戏窗口上方的地图点位叠加层")
+        BetterGIListItem(icon: .fgi("\u{f279}"), title: "地图遮罩点位", subtitle: "Core draw-command sink 已接入；Swift 遮罩渲染尚不可用")
     ]
 
     static let recordReplayItems = [

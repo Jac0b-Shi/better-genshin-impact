@@ -237,7 +237,7 @@ struct OneDragonPage: View {
     var body: some View {
         BGIWorkflowShell(
             title: "一条龙",
-            subtitle: "按 BetterGI 原页面的任务列表 + 右侧配置结构组织，后续接真实配置组与执行队列。",
+            subtitle: "该页面仅保留 SwiftUI 布局；未接入 C# Core DTO 的配置项不可编辑或执行。",
             commands: [
                 BGICommand(title: "启动", symbol: "play.fill"),
                 BGICommand(title: "新增配置", symbol: "plus"),
@@ -595,9 +595,7 @@ struct JSScriptPage: View {
             BGISectionCard("脚本列表", subtitle: "上游页面按目录、名称、版本展示，并提供执行、打开目录、刷新、删除。", symbolName: "doc.text") {
                 BGIDataTable(
                     headers: ["目录", "名称", "版本"],
-                    rows: appState.schedulerGroups.flatMap { group in
-                        group.projects.map { [group.name, $0.name, $0.type] }
-                    }
+                    rows: appState.scriptProjects.map { [$0.folderName, $0.name, $0.version] }
                 )
             }
 
@@ -635,7 +633,7 @@ struct MapTrackingPage: View {
                 Spacer()
             }
 
-            BGISectionCard("路径任务", subtitle: "按路径文件执行自动寻路和采集，后续由 Rust/OpenCV 提供定位状态。", symbolName: "map") {
+            BGISectionCard("路径任务", subtitle: "路径解析、定位、识别与执行均由 BetterGI C# Core 负责；此处尚未接入路径目录 DTO。", symbolName: "map") {
                 BGIDataTable(
                     headers: ["名称", "文件", "执行任务"],
                     rows: [
@@ -646,7 +644,7 @@ struct MapTrackingPage: View {
                 )
             }
 
-            BGIOriginalCard(icon: .fgi("\u{f279}"), title: "地图遮罩点位", subtitle: "未来显示在游戏窗口上方的点位、路径和小地图方位。") {
+            BGIOriginalCard(icon: .fgi("\u{f279}"), title: "地图遮罩点位", subtitle: "Core draw-command sink 已接收状态；Swift 遮罩渲染尚不可用。") {
                 BGIUnavailableToggle(isOn: true)
             } content: {
                 BGISettingLine(title: "显示小地图方位", subtitle: "在小地图周围显示东南西北文字。") {

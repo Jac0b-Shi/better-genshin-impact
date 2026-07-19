@@ -44,9 +44,12 @@ struct BetterGIScriptGroupSummary: Equatable, Sendable, Identifiable {
     var id: String { "\(index)|\(name)" }
 }
 
-struct BetterGIScriptProjectSummary: Equatable, Sendable {
+struct BetterGIScriptProjectSummary: Equatable, Sendable, Identifiable {
     let folderName: String
-    let manifestJSON: String
+    let name: String
+    let version: String
+
+    var id: String { folderName }
 }
 
 /// Blocking request/response transport. Call it from a worker task, never the main actor.
@@ -195,16 +198,10 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
         }
         return try items.map { item in
             guard let folderName = item["folderName"] as? String,
-                  let manifest = item["manifest"] as? [String: Any],
-                  JSONSerialization.isValidJSONObject(manifest)
+                  let name = item["name"] as? String,
+                  let version = item["version"] as? String
             else { throw BetterGICoreRPCError.protocolViolation("Invalid script-project summary.") }
-            return BetterGIScriptProjectSummary(
-                folderName: folderName,
-                manifestJSON: String(
-                    data: try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys]),
-                    encoding: .utf8
-                ) ?? "{}"
-            )
+            return BetterGIScriptProjectSummary(folderName: folderName, name: name, version: version)
         }
     }
 

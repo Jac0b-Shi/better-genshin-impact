@@ -66,7 +66,7 @@ struct SettingsPage: View {
                     Toggle("", isOn: $appState.showOverlayDirections)
                         .labelsHidden()
                 }
-                BGISettingLine(title: "显示地图点位与路径", subtitle: "在遮罩窗口中显示点位标签、路径线和未来地图追踪数据。") {
+                BGISettingLine(title: "显示地图点位与路径", subtitle: "Core draw-command sink 已接收点位与路径；Swift 遮罩渲染尚不可用。") {
                     Toggle("", isOn: $appState.showOverlayMapPoints)
                         .labelsHidden()
                 }

@@ -40,6 +40,10 @@ if rg -n '\bBGIScriptGroup(Project|Config)?\b|getScriptGroup\(|saveScriptGroup\(
   fail "Swift interprets or persists the upstream ScriptGroup document instead of consuming Core DTOs"
 fi
 
+if rg -n 'manifestJSON|JSONSerialization.*manifest' MacGI/Sources/MacGI; then
+  fail "Swift parses BetterGI script manifests instead of consuming Core display DTOs"
+fi
+
 if rg -n 'coreTriggerNames|id:\s*"auto-(pickup|dialog|heal)' MacGI/Sources/MacGI/App; then
   fail "Swift hard-codes a parallel trigger catalog instead of consuming trigger.list DTOs"
 fi
@@ -55,6 +59,10 @@ fi
 
 if rg -n -i '\b(mock|fake)\b' MacGI/Sources/MacGI; then
   fail "production Swift source contains mock or fake platform state"
+fi
+
+if rg -n '由 Rust/OpenCV 提供|Rust.*(脚本|调度|路径|识别)' MacGI/Sources/MacGI; then
+  fail "Swift UI assigns BetterGI business authority to Rust"
 fi
 
 if rg -n 'TemplateMatchingRecognitionEngine|PaddleOCRRecognitionEngine|BGIYOLOOnnxRuntime|BGIMiniMapLocalizationService|BGIBigMapInteractionService|BGIAuto[A-Za-z]+Service|BGIScriptRepositoryUpdater|TaskTriggerLoopController' \

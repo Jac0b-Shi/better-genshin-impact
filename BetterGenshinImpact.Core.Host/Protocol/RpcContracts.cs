@@ -47,3 +47,8 @@ public sealed record ScriptProjectDocument(
     [property: JsonProperty("folderName")] string FolderName,
     [property: JsonProperty("manifest")] object Manifest,
     [property: JsonProperty("settings")] object Settings);
+
+public sealed record ScriptProjectSummary(
+    [property: JsonProperty("folderName")] string FolderName,
+    [property: JsonProperty("name")] string Name,
+    [property: JsonProperty("version")] string Version);

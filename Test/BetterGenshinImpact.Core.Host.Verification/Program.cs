@@ -796,8 +796,15 @@ try
             projectDocuments.Any(document => document?["folderName"]?.Value<string>() == "ExitGameMultipleMode"),
         "script-project catalog did not return the upstream manifest fixture");
     var coreFixtureDocument = projectDocuments.First(document => document?["folderName"]?.Value<string>() == "CoreFixture");
-    Require(coreFixtureDocument?["settings"]?[0]?["name"]?.Value<string>() == "targetMonsters",
-        "script-project catalog did not return upstream settings metadata");
+    Require(coreFixtureDocument?["name"]?.Value<string>() == "Core Fixture" &&
+            coreFixtureDocument?["version"]?.Value<string>() == "1.0.0",
+        "script-project catalog did not return Core-owned display metadata");
+    var coreFixtureDetails = await ExchangeAsync(
+        connection, "project-details", "catalog.getScriptProject", sessionToken,
+        JObject.FromObject(new { folderName = "CoreFixture" }), cancellation.Token);
+    Require(coreFixtureDetails.Error is null &&
+            JObject.FromObject(coreFixtureDetails.Result!)["settings"]?[0]?["name"]?.Value<string>() == "targetMonsters",
+        coreFixtureDetails.Error?.Message ?? "script-project details lost upstream settings metadata");
 
     GameTaskManager.TriggerDictionary = new System.Collections.Concurrent.ConcurrentDictionary<string, ITaskTrigger>();
     GameTaskManager.TriggerDictionary["Verification"] = new VerificationTrigger();
