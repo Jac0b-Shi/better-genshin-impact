@@ -69,9 +69,21 @@ var captureRing = new SharedCaptureRingReader(layout);
 var globalMethodRuntime = new MacGlobalMethodRuntime(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing);
 var gameTaskManagerPlatform = new MacGameTaskManagerPlatform(
-    server.PlatformCallbacks, sessionToken, shutdown.Token);
+    server.PlatformCallbacks, sessionToken, shutdown.Token, loggerFactory);
 var bvSimpleOperationPlatform = new MacBvSimpleOperationPlatform(
     layout, gameTaskManagerPlatform.SystemInfo);
+var imageRegionOcrService = new MacImageRegionOcrService(
+    layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
+var autoPickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    bvSimpleOperationPlatform.AutoPickConfig, PaddleOcrModelConfig.V5Auto, "zh-Hans");
+var autoPickRuntimeState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(
+    () => RunnerContext.Instance.AutoPickTriggerStopCount);
+var semanticInputBackend = new MacSemanticInputBackend(
+    server.PlatformCallbacks, sessionToken, shutdown.Token);
+var paddleAutoPickRecognizer = imageRegionOcrService.CreatePaddleAutoPickTextRecognizer();
+var yapAutoPickRecognizer = imageRegionOcrService.CreateYapAutoPickTextRecognizer(layout);
+var triggerDispatcher = new MacTriggerDispatcher(
+    loggerFactory.CreateLogger<MacTriggerDispatcher>(), shutdown.Token);
 server.AttachPlatformAssetInitializer(() =>
 {
     MapAssets.Initialize(gameTaskManagerPlatform.SystemInfo);
@@ -90,14 +102,10 @@ server.AttachPlatformAssetInitializer(() =>
         gameTaskManagerPlatform.SystemInfo);
     AutoPickAssets.Initialize(
         gameTaskManagerPlatform.SystemInfo,
-        new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-            bvSimpleOperationPlatform.AutoPickConfig,
-            PaddleOcrModelConfig.V5Auto,
-            "zh-Hans"),
+        autoPickConfigProvider,
         loggerFactory.CreateLogger<AutoPickAssets>());
+    triggerDispatcher.Start();
 });
-var imageRegionOcrService = new MacImageRegionOcrService(
-    layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
 BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageRegionOcrService);
 TaskControlPlatform.Configure(new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing,
@@ -136,9 +144,10 @@ ShellTaskPlatform.Configure(new MacShellTaskPlatform(server.PlatformCallbacks, s
 KeyMouseMacroPlatform.Configure(new MacKeyMouseMacroPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token,
     loggerFactory.CreateLogger("BetterGenshinImpact.Core.Recorder.KeyMouseMacroPlayer")));
-ScriptGroupExecutionServices.Configure(new MacScriptGroupExecutionServices(layout));
-DesktopRegionInputPlatform.Configure(new MacSemanticInputBackend(
-    server.PlatformCallbacks, sessionToken, shutdown.Token));
+ScriptGroupExecutionServices.Configure(new MacScriptGroupExecutionServices(
+    layout, autoPickRuntimeState, semanticInputBackend, () => gameTaskManagerPlatform.SystemInfo,
+    autoPickConfigProvider, paddleAutoPickRecognizer, yapAutoPickRecognizer));
+DesktopRegionInputPlatform.Configure(semanticInputBackend);
 TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token,
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.TaskRunner"),

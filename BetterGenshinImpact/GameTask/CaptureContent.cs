@@ -41,6 +41,13 @@ public class CaptureContent : IDisposable
         CaptureRectArea = ra;
     }
 
+    public CaptureContent(ImageRegion ra, int frameIndex, double interval)
+    {
+        CaptureRectArea = ra ?? throw new ArgumentNullException(nameof(ra));
+        FrameIndex = frameIndex;
+        TimerInterval = interval;
+    }
+
     public void Dispose()
     {
         CaptureRectArea.Dispose();

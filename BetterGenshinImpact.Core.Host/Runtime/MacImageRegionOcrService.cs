@@ -6,6 +6,8 @@ using BetterGenshinImpact.Core.Runtime.Portable;
 using BetterGenshinImpact.GameTask.AutoPick;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using BetterGenshinImpact.Core.Abstractions.Recognition;
+using BetterGenshinImpact.Core.Recognition.ONNX.SVTR;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
@@ -34,9 +36,24 @@ public sealed class MacImageRegionOcrService : IOcrService, IDisposable
     public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) =>
         _onnxFactory.CreateYoloPredictor(model);
 
+    public IPaddleAutoPickTextRecognizer CreatePaddleAutoPickTextRecognizer() =>
+        new PaddleAutoPickTextRecognizer(this);
+
+    public IYapAutoPickTextRecognizer CreateYapAutoPickTextRecognizer(RuntimeLayout layout) =>
+        new LazyYapAutoPickTextRecognizer(() => new YapAutoPickTextRecognizer(
+            TextInferenceFactory.Create(
+                OcrEngineTypes.YapModel, _onnxFactory, new OcrResourcePathResolver(layout.RootPath))));
+
     public void Dispose()
     {
         if (_factory.IsValueCreated)
             _factory.Value.Dispose();
+    }
+
+    private sealed class LazyYapAutoPickTextRecognizer(Func<IYapAutoPickTextRecognizer> factory)
+        : IYapAutoPickTextRecognizer
+    {
+        private readonly Lazy<IYapAutoPickTextRecognizer> _recognizer = new(factory);
+        public string Recognize(Mat textRegion) => _recognizer.Value.Recognize(textRegion);
     }
 }

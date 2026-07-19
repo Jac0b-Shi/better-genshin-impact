@@ -3,19 +3,22 @@ using BetterGenshinImpact.Core.Abstractions.Runtime;
 namespace BetterGenshinImpact.Core.Adapters;
 
 /// <summary>
-/// Immutable initial runtime state placeholder for AutoPick coordination.
-/// Provides a construction-time <c>StopCount</c> value.
-/// No threading logic, no static gateway, no bare Thread.
-/// Mutation/coordination will be introduced when a real macOS pause/resume owner exists.
+/// macOS adapter for the shared AutoPick pause counter.
+/// The delegate is read on every trigger frame so RunnerContext changes are observed immediately.
 /// </summary>
 public sealed class MacAutoPickRuntimeState : IAutoPickRuntimeState
 {
-    private readonly int _stopCount;
+    private readonly Func<int> _getStopCount;
 
     public MacAutoPickRuntimeState(int stopCount = 0)
     {
-        _stopCount = stopCount;
+        _getStopCount = () => stopCount;
     }
 
-    public int StopCount => _stopCount;
+    public MacAutoPickRuntimeState(Func<int> getStopCount)
+    {
+        _getStopCount = getStopCount ?? throw new ArgumentNullException(nameof(getStopCount));
+    }
+
+    public int StopCount => _getStopCount();
 }

@@ -7,12 +7,16 @@ using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Platform.Abstractions;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using BetterGenshinImpact.GameTask.AutoPick;
+using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
+using Microsoft.Extensions.Logging;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 /// <summary>macOS construction boundary for the shared GameTaskManager.</summary>
 public sealed class MacGameTaskManagerPlatform(
-    PlatformCallbackChannel callbacks, string sessionToken, CancellationToken cancellationToken)
+    PlatformCallbackChannel callbacks, string sessionToken, CancellationToken cancellationToken,
+    ILoggerFactory loggerFactory)
     : IGameTaskManagerPlatform
 {
     public ISystemInfo SystemInfo => new CallbackSystemInfo(Metrics());
@@ -27,7 +31,21 @@ public sealed class MacGameTaskManagerPlatform(
         string name, object? externalConfig, IAutoPickRuntimeState runtimeState,
         IInputBackend inputBackend, ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider,
         IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer) =>
-        throw Unavailable($"trigger '{name}'");
+        name switch
+        {
+            "AutoPick" => new KeyValuePair<string, ITaskTrigger>(
+                name,
+                new AutoPickTrigger(
+                    externalConfig as AutoPickExternalConfig,
+                    runtimeState,
+                    autoPickConfigProvider,
+                    inputBackend,
+                    systemInfo,
+                    loggerFactory.CreateLogger<AutoPickTrigger>(),
+                    paddleRecognizer,
+                    yapRecognizer)),
+            _ => throw Unavailable($"trigger '{name}'")
+        };
 
     public void ReloadAssets() => throw Unavailable("asset reload");
     public void ClearOverlay() => BetterGenshinImpact.Core.Recognition.OverlayDrawPlatform.Current.ClearAll();

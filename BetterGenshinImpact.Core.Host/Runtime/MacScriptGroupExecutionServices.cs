@@ -3,6 +3,11 @@ using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.Core.Config;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BetterGenshinImpact.Core.Abstractions.Recognition;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
+using BetterGenshinImpact.GameTask.Model;
+using BetterGenshinImpact.Platform.Abstractions;
+using BetterGenshinImpact.GameTask;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
@@ -10,9 +15,28 @@ public sealed class MacScriptGroupExecutionServices : IScriptGroupExecutionServi
 {
     private readonly PathingPartyConfig _defaultPartyConfig;
     private readonly PathingFailurePolicy _failurePolicy;
+    private readonly IAutoPickRuntimeState _autoPickRuntimeState;
+    private readonly IInputBackend _inputBackend;
+    private readonly Func<ISystemInfo> _getSystemInfo;
+    private readonly IAutoPickConfigProvider _autoPickConfigProvider;
+    private readonly IPaddleAutoPickTextRecognizer _paddleRecognizer;
+    private readonly IYapAutoPickTextRecognizer _yapRecognizer;
 
-    public MacScriptGroupExecutionServices(RuntimeLayout layout)
+    public MacScriptGroupExecutionServices(
+        RuntimeLayout layout,
+        IAutoPickRuntimeState autoPickRuntimeState,
+        IInputBackend inputBackend,
+        Func<ISystemInfo> getSystemInfo,
+        IAutoPickConfigProvider autoPickConfigProvider,
+        IPaddleAutoPickTextRecognizer paddleRecognizer,
+        IYapAutoPickTextRecognizer yapRecognizer)
     {
+        _autoPickRuntimeState = autoPickRuntimeState;
+        _inputBackend = inputBackend;
+        _getSystemInfo = getSystemInfo ?? throw new ArgumentNullException(nameof(getSystemInfo));
+        _autoPickConfigProvider = autoPickConfigProvider;
+        _paddleRecognizer = paddleRecognizer;
+        _yapRecognizer = yapRecognizer;
         var root = LoadRoot(layout);
         var condition = root?["pathingConditionConfig"]?.Deserialize<PathingConditionConfig>(ConfigJson.Options)
             ?? new PathingConditionConfig();
@@ -32,8 +56,15 @@ public sealed class MacScriptGroupExecutionServices : IScriptGroupExecutionServi
 
     public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(cancellationToken);
 
-    public void AddAutoPickTrigger() => throw new CapabilityUnavailableException(
-        "Pathing AutoPick trigger composition is unavailable until PathExecutor is composed.");
+    public void AddAutoPickTrigger()
+    {
+        if (!GameTaskManager.AddTrigger(
+                "AutoPick", null, _autoPickRuntimeState, _inputBackend, _getSystemInfo(),
+                _autoPickConfigProvider, _paddleRecognizer, _yapRecognizer))
+            throw new CapabilityUnavailableException("The shared AutoPick trigger could not be created.");
+        GameTaskManager.TriggerDictionary!["AutoPick"].Init();
+        GameTaskManager.TriggerDictionary["AutoPick"].IsEnabled = true;
+    }
 
     public PathingFailurePolicy PathingFailurePolicy => _failurePolicy;
 

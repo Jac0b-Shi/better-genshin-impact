@@ -166,7 +166,7 @@ server.AttachScriptHostServices(scriptHostServices);
 var scriptServicePlatform = new MacScriptServicePlatform(
     layout, loggerFactory.CreateLogger("BetterGenshinImpact.Service.ScriptService"), scriptHostServices,
     server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
-    new MacGameTaskManagerPlatform(server.PlatformCallbacks, sessionToken, cancellation.Token));
+    new MacGameTaskManagerPlatform(server.PlatformCallbacks, sessionToken, cancellation.Token, loggerFactory));
 ScriptServicePlatform.Configure(scriptServicePlatform);
 server.AttachScriptServicePlatform(scriptServicePlatform);
 TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
@@ -186,7 +186,20 @@ server.AttachPathExecutorPlatform(pathExecutorPlatform);
 var navigationPlatform = new MacNavigationPlatform(
     server.PlatformCallbacks, sessionToken, cancellation.Token);
 NavigationPlatform.Configure(navigationPlatform);
-ScriptGroupExecutionServices.Configure(new MacScriptGroupExecutionServices(layout));
+var verificationInputBackend = new MacSemanticInputBackend(
+    server.PlatformCallbacks, sessionToken, cancellation.Token);
+var verificationAutoPickConfig = new BetterGenshinImpact.GameTask.AutoPick.AutoPickConfig();
+var verificationAutoPickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+    verificationAutoPickConfig, BetterGenshinImpact.Core.Recognition.PaddleOcrModelConfig.V5Auto, "zh-Hans");
+ScriptGroupExecutionServices.Configure(new MacScriptGroupExecutionServices(
+    layout,
+    new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(
+        () => RunnerContext.Instance.AutoPickTriggerStopCount),
+    verificationInputBackend,
+    () => throw new InvalidOperationException("Verification did not request AutoPick system metrics."),
+    verificationAutoPickConfigProvider,
+    imageRegionOcrService.CreatePaddleAutoPickTextRecognizer(),
+    imageRegionOcrService.CreateYapAutoPickTextRecognizer(layout)));
 var shellPlatform = new MacShellTaskPlatform(server.PlatformCallbacks, sessionToken, cancellation.Token);
 ShellTaskPlatform.Configure(shellPlatform);
 var shellResult = await shellPlatform.ExecuteAsync(
