@@ -1,0 +1,27 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using BetterGenshinImpact.GameTask.AutoFishing;
+using BetterGenshinImpact.GameTask.Model;
+using BetterGenshinImpact.GameTask.Common.Job;
+
+namespace BetterGenshinImpact.Core.Script.Dependence;
+
+public interface IGenshinRuntimePlatform
+{
+    ISystemInfo SystemInfo { get; }
+    double DpiScale { get; }
+    string MapMatchingMethod { get; }
+    AutoFishingTaskParam BuildAutoFishingTaskParam();
+    Task<CraftMaterialResult> CraftMaterial(string materialName, int quantity, string? materialType,
+        CancellationToken cancellationToken);
+    Task ClaimBattlePassRewards(CancellationToken cancellationToken);
+    Task GoToCraftingBench(string country, CancellationToken cancellationToken);
+}
+
+public static class GenshinRuntimePlatform
+{
+    public static IGenshinRuntimePlatform Current { get; private set; } = null!;
+    public static void Configure(IGenshinRuntimePlatform platform) =>
+        Current = platform ?? throw new ArgumentNullException(nameof(platform));
+}

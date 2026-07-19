@@ -23,66 +23,6 @@ using static BetterGenshinImpact.GameTask.Common.TaskControl;
 namespace BetterGenshinImpact.GameTask.Common.Job;
 
 /// <summary>
-/// 合成指定材料的执行结果。
-/// </summary>
-public class CraftMaterialResult
-{
-    /// <summary>
-    /// 是否成功完成合成。
-    /// </summary>
-    public bool Success { get; set; }
-
-    /// <summary>
-    /// 目标材料名。
-    /// </summary>
-    public string MaterialName { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 目标合成个数。
-    /// </summary>
-    public int TargetQuantity { get; set; }
-
-    /// <summary>
-    /// 实际设置到界面的合成个数。
-    /// </summary>
-    public int ActualQuantity { get; set; }
-
-    /// <summary>
-    /// 本次使用的材料筛选类型。
-    /// </summary>
-    public string MaterialType { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 本次合成产物汇总。
-    /// </summary>
-    public List<RewardItem> Rewards { get; set; } = [];
-
-    /// <summary>
-    /// 创建成功结果。
-    /// </summary>
-    /// <param name="materialName">目标材料名。</param>
-    /// <param name="targetQuantity">目标合成个数。</param>
-    /// <param name="actualQuantity">实际设置个数。</param>
-    /// <param name="materialType">材料筛选类型。</param>
-    /// <param name="rewards">本次合成产物汇总。</param>
-    /// <returns>成功结果。</returns>
-    public static CraftMaterialResult CreateSuccess(string materialName, int targetQuantity, int actualQuantity, string materialType,
-        List<RewardItem> rewards)
-    {
-        return new CraftMaterialResult
-        {
-            Success = true,
-            MaterialName = materialName,
-            TargetQuantity = targetQuantity,
-            ActualQuantity = actualQuantity,
-            MaterialType = materialType,
-            Rewards = rewards
-        };
-    }
-
-}
-
-/// <summary>
 /// 当前合成界面内按材料名自动合成材料。
 /// </summary>
 public class CraftMaterialTask

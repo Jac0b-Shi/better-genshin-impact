@@ -246,6 +246,8 @@ public partial class App : Application
             new GameTask.MapMask.WindowsMapMaskRuntimePlatform());
         GameTask.SkillCd.SkillCdRuntimePlatform.Configure(
             new GameTask.SkillCd.WindowsSkillCdRuntimePlatform());
+        Core.Script.Dependence.GenshinRuntimePlatform.Configure(
+            new Core.Script.Dependence.WindowsGenshinRuntimePlatform());
         GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
             new Core.Runtime.Windows.WindowsCombatCommandPlatform());
         GameTask.AutoFight.Script.CombatSceneProvider.Configure(

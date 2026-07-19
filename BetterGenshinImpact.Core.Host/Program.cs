@@ -106,6 +106,8 @@ AutoFightRuntimePlatform.Configure(new MacAutoFightRuntimePlatform(
 var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
     layout, gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
+GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
+    () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform, "TemplateMatch"));
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
 BvSimpleOperationPlatform.Configure(bvSimpleOperationPlatform);

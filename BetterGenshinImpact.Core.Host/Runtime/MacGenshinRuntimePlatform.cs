@@ -1,0 +1,29 @@
+using BetterGenshinImpact.Core.Abstractions.Runtime;
+using BetterGenshinImpact.Core.Script.Dependence;
+using BetterGenshinImpact.GameTask.AutoFishing;
+using BetterGenshinImpact.GameTask.Common.Job;
+using BetterGenshinImpact.GameTask.Model;
+
+namespace BetterGenshinImpact.Core.Host.Runtime;
+
+public sealed class MacGenshinRuntimePlatform(
+    Func<ISystemInfo> systemInfo,
+    IAutoFishingRuntimePlatform autoFishing,
+    string mapMatchingMethod) : IGenshinRuntimePlatform
+{
+    public ISystemInfo SystemInfo => systemInfo();
+    public double DpiScale => BetterGenshinImpact.GameTask.Common.TaskControlPlatform.Current.DpiScale;
+    public string MapMatchingMethod { get; } = mapMatchingMethod;
+    public AutoFishingTaskParam BuildAutoFishingTaskParam() =>
+        AutoFishingTaskParam.BuildFromConfig(autoFishing.Config, false);
+    public Task<CraftMaterialResult> CraftMaterial(string materialName, int quantity,
+        string? materialType, CancellationToken cancellationToken) =>
+        throw new CapabilityUnavailableException(
+            "genshin.CraftMaterial is not composed on macOS because the shared CraftMaterialTask still depends on the WPF input surface.");
+    public Task ClaimBattlePassRewards(CancellationToken cancellationToken) =>
+        throw Unavailable("ClaimBattlePassRewards");
+    public Task GoToCraftingBench(string country, CancellationToken cancellationToken) =>
+        throw Unavailable("GoToCraftingBench");
+    private static CapabilityUnavailableException Unavailable(string member) => new(
+        $"genshin.{member} is not composed on macOS because its shared task still depends on Win32 input.");
+}
