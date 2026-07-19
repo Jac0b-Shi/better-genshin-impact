@@ -651,9 +651,6 @@ extension RecognitionObject {
         + bgiPartyChooseViewObjects + bgiPartyDeleteObjects
         + bgiFishingExitButtonObjects
         + bgiAutoEatObjects
-        + bgiFishingBiteObjects
-        + bgiChestObjects
-        + bgiSalvageObjects
         + bgiGameLoadingObjects + bgiSereniteaPotObjects + bgiCookObjects
 
     private static func quickTeleportMapChooseIconObject(

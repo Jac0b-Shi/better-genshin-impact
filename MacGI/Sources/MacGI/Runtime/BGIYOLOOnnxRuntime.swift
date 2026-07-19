@@ -70,7 +70,7 @@ extension NSMutableData {
     fileprivate func toFloatArray() -> [Float] {
         let count = length / MemoryLayout<Float>.stride
         var result = [Float](repeating: 0, count: count)
-        result.withUnsafeMutableBufferPointer { out in
+        _ = result.withUnsafeMutableBufferPointer { out in
             memcpy(out.baseAddress!, bytes, count * MemoryLayout<Float>.stride)
         }
         return result
