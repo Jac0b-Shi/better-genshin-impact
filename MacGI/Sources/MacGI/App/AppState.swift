@@ -328,17 +328,13 @@ final class AppState: ObservableObject {
     }
     @Published var logLevelFilter: LogLevel = .trace
     @Published var logSearchText = ""
-    @Published var inputActionLog: [String] = [
-        "Mock input service ready",
-        "Accessibility permission: Mock",
-        "Screen recording permission: Mock"
-    ]
+    @Published var inputActionLog: [String] = []
     @Published var features: [MacGIFeature] = [
         MacGIFeature(
             id: "auto-pickup",
             name: "自动拾取",
             detail: "选项不是NPC对话且不在黑名单时，自动按下 F 拾取/交互。",
-            statusText: "OCR Mock",
+            statusText: "C# Core",
             icon: .symbol("hand.wave"),
             isEnabled: true
         ),
@@ -370,7 +366,7 @@ final class AppState: ObservableObject {
             id: "auto-heal",
             name: "自动吃药",
             detail: "检测角色红血状态，自动使用便携营养袋回复生命值。",
-            statusText: "Mock",
+            statusText: "C# Core",
             icon: .fgi("\u{f0f1}"),
             isEnabled: false
         ),
@@ -378,7 +374,7 @@ final class AppState: ObservableObject {
             id: "quick-teleport",
             name: "快速传送",
             detail: "在大地图上点击传送点时，自动点击传送。",
-            statusText: "Mock",
+            statusText: "C# Core",
             icon: .fgi("\u{f3c5}"),
             isEnabled: false
         ),
@@ -394,7 +390,7 @@ final class AppState: ObservableObject {
             id: "cooldown-reminder",
             name: "冷却提示",
             detail: "在头像旁显示角色元素战技剩余冷却时间。",
-            statusText: "Mock",
+            statusText: "C# Core",
             icon: .symbol("timer"),
             isEnabled: false
         )
@@ -507,24 +503,13 @@ final class AppState: ObservableObject {
     var overlayMetricDisplayItems: [OverlayDisplayMetric] {
         [
             OverlayDisplayMetric(id: "game-fps", name: "游戏帧率", value: "\(captureFPS)"),
-            OverlayDisplayMetric(id: "processing-cost", name: "处理耗时", value: lastFrameTime),
-            OverlayDisplayMetric(id: "confidence", name: "识别置信", value: String(format: "%.2f", runtimeSnapshot.metrics.confidence)),
-            OverlayDisplayMetric(id: "capture-cost", name: "截图耗时", value: String(format: "%.1f ms", runtimeSnapshot.metrics.captureCostMs)),
-            OverlayDisplayMetric(id: "trigger-cost", name: "触发耗时", value: String(format: "%.1f ms", runtimeSnapshot.metrics.triggerCostMs)),
-            OverlayDisplayMetric(id: "skipped-ticks", name: "跳过次数", value: "\(runtimeLoopSkippedTicks + runtimeSnapshot.metrics.skippedTicks)"),
-            OverlayDisplayMetric(id: "gpu-usage", name: "显卡占用", value: "Mock"),
-            OverlayDisplayMetric(id: "cpu-usage", name: "CPU占用", value: "12%"),
-            OverlayDisplayMetric(id: "memory-usage", name: "内存占用", value: "48%")
+            OverlayDisplayMetric(id: "core-status", name: "Core", value: coreStatus.label),
+            OverlayDisplayMetric(id: "scheduler-status", name: "调度器", value: schedulerExecutionStatus)
         ]
     }
 
     var overlayMapPoints: [OverlayMapPoint] {
-        [
-            OverlayMapPoint(id: "teleport", xRatio: 0.58, yRatio: 0.34, label: "传送点", tint: BGIColors.accent),
-            OverlayMapPoint(id: "ore", xRatio: 0.68, yRatio: 0.48, label: "矿点", tint: BGIColors.warning),
-            OverlayMapPoint(id: "boss", xRatio: 0.47, yRatio: 0.58, label: "首领", tint: BGIColors.danger),
-            OverlayMapPoint(id: "route", xRatio: 0.61, yRatio: 0.68, label: "路径", tint: BGIColors.success)
-        ]
+        []
     }
 
     var filteredLogs: [LogEntry] {

@@ -206,24 +206,7 @@ struct HUDView: View {
     }
 
     private func recognitionOverlay(size: CGSize) -> some View {
-        ZStack {
-            if appState.runtimeSnapshot.observations.isEmpty {
-                recognitionBox(
-                    title: "RecognitionObject",
-                    rect: CGRect(x: size.width * 0.54, y: size.height * 0.62, width: 142, height: 34),
-                    tint: BGIColors.success
-                )
-            } else {
-                ForEach(appState.runtimeSnapshot.observations.prefix(6)) { observation in
-                    recognitionBox(
-                        title: observation.objectName,
-                        rect: overlayRect(for: observation.normalizedRect, in: size),
-                        tint: tint(for: observation.recognitionType)
-                    )
-                }
-            }
-        }
-        .allowsHitTesting(false)
+        EmptyView()
     }
 
     private func overlayRect(for normalizedRect: CGRect, in size: CGSize) -> CGRect {
