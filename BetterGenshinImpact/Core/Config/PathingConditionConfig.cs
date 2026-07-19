@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Linq;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.Common;
 using Microsoft.Extensions.Logging;
 
@@ -124,7 +125,13 @@ public partial class PathingConditionConfig : ObservableObject
     /// <returns></returns>
     public PathingPartyConfig BuildPartyConfigByCondition(CombatScenes combatScenes)
     {
-        PathingPartyConfig partyConfig = PathingPartyConfig.BuildDefault();
+        var runtimeConfig = PathExecutorPlatform.Current.PathingConditionConfig;
+        PathingPartyConfig partyConfig = new()
+        {
+            OnlyInTeleportRecover = runtimeConfig.OnlyInTeleportRecover,
+            UseGadgetIntervalMs = runtimeConfig.UseGadgetIntervalMs,
+            AutoEatEnabled = runtimeConfig.AutoEatEnabled
+        };
         // 使用最优先匹配上的条件
         foreach (var avatarCondition in AvatarConditions)
         {

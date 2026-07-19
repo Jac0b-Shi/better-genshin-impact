@@ -9,6 +9,7 @@ using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using static BetterGenshinImpact.GameTask.Common.TaskControl;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
+using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Helpers;
 using OpenCvSharp;

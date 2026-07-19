@@ -186,6 +186,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/IOnnxRuntimePlatform.cs" Link="Core/Recognition/ONNX/IOnnxRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/BgiYoloPredictor.cs" Link="Core/Recognition/ONNX/BgiYoloPredictor.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Runtime/Portable/CpuOnnxRuntimePlatform.cs" Link="Core/Runtime/Portable/CpuOnnxRuntimePlatform.cs" />
+    <Compile Include="Runtime/Portable/AssertUtils.Portable.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/ProviderType.cs" Link="Core/Recognition/ONNX/ProviderType.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/InferenceDeviceType.cs" Link="Core/Recognition/ONNX/InferenceDeviceType.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/ONNX/SVTR/PickTextInference.cs" Link="Core/Recognition/ONNX/SVTR/PickTextInference.cs" />
@@ -355,6 +356,7 @@
     <Compile Include="../BetterGenshinImpact/Helpers/BgiKeyMapper.cs" Link="Helpers/BgiKeyMapper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/SpeedTimer.cs" Link="Helpers/SpeedTimer.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/AssertUtils.cs" Link="Helpers/AssertUtils.cs" />
+    <Compile Include="../BetterGenshinImpact/Helpers/ServerTimeHelper.cs" Link="Helpers/ServerTimeHelper.cs" />
   </ItemGroup>
 
   <!-- Model -->

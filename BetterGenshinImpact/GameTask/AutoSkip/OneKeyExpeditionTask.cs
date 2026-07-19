@@ -14,7 +14,7 @@ public class OneKeyExpeditionTask
     {
         try
         {
-            SystemControl.ActivateWindow();
+            TaskControlPlatform.Current.EnsureGameActive();
 
             for (int i = 0; i < 2; i++)
             {

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.Common;
 using Microsoft.Extensions.Logging;
 using static BetterGenshinImpact.GameTask.Common.TaskControl;
 
@@ -41,7 +42,7 @@ public class NahidaCollectHandler : IActionHandler
 
         await nahida.WaitSkillCd(ct);
 
-        var dpi = TaskContext.Instance().DpiScale;
+        var dpi = TaskControlPlatform.Current.DpiScale;
 
         int x = (int)(400 * dpi), y = (int)(-30 * dpi);
         int i = 60;

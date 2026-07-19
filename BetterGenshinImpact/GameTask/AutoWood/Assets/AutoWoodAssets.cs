@@ -6,13 +6,13 @@ namespace BetterGenshinImpact.GameTask.AutoWood.Assets;
 
 public class AutoWoodAssets : BaseAssets<AutoWoodAssets>
 {
-    public RecognitionObject TheBoonOfTheElderTreeRo;
+    public RecognitionObject TheBoonOfTheElderTreeRo = null!;
 
     // public RecognitionObject CharacterGuideRo;
-    public RecognitionObject MenuBagRo;
+    public RecognitionObject MenuBagRo = null!;
 
-    public RecognitionObject ConfirmRo;
-    public RecognitionObject EnterGameRo;
+    public RecognitionObject ConfirmRo = null!;
+    public RecognitionObject EnterGameRo = null!;
 
     // 木头数量
     public Rect WoodCountUpperRect;

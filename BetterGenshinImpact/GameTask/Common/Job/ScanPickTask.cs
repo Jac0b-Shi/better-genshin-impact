@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using BetterGenshinImpact.Core.Recognition.ONNX;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.Model.Area;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using static BetterGenshinImpact.GameTask.Common.TaskControl;
@@ -20,8 +19,8 @@ namespace BetterGenshinImpact.GameTask.Common.Job;
 /// </summary>
 public class ScanPickTask
 {
-    private readonly BgiYoloPredictor _predictor = App.ServiceProvider.GetRequiredService<BgiOnnxFactory>().CreateYoloPredictor(BgiOnnxModel.BgiWorld);
-    private readonly double _dpi = TaskContext.Instance().DpiScale;
+    private readonly BgiYoloPredictor _predictor = AutoFight.AutoFightRuntimePlatform.Current.CreateYoloPredictor(BgiOnnxModel.BgiWorld);
+    private readonly double _dpi = AutoFight.AutoFightRuntimePlatform.Current.DpiScale;
 
 
     public async Task Start(CancellationToken ct)
@@ -43,7 +42,7 @@ public class ScanPickTask
 
     public async Task DoOnce(CancellationToken ct)
     {
-        var sec = TaskContext.Instance().Config.AutoFightConfig.PickDropsAfterFightSeconds;
+        var sec = AutoFight.AutoFightRuntimePlatform.Current.AutoFightConfig.PickDropsAfterFightSeconds;
         Stopwatch timeoutStopwatch = Stopwatch.StartNew();
         TimeSpan finishTime = TimeSpan.FromSeconds(sec);
 

@@ -6,10 +6,10 @@ namespace BetterGenshinImpact.GameTask.GameLoading.Assets;
 
 public class GameLoadingAssets : BaseAssets<GameLoadingAssets>
 {
-    public RecognitionObject ChooseEnterGameRo;
-    public RecognitionObject EnterGameRo;
-    public RecognitionObject WelkinMoonRo;
-    public RecognitionObject GirlMoonRo;
+    public RecognitionObject ChooseEnterGameRo = null!;
+    public RecognitionObject EnterGameRo = null!;
+    public RecognitionObject WelkinMoonRo = null!;
+    public RecognitionObject GirlMoonRo = null!;
 
 #if BGI_FULL_WINDOWS
     private GameLoadingAssets() : base()
