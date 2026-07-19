@@ -623,6 +623,18 @@ try
 
     GlobalMethod.Configure(globalRuntime);
     ScriptProjectHost.Configure(new MacScriptProjectHostInitializer());
+    using (var hostSurfaceEngine = new V8ScriptEngine(V8ScriptEngineFlags.EnableTaskPromiseConversion))
+    {
+        new MacScriptProjectHostInitializer().Initialize(
+            hostSurfaceEngine, Path.Combine(layout.UserPath, "JsScript"), [], null);
+        var missingHostNames = Convert.ToString(hostSurfaceEngine.Evaluate("""
+            ["RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
+             "CombatScenes", "Avatar", "OpenCvSharp", "AutoFightParam", "AutoSkipConfig",
+             "CancellationTokenSource", "CancellationToken"].filter(name => typeof globalThis[name] === "undefined").join(",")
+            """));
+        Require(string.IsNullOrEmpty(missingHostNames),
+            $"macOS ClearScript host surface is missing: {missingHostNames}");
+    }
     var realFixtureSource = Path.Combine(AppContext.BaseDirectory, "Fixtures", "ExitGameMultipleMode");
     var realFixtureTarget = Path.Combine(layout.UserPath, "JsScript", "ExitGameMultipleMode");
     CopyDirectory(realFixtureSource, realFixtureTarget);

@@ -1,15 +1,19 @@
 using BetterGenshinImpact.Core.Script.Dependence;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script.Utils;
+using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.GameTask.AutoFight;
+using BetterGenshinImpact.GameTask.AutoFight.Model;
+using BetterGenshinImpact.GameTask.AutoSkip;
+using BetterGenshinImpact.GameTask.Model.Area;
 using Microsoft.ClearScript;
+using OpenCvSharp;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 /// <summary>
-/// Registers only the upstream host objects whose complete implementations are
-/// already composed on macOS. Scheduler capability remains disabled until the
-/// remaining EngineExtend registrations are linked; missing names therefore
-/// cannot be mistaken for successful no-op implementations.
+/// Registers the upstream host objects whose real shared implementations are composed on macOS.
+/// Unsupported upstream objects are added only when their complete source slice is linked.
 /// </summary>
 public sealed class MacScriptProjectHostInitializer : IScriptProjectHostInitializer
 {
@@ -21,6 +25,20 @@ public sealed class MacScriptProjectHostInitializer : IScriptProjectHostInitiali
         engine.AddHostObject("http", new Http());
         engine.AddHostObject("notification", new Notification());
         engine.AddHostType("ServerTime", typeof(ServerTime));
+        engine.AddHostType("CancellationTokenSource", typeof(CancellationTokenSource));
+        engine.AddHostType("CancellationToken", typeof(CancellationToken));
+        engine.AddHostType("Mat", typeof(Mat));
+        engine.AddHostType("Point2f", typeof(Point2f));
+        engine.AddHostType("RecognitionObject", typeof(RecognitionObject));
+        engine.AddHostType("DesktopRegion", typeof(DesktopRegion));
+        engine.AddHostType("GameCaptureRegion", typeof(GameCaptureRegion));
+        engine.AddHostType("ImageRegion", typeof(ImageRegion));
+        engine.AddHostType("Region", typeof(Region));
+        engine.AddHostType("CombatScenes", typeof(CombatScenes));
+        engine.AddHostType("Avatar", typeof(Avatar));
+        engine.AddHostObject("OpenCvSharp", new HostTypeCollection("OpenCvSharp"));
+        engine.AddHostType("AutoFightParam", typeof(AutoFightParam));
+        engine.AddHostType("AutoSkipConfig", typeof(AutoSkipConfig));
         engine.AddHostObject("strategyFile", new StrategyFile());
         engine.AddHostObject("host", new CustomHostFunctions());
         engine.AddHostType(typeof(Task));
