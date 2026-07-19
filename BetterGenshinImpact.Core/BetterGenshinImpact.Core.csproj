@@ -356,6 +356,8 @@
   <!-- ClearScript module/package resolution is shared upstream source. -->
   <ItemGroup>
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/GlobalMethod.cs" Link="Core/Script/Dependence/GlobalMethod.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/KeyMouseScript.cs" Link="Core/Script/Dependence/KeyMouseScript.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/AutoPathingScript.cs" Link="Core/Script/Dependence/AutoPathingScript.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/ScriptHostServices.cs" Link="Core/Script/Dependence/ScriptHostServices.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/CustomHostFunctions.cs" Link="Core/Script/Dependence/CustomHostFunctions.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Http.cs" Link="Core/Script/Dependence/Http.cs" />

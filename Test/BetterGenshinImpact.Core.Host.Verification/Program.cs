@@ -628,7 +628,7 @@ try
         new MacScriptProjectHostInitializer().Initialize(
             hostSurfaceEngine, Path.Combine(layout.UserPath, "JsScript"), [], null);
         var missingHostNames = Convert.ToString(hostSurfaceEngine.Evaluate("""
-            ["RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
+            ["keyMouseScript", "pathingScript", "RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
              "CombatScenes", "Avatar", "OpenCvSharp", "AutoFightParam", "AutoSkipConfig",
              "CancellationTokenSource", "CancellationToken"].filter(name => typeof globalThis[name] === "undefined").join(",")
             """));
