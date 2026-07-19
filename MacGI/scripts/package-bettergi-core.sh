@@ -36,8 +36,13 @@ if [[ -n ${TARGET_BUILD_DIR:-} && -n ${WRAPPER_NAME:-} ]]; then
   mkdir -p ${destination:h}
   cp -R ${publish_dir} ${destination}
   if [[ -n ${EXPANDED_CODE_SIGN_IDENTITY:-} ]]; then
-    codesign --force --options runtime --timestamp=none \
-      --sign ${EXPANDED_CODE_SIGN_IDENTITY} ${destination}/BetterGenshinImpact.Core.Host
+    while IFS= read -r binary; do
+      if file ${binary} | grep -q 'Mach-O'; then
+        codesign --force --options runtime --timestamp=none \
+          --sign ${EXPANDED_CODE_SIGN_IDENTITY} ${binary}
+        codesign --verify --strict --verbose=2 ${binary}
+      fi
+    done < <(find ${destination} -type f | sort)
   fi
 fi
 
