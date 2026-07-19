@@ -11,19 +11,19 @@ public partial class RunnerContext
 {
     public async Task<CombatScenes?> GetCombatScenes(CancellationToken ct)
     {
-        if (CombatScenesState is not CombatScenes combatScenes)
+        if (CombatScenesState is CombatScenes existingCombatScenes)
+            return existingCombatScenes;
+
+        var returnMainUiTask = new ReturnMainUiTask();
+        await returnMainUiTask.Start(ct);
+        await Delay(200, ct);
+        CombatScenes? combatScenes = new CombatScenes().InitializeTeam(CaptureToRectArea());
+        if (!combatScenes.CheckTeamInitialized())
         {
-            var returnMainUiTask = new ReturnMainUiTask();
-            await returnMainUiTask.Start(ct);
-            await Delay(200, ct);
-            combatScenes = new CombatScenes().InitializeTeam(CaptureToRectArea());
-            if (!combatScenes.CheckTeamInitialized())
-            {
-                Logger.LogError("队伍角色识别失败");
-                combatScenes = null;
-            }
-            CombatScenesState = combatScenes;
+            Logger.LogError("队伍角色识别失败");
+            combatScenes = null;
         }
+        CombatScenesState = combatScenes;
         return combatScenes;
     }
 

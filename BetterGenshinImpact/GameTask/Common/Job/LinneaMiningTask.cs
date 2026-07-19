@@ -206,12 +206,15 @@ public class LinneaMiningTask
             totalDy += mouseDy;
             await Delay(150, ct);
 
-            (cluster, centerX, centerY) = FindNearestMineralCluster();
-            if (cluster == null)
+            var nextCluster = FindNearestMineralCluster();
+            if (nextCluster.cluster == null)
             {
                 hadResult = false;
                 return (false, false, totalDx, totalDy);
             }
+            cluster = nextCluster.cluster;
+            centerX = nextCluster.centerX;
+            centerY = nextCluster.centerY;
         }
 
         return (false, false, totalDx, totalDy);

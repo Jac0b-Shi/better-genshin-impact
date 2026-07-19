@@ -64,8 +64,8 @@ public class AutoFightJsonTask : ISoloTask
     /// </summary>
     private class PrioritizedAction
     {
-        public JsonAction Action { get; set; }
-        public string Expression { get; set; }
+        public required JsonAction Action { get; set; }
+        public required string Expression { get; set; }
         public int Priority { get; set; }
     }
 
@@ -590,7 +590,7 @@ public class AutoFightJsonTask : ISoloTask
         {
             // 注意：此处使用 await 确保异常能被正确捕获
             // TXT 版本的 AutoFightTask.CheckFightFinish 中未使用 await，异常可能被吞掉
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
@@ -777,7 +777,7 @@ public class AutoFightJsonTask : ISoloTask
                         RunnerContext.Instance.PartyName = _taskParam.KazuhaPartyName;
                         RunnerContext.Instance.ClearCombatScenes();
                         var cs = await RunnerContext.Instance.GetCombatScenes(_ct);
-                        picker = cs.SelectAvatar("枫原万叶") ?? cs.SelectAvatar("琴");
+                        picker = cs?.SelectAvatar("枫原万叶") ?? cs?.SelectAvatar("琴");
                     }
                 }
                 catch (Exception e)
@@ -836,7 +836,7 @@ public class AutoFightJsonTask : ISoloTask
                                 foreach (var command in pickUpAction.CombatCommands)
                                 {
                                     command.Execute(combatScenes);
-                                    Task.Run(() =>
+                                    _ = Task.Run(() =>
                                     {
                                         if (Monitor.TryEnter(PickLock))
                                         {

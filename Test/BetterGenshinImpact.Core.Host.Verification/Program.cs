@@ -176,8 +176,10 @@ TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
 TaskControlPlatform.Configure(new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl")));
+using var imageRegionOcrService = new MacImageRegionOcrService(
+    layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
 var pathExecutorPlatform = new MacPathExecutorPlatform(
-    server.PlatformCallbacks, sessionToken, cancellation.Token);
+    layout, imageRegionOcrService, server.PlatformCallbacks, sessionToken, cancellation.Token);
 PathExecutorPlatform.Configure(pathExecutorPlatform);
 PathExecutorAutoSkipPlatform.Configure(new MacPathExecutorAutoSkipPlatform());
 server.AttachPathExecutorPlatform(pathExecutorPlatform);

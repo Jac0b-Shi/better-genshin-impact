@@ -7,6 +7,7 @@ using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Recorder;
 using BetterGenshinImpact.GameTask.Shell;
 using BetterGenshinImpact.GameTask.AutoPathing;
+using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoSkip;
@@ -19,6 +20,7 @@ using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
+using BetterGenshinImpact.Helpers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
@@ -61,6 +63,7 @@ using var loggerFactory = LoggerFactory.Create(builder => builder.AddSimpleConso
 var scriptHostServices = new MacScriptHostServices(
     loggerFactory, server.PlatformCallbacks, sessionToken, shutdown.Token);
 ScriptHostServices.Configure(scriptHostServices);
+ServerTimeHelper.Initialize(new ServerTimeProvider(TimeProvider.System, () => scriptHostServices.ServerTimeZoneOffset));
 server.AttachScriptHostServices(scriptHostServices);
 var captureRing = new SharedCaptureRingReader(layout);
 var globalMethodRuntime = new MacGlobalMethodRuntime(

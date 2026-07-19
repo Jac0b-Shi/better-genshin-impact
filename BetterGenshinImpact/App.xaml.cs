@@ -179,7 +179,10 @@ public partial class App : Application
                 services.AddSingleton<IMaskMapPointService, MaskMapPointService>();
 
                 services.AddSingleton(TimeProvider.System);
-                services.AddSingleton<IServerTimeProvider, ServerTimeProvider>();
+                services.AddSingleton<IServerTimeProvider>(provider =>
+                    new ServerTimeProvider(
+                        provider.GetRequiredService<TimeProvider>(),
+                        () => TaskContext.Instance().Config.OtherConfig.ServerTimeZoneOffset));
 
                 // Configuration
                 //services.Configure<AppConfig>(context.Configuration.GetSection(nameof(AppConfig)));

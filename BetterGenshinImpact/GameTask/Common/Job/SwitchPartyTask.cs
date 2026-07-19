@@ -164,8 +164,7 @@ public class SwitchPartyTask
             RecognitionType = RecognitionTypes.Ocr,
             RegionOfInterest = regionOfInterest,
             DrawOnWindow = true,
-            Name = "队伍名称",
-            DrawOnWindowPen= System.Drawing.Pens.White
+            Name = "队伍名称"
         };
         // 逐页查找
         try

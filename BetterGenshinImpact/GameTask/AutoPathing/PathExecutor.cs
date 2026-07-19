@@ -253,7 +253,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
                     }
                     break;
                 }
-                catch (HandledException handledException)
+                catch (HandledException)
                 {
                     SuccessEnd = true;
                     break;
@@ -270,7 +270,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
                         break;
                     }
                 }
-                catch (TaskCanceledException e)
+                catch (TaskCanceledException)
                 {
                     if (!RunnerContext.Instance.isAutoFetchDispatch && RunnerContext.Instance.IsContinuousRunGroup)
                     {
@@ -697,7 +697,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
                         5);
                     Logger.LogInformation("自动领取派遣结束，回归原任务！");
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     Logger.LogInformation("未知原因，发生异常，尝试继续执行任务！");
                 }
@@ -1200,8 +1200,6 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
     
     private  Point2f prePosition;
     private  DateTime preTime;
-    //自动构造点位的最大时间
-    private int maxAutoPositionTime=10000; 
     private async Task WaitForCloseMap(int maxAttempts, int delayMs)
     {
         await Delay(delayMs, ct);
@@ -1264,7 +1262,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
                 {
                     position =MapManager.GetMap(waypoint.MapName, waypoint.MapMatchMethod).ConvertGenshinMapCoordinatesToImageCoordinates(tpTask.GetPositionFromBigMap(waypoint.MapName));
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     Logger.LogInformation(@$"地图中心点识别失败！");
                 }

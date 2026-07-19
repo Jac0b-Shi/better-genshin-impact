@@ -290,7 +290,7 @@ namespace BetterGenshinImpact.GameTask.AutoFight
                         if (height > 2 && height < 7)
                         {
                             // logger.LogInformation("画面内有找到敌人，尝试移动...");
-                            Task.Run(() => { MoveForwardTask.MoveForwardAsync(bloodLower, bloodLower, logger, ct); }, ct);
+                            _ = Task.Run(() => MoveForwardTask.MoveForwardAsync(bloodLower, bloodLower, logger, ct), ct);
                             return false;
                         }
 
@@ -399,7 +399,7 @@ namespace BetterGenshinImpact.GameTask.AutoFight
                         if (height2 > 2 && height2 < 7)
                         {
                             // logger.LogInformation("画面内有找到敌人，尝试移动...");
-                            Task.Run(() => { MoveForwardTask.MoveForwardAsync(bloodLower, bloodLower, logger, ct); }, ct);
+                            _ = Task.Run(() => MoveForwardTask.MoveForwardAsync(bloodLower, bloodLower, logger, ct), ct);
                             return false;
                         }
 

@@ -13,6 +13,7 @@ public class ActionFactory
     {
         return _handlers.GetOrAdd(handlerType, (key) =>
         {
+#pragma warning disable CS0612 // These names remain part of the upstream route schema.
             return key switch
             {
                 "nahida_collect" => new NahidaCollectHandler(),
@@ -35,6 +36,7 @@ public class ActionFactory
                 "pick_up_collect" => new PickUpCollectHandler(),
                 _ => throw new ArgumentException("未知的后置 action 类型")
             };
+#pragma warning restore CS0612
         });
     }
 
