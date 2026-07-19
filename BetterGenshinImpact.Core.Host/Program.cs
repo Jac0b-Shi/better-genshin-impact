@@ -19,6 +19,7 @@ using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.FarmingPlan;
+using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.Helpers;
@@ -133,6 +134,8 @@ PathExecutorAutoSkipPlatform.Configure(new MacPathExecutorAutoSkipPlatform());
 server.AttachPathExecutorPlatform(pathExecutorPlatform);
 NavigationPlatform.Configure(new MacNavigationPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));
+QuickTeleportRuntimePlatform.Configure(new MacQuickTeleportRuntimePlatform(
+    layout, server.PlatformCallbacks, sessionToken, shutdown.Token));
 BetterGenshinImpact.GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
     new MacCombatCommandPlatform(globalMethodRuntime));
 BetterGenshinImpact.GameTask.AutoFight.Script.CombatSceneProvider.Configure(

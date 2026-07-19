@@ -18,6 +18,7 @@ using BetterGenshinImpact.GameTask.AutoWood.Assets;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.GameLoading.Assets;
+using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using Microsoft.Extensions.Logging;
 
@@ -60,6 +61,7 @@ public sealed class MacGameTaskManagerPlatform(
                     ? new AutoSkipTrigger(config)
                     : new AutoSkipTrigger()),
             "AutoFish" => new KeyValuePair<string, ITaskTrigger>(name, new AutoFishingTrigger()),
+            "QuickTeleport" => new KeyValuePair<string, ITaskTrigger>(name, new QuickTeleportTrigger()),
             _ => throw Unavailable($"trigger '{name}'")
         };
 

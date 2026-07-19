@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Translates BetterGI Core's semantic key payloads into macOS input codes.
 /// This is a platform adapter only; key/mouse execution semantics remain in C# Core.
@@ -64,6 +65,17 @@ enum BetterGICoreInputKeyMapper {
         case "VK_OEM_6", "RBRACKET", "]": .rightBracket
         case "VK_OEM_3", "GRAVE", "TILDE", "`": .grave
         default: key.hasPrefix("VK_") ? keyCode(from: String(key.dropFirst(3))) : nil
+        }
+    }
+
+    static func mouseButton(from rawKey: String) -> CGMouseButton? {
+        switch rawKey.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "LEFT", "LEFTBUTTON", "MOUSELEFT": .left
+        case "RIGHT", "RIGHTBUTTON", "MOUSERIGHT": .right
+        case "MIDDLE", "MIDDLEBUTTON", "MOUSEMIDDLE": .center
+        case "XBUTTON1", "MOUSE4": CGMouseButton(rawValue: 3)
+        case "XBUTTON2", "MOUSE5": CGMouseButton(rawValue: 4)
+        default: nil
         }
     }
 }

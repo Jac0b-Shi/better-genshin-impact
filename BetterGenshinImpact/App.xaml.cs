@@ -236,6 +236,8 @@ public partial class App : Application
         GameTask.AutoPathing.PathExecutorPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorPlatform());
         GameTask.AutoPathing.PathExecutorAutoSkipPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorAutoSkipPlatform());
         GameTask.AutoPathing.NavigationPlatform.Configure(new Core.Runtime.Windows.WindowsNavigationPlatform());
+        GameTask.QuickTeleport.QuickTeleportRuntimePlatform.Configure(
+            new Core.Runtime.Windows.WindowsQuickTeleportRuntimePlatform());
         GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
             new Core.Runtime.Windows.WindowsCombatCommandPlatform());
         GameTask.AutoFight.Script.CombatSceneProvider.Configure(

@@ -210,29 +210,49 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
                 throw BetterGICorePlatformAdapterError.inputRejected(reason)
             }
         case "input.query":
-            guard let parameters,
-                  parameters["action"] as? String == "isGameActionDown",
-                  let rawAction = parameters["gameAction"] as? String,
-                  let gameAction = GIAction(rawValue: rawAction)
-            else {
+            guard let parameters, let query = parameters["action"] as? String else {
                 throw BetterGICorePlatformAdapterError.invalidParameters(
-                    "input.query requires isGameActionDown and a BetterGI gameAction."
+                    "input.query requires an action."
                 )
             }
-            let key = KeyBindingsConfig.bgiDefault.key(for: gameAction)
-            if let keyCode = key.keyCode, let virtualKey = keyCode.cgKeyCode {
-                return ["isDown": CGEventSource.keyState(.combinedSessionState, key: virtualKey)]
-            }
-            if let mouseButton = key.mouseButton {
-                let button: CGMouseButton = switch mouseButton {
-                case .left: .left
-                case .right: .right
-                case .middle: .center
+            switch query {
+            case "isGameActionDown":
+                guard let rawAction = parameters["gameAction"] as? String,
+                      let gameAction = GIAction(rawValue: rawAction) else {
+                    throw BetterGICorePlatformAdapterError.invalidParameters(
+                        "isGameActionDown requires a BetterGI gameAction."
+                    )
                 }
-                return ["isDown": CGEventSource.buttonState(.combinedSessionState, button: button)]
+                let key = KeyBindingsConfig.bgiDefault.key(for: gameAction)
+                if let keyCode = key.keyCode, let virtualKey = keyCode.cgKeyCode {
+                    return ["isDown": CGEventSource.keyState(.combinedSessionState, key: virtualKey)]
+                }
+                if let mouseButton = key.mouseButton {
+                    let button: CGMouseButton = switch mouseButton {
+                    case .left: .left
+                    case .right: .right
+                    case .middle: .center
+                    }
+                    return ["isDown": CGEventSource.buttonState(.combinedSessionState, button: button)]
+                }
+            case "isKeyDown":
+                guard let rawKey = parameters["key"] as? String else {
+                    throw BetterGICorePlatformAdapterError.invalidParameters(
+                        "isKeyDown requires a key."
+                    )
+                }
+                if let key = BetterGICoreInputKeyMapper.keyCode(from: rawKey),
+                   let virtualKey = key.cgKeyCode {
+                    return ["isDown": CGEventSource.keyState(.combinedSessionState, key: virtualKey)]
+                }
+                if let button = BetterGICoreInputKeyMapper.mouseButton(from: rawKey) {
+                    return ["isDown": CGEventSource.buttonState(.combinedSessionState, button: button)]
+                }
+            default:
+                break
             }
             throw BetterGICorePlatformAdapterError.invalidParameters(
-                "BetterGI gameAction has no macOS key binding."
+                "input.query contains an unsupported action or key mapping."
             )
         case "notification.emit":
             guard let parameters,

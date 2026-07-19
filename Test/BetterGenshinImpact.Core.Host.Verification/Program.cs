@@ -17,6 +17,7 @@ using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.FarmingPlan;
+using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Shell;
 using Microsoft.Extensions.Logging;
@@ -173,7 +174,9 @@ await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), """
       "genshinStartConfig": {
         "linkedStartEnabled": true,
         "autoEnterGameEnabled": false
-      }
+      },
+      "quickTeleportConfig": { "enabled": true, "hotkeyTpEnabled": true },
+      "hotKeyConfig": { "quickTeleportTickHotkey": "F6" }
     }
     """);
 var server = new CoreRpcServer(socketPath, sessionToken, layout);
@@ -312,6 +315,24 @@ try
         new RpcRequest("attach", "platform.attach", null, sessionToken), cancellation.Token);
     var attachResponse = await callbackConnection.ReadResponseAsync(cancellation.Token);
     Require(attachResponse?.Error is null, attachResponse?.Error?.Message ?? "platform.attach failed");
+    var quickTeleportPlatform = new MacQuickTeleportRuntimePlatform(
+        layout, server.PlatformCallbacks, sessionToken, cancellation.Token);
+    QuickTeleportRuntimePlatform.Configure(quickTeleportPlatform);
+    var quickTeleportQuery = Task.Run(async () =>
+    {
+        var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+            ?? throw new EndOfStreamException("QuickTeleport hotkey callback channel ended unexpectedly.");
+        Require(callback.Method == "input.query" &&
+                callback.Params?.Value<string>("action") == "isKeyDown" &&
+                callback.Params?.Value<string>("key") == "F6",
+            "QuickTeleport did not preserve the configured raw hotkey query.");
+        await callbackConnection.WriteResponseAsync(
+            RpcResponse.Success(callback.Id, new { isDown = true }), cancellation.Token);
+    }, cancellation.Token);
+    Require(quickTeleportPlatform.Config.Enabled && quickTeleportPlatform.Config.HotkeyTpEnabled &&
+            quickTeleportPlatform.TickHotkey == "F6" && quickTeleportPlatform.IsTickHotkeyPressed(),
+        "QuickTeleport macOS platform did not load upstream config or report hotkey state.");
+    await quickTeleportQuery;
     var callbackResponder = Task.Run(async () =>
     {
         for (var index = 0; index < 2; index++)
