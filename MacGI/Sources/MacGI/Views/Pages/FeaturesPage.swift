@@ -16,6 +16,7 @@ struct FeaturesPage: View {
                         )
                     )
                     .labelsHidden()
+                    .disabled(!appState.canControlFeature(feature.id))
                 }
             }
         }

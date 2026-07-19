@@ -769,8 +769,30 @@ try
     Require(coreFixtureDocument?["settings"]?[0]?["name"]?.Value<string>() == "targetMonsters",
         "script-project catalog did not return upstream settings metadata");
 
+    GameTaskManager.TriggerDictionary = new System.Collections.Concurrent.ConcurrentDictionary<string, ITaskTrigger>();
+    GameTaskManager.TriggerDictionary["Verification"] = new VerificationTrigger();
+    var triggerList = await ExchangeAsync(
+        connection, "trigger-list", "trigger.list", sessionToken, null, cancellation.Token);
+    var triggerDocuments = JArray.FromObject(triggerList.Result!);
+    Require(triggerList.Error is null && triggerDocuments.Count == 1 &&
+            triggerDocuments[0]?["name"]?.Value<string>() == "Verification" &&
+            triggerDocuments[0]?["enabled"]?.Value<bool>() == false,
+        triggerList.Error?.Message ?? "trigger.list did not expose the shared GameTaskManager registry");
+    var triggerEnable = await ExchangeAsync(
+        connection, "trigger-enable", "trigger.setEnabled", sessionToken,
+        JObject.FromObject(new { name = "Verification", enabled = true }), cancellation.Token);
+    Require(triggerEnable.Error is null && GameTaskManager.TriggerDictionary["Verification"].IsEnabled,
+        triggerEnable.Error?.Message ?? "trigger.setEnabled did not mutate the shared trigger instance");
+    var missingTrigger = await ExchangeAsync(
+        connection, "trigger-missing", "trigger.setEnabled", sessionToken,
+        JObject.FromObject(new { name = "Missing", enabled = true }), cancellation.Token);
+    Require(missingTrigger.Error?.Code == "CapabilityUnavailable",
+        "trigger.setEnabled did not reject an uncomposed trigger explicitly");
+
     Require(JArray.FromObject(handshakeJson["capabilities"]!).Any(value => value?.Value<string>() == "scheduler.run"),
         "handshake did not advertise the real scheduler.run chain");
+    Require(JArray.FromObject(handshakeJson["capabilities"]!).Any(value => value?.Value<string>() == "trigger-control"),
+        "handshake did not advertise Core-owned trigger control");
 
     var schedulerMarker = Path.Combine(root, "scheduler.marker");
     var schedulerGroup = new ScriptGroup { Name = "SchedulerShell" };
@@ -935,4 +957,14 @@ sealed class VerificationOverlayDrawPlatform : IOverlayDrawPlatform
     public void SetRectangles(string name, ImageRegion source, IReadOnlyList<OpenCvSharp.Rect> rectangles) { }
     public void RemoveRectangles(string name) { }
     public void ClearAll() { }
+}
+
+sealed class VerificationTrigger : ITaskTrigger
+{
+    public string Name => "Verification Trigger";
+    public bool IsEnabled { get; set; }
+    public int Priority => 42;
+    public bool IsExclusive => false;
+    public void Init() { }
+    public void OnCapture(CaptureContent content) { }
 }

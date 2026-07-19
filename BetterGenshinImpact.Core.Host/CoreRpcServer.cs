@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using BetterGenshinImpact.GameTask;
 
 namespace BetterGenshinImpact.Core.Host;
 
@@ -137,6 +138,11 @@ public sealed class CoreRpcServer(string socketPath, string sessionToken, Runtim
                     request.Params?["document"] as JObject ?? throw new ArgumentException("document is required.")),
                 "catalog.listScriptProjects" => _scriptProjectCatalog.List(),
                 "catalog.getScriptProject" => _scriptProjectCatalog.Get(RequiredString(request.Params, "folderName")),
+                "trigger.list" => ListTriggers(),
+                "trigger.setEnabled" => SetTriggerEnabled(
+                    RequiredString(request.Params, "name"),
+                    request.Params?.Value<bool?>("enabled")
+                        ?? throw new ArgumentException("enabled is required.")),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),
                 "scheduler.resume" => Scheduler.Resume(RequiredString(request.Params, "taskId")),
@@ -181,6 +187,7 @@ public sealed class CoreRpcServer(string socketPath, string sessionToken, Runtim
                 "runtime-layout",
                 "opencv",
                 "clearscript-v8",
+                "trigger-control",
                 "scheduler.run"
             }
         };
@@ -228,6 +235,35 @@ public sealed class CoreRpcServer(string socketPath, string sessionToken, Runtim
     {
         _shutdown.Cancel();
         return new { stopping = true };
+    }
+
+    private static object ListTriggers()
+    {
+        var triggers = GameTaskManager.TriggerDictionary
+            ?? throw new CapabilityUnavailableException(
+                "The shared trigger registry is unavailable until core.initialize completes with the platform attached.");
+        return triggers
+            .OrderByDescending(pair => pair.Value.Priority)
+            .Select(pair => new
+            {
+                name = pair.Key,
+                displayName = pair.Value.Name,
+                enabled = pair.Value.IsEnabled,
+                priority = pair.Value.Priority,
+                exclusive = pair.Value.IsExclusive
+            })
+            .ToArray();
+    }
+
+    private static object SetTriggerEnabled(string name, bool enabled)
+    {
+        var triggers = GameTaskManager.TriggerDictionary
+            ?? throw new CapabilityUnavailableException(
+                "The shared trigger registry is unavailable until core.initialize completes with the platform attached.");
+        if (!triggers.TryGetValue(name, out var trigger))
+            throw new CapabilityUnavailableException($"Trigger '{name}' is not composed in the macOS Core.");
+        trigger.IsEnabled = enabled;
+        return new { name, enabled = trigger.IsEnabled };
     }
 
     private static string RequiredString(JObject? parameters, string name) =>

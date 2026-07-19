@@ -428,6 +428,7 @@ final class AppState: ObservableObject {
             betterGICoreSupervisor = supervisor
             coreStatus = .ok
             addLog(.info, "BetterGI Core \(handshake.runtimeVersion) connected (\(handshake.architecture))")
+            await loadTriggerStatesFromCore()
             await loadSchedulerGroupsFromCore()
         } catch {
             betterGICoreSupervisor = nil
@@ -795,10 +796,60 @@ final class AppState: ObservableObject {
         features.first(where: { $0.id == id })?.isEnabled ?? false
     }
 
+    func canControlFeature(_ id: String) -> Bool {
+        betterGICoreSupervisor != nil && Self.coreTriggerNames[id] != nil
+    }
+
     func setFeature(_ id: String, enabled: Bool) {
-        guard let index = features.firstIndex(where: { $0.id == id }) else { return }
-        features[index].isEnabled = enabled
-        addLog(.info, "\(features[index].name) \(enabled ? "enabled" : "disabled")")
+        guard let triggerName = Self.coreTriggerNames[id],
+              let featureName = features.first(where: { $0.id == id })?.name,
+              let supervisor = betterGICoreSupervisor else {
+            addLog(.error, "Feature \(id) is not exposed by BetterGI Core.")
+            return
+        }
+        Task { [weak self] in
+            do {
+                try await supervisor.setTriggerEnabled(name: triggerName, enabled: enabled)
+                await self?.loadTriggerStatesFromCore()
+                self?.addLog(.info, "Core \(featureName) \(enabled ? "enabled" : "disabled")")
+            } catch {
+                self?.addLog(.error, "Core failed to update \(featureName): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private static let coreTriggerNames: [String: String] = [
+        "auto-pickup": "AutoPick",
+        "auto-dialog": "AutoSkip",
+        "semi-auto-fishing": "AutoFish",
+        "auto-heal": "AutoEat",
+        "quick-teleport": "QuickTeleport",
+        "map-overlay": "MapMask",
+        "cooldown-reminder": "SkillCd",
+    ]
+
+    private func loadTriggerStatesFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        do {
+            let states = try await supervisor.listTriggers()
+            let byName = Dictionary(uniqueKeysWithValues: states.map { ($0.name, $0) })
+            for index in features.indices {
+                guard let triggerName = Self.coreTriggerNames[features[index].id],
+                      let state = byName[triggerName] else {
+                    features[index].isEnabled = false
+                    features[index].statusText = "Core unavailable"
+                    continue
+                }
+                features[index].isEnabled = state.enabled
+                features[index].statusText = "C# Core · P\(state.priority)"
+            }
+        } catch {
+            for index in features.indices {
+                features[index].isEnabled = false
+                features[index].statusText = "Core unavailable"
+            }
+            addLog(.error, "BetterGI Core trigger catalog failed: \(error.localizedDescription)")
+        }
     }
 
     func refreshWindows() {

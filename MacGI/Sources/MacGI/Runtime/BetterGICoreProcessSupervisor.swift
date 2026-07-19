@@ -1,6 +1,14 @@
 import Foundation
 import Security
 
+struct BetterGICoreTriggerState: Sendable, Equatable {
+    let name: String
+    let displayName: String
+    let enabled: Bool
+    let priority: Int
+    let exclusive: Bool
+}
+
 actor BetterGICoreProcessSupervisor {
     enum State: Equatable, Sendable {
         case stopped
@@ -151,6 +159,40 @@ actor BetterGICoreProcessSupervisor {
             throw BetterGICoreRPCError.protocolViolation("Invalid scheduler.run result.")
         }
         return taskID
+    }
+
+    func listTriggers() throws -> [BetterGICoreTriggerState] {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        guard let items = try client.request(method: "trigger.list") as? [[String: Any]] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid trigger.list result.")
+        }
+        return try items.map { item in
+            guard let name = item["name"] as? String,
+                  let displayName = item["displayName"] as? String,
+                  let enabled = item["enabled"] as? Bool,
+                  let priority = item["priority"] as? Int,
+                  let exclusive = item["exclusive"] as? Bool else {
+                throw BetterGICoreRPCError.protocolViolation("Invalid trigger state.")
+            }
+            return BetterGICoreTriggerState(
+                name: name, displayName: displayName, enabled: enabled,
+                priority: priority, exclusive: exclusive
+            )
+        }
+    }
+
+    func setTriggerEnabled(name: String, enabled: Bool) throws {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        guard let result = try client.request(
+            method: "trigger.setEnabled", parameters: ["name": name, "enabled": enabled]
+        ) as? [String: Any], result["name"] as? String == name,
+              result["enabled"] as? Bool == enabled else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid trigger.setEnabled result.")
+        }
     }
 
     func stopScheduler(taskID: String) throws {
