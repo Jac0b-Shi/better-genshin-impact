@@ -358,6 +358,8 @@
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/GlobalMethod.cs" Link="Core/Script/Dependence/GlobalMethod.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/KeyMouseScript.cs" Link="Core/Script/Dependence/KeyMouseScript.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/AutoPathingScript.cs" Link="Core/Script/Dependence/AutoPathingScript.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Model/RealTimeTimer.cs" Link="Core/Script/Dependence/Model/RealTimeTimer.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Model/SoloTask.cs" Link="Core/Script/Dependence/Model/SoloTask.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/ScriptHostServices.cs" Link="Core/Script/Dependence/ScriptHostServices.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/CustomHostFunctions.cs" Link="Core/Script/Dependence/CustomHostFunctions.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/Http.cs" Link="Core/Script/Dependence/Http.cs" />

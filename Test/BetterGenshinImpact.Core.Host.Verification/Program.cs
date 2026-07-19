@@ -630,7 +630,7 @@ try
         var missingHostNames = Convert.ToString(hostSurfaceEngine.Evaluate("""
             ["keyMouseScript", "pathingScript", "RecognitionObject", "DesktopRegion", "GameCaptureRegion", "ImageRegion", "Region",
              "CombatScenes", "Avatar", "OpenCvSharp", "AutoFightParam", "AutoSkipConfig",
-             "CancellationTokenSource", "CancellationToken"].filter(name => typeof globalThis[name] === "undefined").join(",")
+             "RealtimeTimer", "SoloTask", "CancellationTokenSource", "CancellationToken"].filter(name => typeof globalThis[name] === "undefined").join(",")
             """));
         Require(string.IsNullOrEmpty(missingHostNames),
             $"macOS ClearScript host surface is missing: {missingHostNames}");

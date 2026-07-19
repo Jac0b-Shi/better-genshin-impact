@@ -1,6 +1,7 @@
 using BetterGenshinImpact.Core.Script.Dependence;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script.Utils;
+using BetterGenshinImpact.Core.Script.Dependence.Model;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFight.Model;
@@ -41,6 +42,8 @@ public sealed class MacScriptProjectHostInitializer : IScriptProjectHostInitiali
         engine.AddHostObject("OpenCvSharp", new HostTypeCollection("OpenCvSharp"));
         engine.AddHostType("AutoFightParam", typeof(AutoFightParam));
         engine.AddHostType("AutoSkipConfig", typeof(AutoSkipConfig));
+        engine.AddHostType("RealtimeTimer", typeof(RealtimeTimer));
+        engine.AddHostType("SoloTask", typeof(SoloTask));
         engine.AddHostObject("strategyFile", new StrategyFile());
         engine.AddHostObject("host", new CustomHostFunctions());
         engine.AddHostType(typeof(Task));
