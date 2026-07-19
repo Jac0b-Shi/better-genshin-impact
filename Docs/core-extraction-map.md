@@ -32,6 +32,11 @@ only display catalog/state and issue these RPCs; it must not call the existing
 Swift/Rust scheduler. An individual uncomposed task branch (currently full
 Pathing) must terminate with structured `CapabilityUnavailable`, never success.
 
+Historical Swift translations of BetterGI tasks, script-repository semantics,
+template/OCR/YOLO recognition, and big-/mini-map localization are removed from
+the App source tree. Swift no longer links ONNX Runtime; model loading and
+deterministic OCR are mandatory C# Core verification gates.
+
 ## Required real-world compatibility fixture
 
 The local runtime contains `User/ScriptGroup/狗粮+锄地.json`. It is the first

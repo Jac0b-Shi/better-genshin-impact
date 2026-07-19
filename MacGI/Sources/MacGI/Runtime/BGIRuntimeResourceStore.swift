@@ -41,26 +41,7 @@ struct BGIRuntimeResourceStore: Equatable, Sendable {
         for directory in requiredDirectories {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        for relativePath in Self.coreBootstrapTemplatePaths {
-            let destination = assetsURL.appendingPathComponent(relativePath)
-            if fileManager.fileExists(atPath: destination.path) { continue }
-            guard let source = BGIAssetResolver.url(for: relativePath) else {
-                throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: relativePath])
-            }
-            try fileManager.createDirectory(
-                at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try fileManager.copyItem(at: source, to: destination)
-        }
     }
-
-    private static let coreBootstrapTemplatePaths = [
-        "GameTask/Common/Element/Assets/1920x1080/paimon_menu.png",
-        "GameTask/Common/Element/Assets/1920x1080/primogem.png",
-        "GameTask/AutoFight/Assets/1920x1080/confirm.png",
-        "GameTask/GameLoading/Assets/1920x1080/girl_moon.png",
-        "GameTask/GameLoading/Assets/1920x1080/welkin_moon_logo.png",
-    ]
 
     var requiredDirectories: [URL] {
         [
@@ -88,63 +69,4 @@ struct BGIRuntimeResourceStore: Equatable, Sendable {
             runURL
         ]
     }
-}
-
-struct BGIExternalResourcePackage: Identifiable, Equatable, Sendable {
-    enum SourceKind: String, Sendable {
-        case nuGetContentFiles
-        case gitShallowClone
-        case releaseArchive
-        case httpCache
-    }
-
-    let id: String
-    let version: String?
-    let sourceKind: SourceKind
-    let sourceDescription: String
-    let localDirectory: String
-    let requiredAssetPaths: [String]
-
-    static let modelAssets = BGIExternalResourcePackage(
-        id: "BetterGI.Assets.Model",
-        version: "1.0.24",
-        sourceKind: .nuGetContentFiles,
-        sourceDescription: "BetterGI.Assets.Model NuGet contentFiles, or a macOS release archive with the same Assets/Model layout",
-        localDirectory: "Assets/Model",
-        requiredAssetPaths: BGIOnnxModel.upstreamRegisteredModels.map(\.assetPath)
-    )
-
-    static let mapAssets = BGIExternalResourcePackage(
-        id: "BetterGI.Assets.Map",
-        version: "1.0.19",
-        sourceKind: .nuGetContentFiles,
-        sourceDescription: "BetterGI.Assets.Map NuGet contentFiles, or a macOS release archive with the same Assets/Map layout",
-        localDirectory: "Assets/Map",
-        requiredAssetPaths: [
-            "Assets/Map/Teyvat/city_info.json",
-            "Assets/Map/Teyvat/City_701_color.webp",
-            "Assets/Map/Teyvat/City_701_gray.webp"
-        ]
-    )
-
-    static let scriptRepository = BGIExternalResourcePackage(
-        id: "bettergi-scripts-list",
-        version: nil,
-        sourceKind: .gitShallowClone,
-        sourceDescription: "Git shallow clone from CNB, GitCode, or GitHub bettergi-scripts-list mirror",
-        localDirectory: "Repos/bettergi-scripts-list",
-        requiredAssetPaths: [
-            "Repos/bettergi-scripts-list/repo.json",
-            "Repos/bettergi-scripts-list/repo/js",
-            "Repos/bettergi-scripts-list/repo/pathing",
-            "Repos/bettergi-scripts-list/repo/combat",
-            "Repos/bettergi-scripts-list/repo/tcg"
-        ]
-    )
-
-    static let firstLaunchPackages: [BGIExternalResourcePackage] = [
-        .modelAssets,
-        .mapAssets,
-        .scriptRepository
-    ]
 }

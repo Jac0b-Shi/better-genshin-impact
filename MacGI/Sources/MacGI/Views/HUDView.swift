@@ -209,48 +209,6 @@ struct HUDView: View {
         EmptyView()
     }
 
-    private func overlayRect(for normalizedRect: CGRect, in size: CGSize) -> CGRect {
-        let width = max(44, normalizedRect.width * size.width)
-        let height = max(24, normalizedRect.height * size.height)
-        return CGRect(
-            x: normalizedRect.minX * size.width,
-            y: normalizedRect.minY * size.height,
-            width: width,
-            height: height
-        )
-    }
-
-    private func tint(for recognitionType: RecognitionType) -> Color {
-        switch recognitionType {
-        case .templateMatch: BGIColors.success
-        case .ocr, .ocrMatch, .colorRangeAndOcr: BGIColors.accent
-        case .colorMatch: BGIColors.warning
-        case .detect: BGIColors.danger
-        case .none: BGIColors.muted
-        }
-    }
-
-    private func recognitionBox(title: String, rect: CGRect, tint: Color) -> some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle()
-                .stroke(tint.opacity(0.82), lineWidth: 2)
-                .background(tint.opacity(0.08))
-            Text(title)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(tint.opacity(0.82))
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                .offset(x: 0, y: -20)
-        }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-        .shadow(color: .black.opacity(0.5), radius: 4)
-    }
-
     private func uidCover(size: CGSize) -> some View {
         Rectangle()
             .fill(Color.white.opacity(0.92))

@@ -40,11 +40,14 @@ if rg -n '仍为 Mock|Mock UI|Mock Capture' MacGI/Sources/MacGI/Views; then
   fail "production UI exposes a fake runnable control"
 fi
 
-while IFS= read -r source; do
-  relative=${source#MacGI/Sources/MacGI/}
-  rg -Fq "\"$relative\"" MacGI/Package.swift \
-    || fail "historical Swift task translation is compiled into the App: $relative"
-done < <(git ls-files 'MacGI/Sources/MacGI/Runtime/BGIAuto*Service.swift')
+if rg -n 'TemplateMatchingRecognitionEngine|PaddleOCRRecognitionEngine|BGIYOLOOnnxRuntime|BGIMiniMapLocalizationService|BGIBigMapInteractionService|BGIAuto[A-Za-z]+Service|BGIScriptRepositoryUpdater|TaskTriggerLoopController' \
+  MacGI/Sources/MacGI; then
+  fail "historical Swift BetterGI business translation still exists in the App source tree"
+fi
+
+if rg -n 'onnxruntime-swift|OnnxRuntimeBindings' MacGI/Package.swift MacGI/Sources/MacGI; then
+  fail "Swift still links an inference runtime owned by C# Core"
+fi
 
 if rg -n 'TemplateMatchingRecognitionEngine|PaddleOCRRecognitionEngine|BGIOnnx' \
   MacGI/Sources/MacGI/App MacGI/Sources/MacGI/Views; then

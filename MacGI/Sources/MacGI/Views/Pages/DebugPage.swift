@@ -42,34 +42,6 @@ struct DebugPage: View {
                                 tint: appState.coreStatus == .ok ? BGIColors.success : BGIColors.warning
                             )
                         }
-                        SettingRow(title: "Compute Preference", detail: "\(appState.computePreference.rawValue)") {
-                            Picker("", selection: $appState.computePreference) {
-                                Text("Automatic").tag(BGIComputePreference.automatic)
-                                Text("Core ML: All (CPU+GPU+ANE)").tag(BGIComputePreference.coreMLAll)
-                                Text("Core ML: CPU+GPU").tag(BGIComputePreference.coreMLCPUAndGPU)
-                                Text("CPU Only").tag(BGIComputePreference.cpuOnly)
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: 280)
-                        }
-                        SettingRow(title: "EP Assignment", detail: appState.lastEpAssignment.summary) {
-                            BGIStatusBadge(
-                                text: appState.lastEpAssignment.finalBackend.displayName,
-                                tint: {
-                                    switch appState.lastEpAssignment.finalBackend {
-                                    case .coreML: return BGIColors.success
-                                    case .cpuFallbackFromCoreML: return BGIColors.warning
-                                    case .cpuOnly: return BGIColors.accent
-                                    case .failed: return BGIColors.danger
-                                    }
-                                }()
-                            )
-                        }
-                        if !appState.lastEpAssignment.diagnostics.isEmpty {
-                            SettingRow(title: "Session Diagnostics", detail: appState.lastEpAssignment.diagnostics.joined(separator: "\n")) {
-                                EmptyView()
-                            }
-                        }
                     }
                 }
             }

@@ -1,6 +1,11 @@
 import Foundation
 import SwiftUI
 
+struct CoreCatalogIssue: Equatable, Sendable {
+    let path: String
+    let message: String
+}
+
 enum AppStatus: String, CaseIterable, Identifiable {
     case idle
     case running
@@ -248,19 +253,10 @@ final class AppState: ObservableObject {
     @Published var keepWindowOnTop = false
     @Published var debugPageEnabled = true
     @Published var debugConfidence = 0.86
-    @Published var computePreference: BGIComputePreference = .automatic
-    @Published var lastEpAssignment: BGIEpAssignment = .unknown
-    var isCoreMLAvailable: Bool {
-#if canImport(OnnxRuntimeBindings)
-        BGIInferenceSessionFactory.isCoreMLAvailable
-#else
-        false
-#endif
-    }
     @Published var dispatcherIntervalMs = 50
     @Published var allowRuntimeRealInput = false
     @Published var schedulerGroups: [BetterGIScriptGroupSummary] = []
-    @Published var schedulerCatalogIssues: [BGIScriptRepositoryCatalogIssue] = []
+    @Published var schedulerCatalogIssues: [CoreCatalogIssue] = []
     @Published var schedulerCatalogStatus = "Core unavailable"
     @Published var selectedSchedulerGroupName = ""
     @Published var schedulerExecutionStatus = "Idle"
@@ -451,7 +447,7 @@ final class AppState: ObservableObject {
         selectedSchedulerGroupName = ""
         schedulerCatalogStatus = "Core unavailable"
         schedulerCatalogIssues = [
-            BGIScriptRepositoryCatalogIssue(path: "Core/catalog", message: error.localizedDescription)
+            CoreCatalogIssue(path: "Core/catalog", message: error.localizedDescription)
         ]
     }
 

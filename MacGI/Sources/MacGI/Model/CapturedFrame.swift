@@ -102,10 +102,4 @@ struct CaptureImageFrame: @unchecked Sendable {
         self.backendName = backendName
     }
 
-    /// Convenience: normalized ROI → cropped CGImage sub-region.
-    func cropped(to roi: NormalizedROI) -> CGImage? {
-        let rect = roi.clampedPixelRect(for: metadata)
-        guard rect.width > 0, rect.height > 0 else { return nil }
-        return cgImage.cropping(to: rect)
-    }
 }
