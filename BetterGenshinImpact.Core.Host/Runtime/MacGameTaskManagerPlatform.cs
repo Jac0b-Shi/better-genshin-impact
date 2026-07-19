@@ -21,6 +21,7 @@ using BetterGenshinImpact.GameTask.GameLoading.Assets;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoEat.Assets;
+using BetterGenshinImpact.GameTask.GameLoading;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using Microsoft.Extensions.Logging;
 
@@ -65,6 +66,7 @@ public sealed class MacGameTaskManagerPlatform(
             "AutoFish" => new KeyValuePair<string, ITaskTrigger>(name, new AutoFishingTrigger()),
             "QuickTeleport" => new KeyValuePair<string, ITaskTrigger>(name, new QuickTeleportTrigger()),
             "AutoEat" => new KeyValuePair<string, ITaskTrigger>(name, new AutoEatTrigger()),
+            "GameLoading" => new KeyValuePair<string, ITaskTrigger>(name, new GameLoadingTrigger()),
             _ => throw Unavailable($"trigger '{name}'")
         };
 

@@ -200,6 +200,36 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
                 NSApp.terminate(nil)
             }
             return ["acknowledged": true]
+        case "url.canOpen":
+            guard let rawURL = parameters?["url"] as? String,
+                  let url = URL(string: rawURL), url.scheme != nil else {
+                throw BetterGICorePlatformAdapterError.invalidParameters(
+                    "url.canOpen requires an absolute URL."
+                )
+            }
+            return ["available": NSWorkspace.shared.urlForApplication(toOpen: url) != nil]
+        case "url.open":
+            guard let rawURL = parameters?["url"] as? String,
+                  let url = URL(string: rawURL), url.scheme != nil,
+                  NSWorkspace.shared.open(url) else {
+                throw BetterGICorePlatformAdapterError.invalidParameters(
+                    "macOS could not open the requested URL."
+                )
+            }
+            return ["acknowledged": true]
+        case "window.biliLogin":
+            let ownerPID = appState.selectedWindow.ownerPID
+            let titles = QuartzWindowEnumerator.enumerateApplicationWindows()
+                .filter { $0.ownerPID == ownerPID }
+                .map(\.title)
+                .filter { $0.localizedCaseInsensitiveContains("bilibili") }
+            if titles.contains(where: { $0.contains("协议") }) {
+                return ["type": "agreement"]
+            }
+            if titles.contains(where: { $0.contains("登录") }) {
+                return ["type": "login"]
+            }
+            return ["type": "none"]
         case "input.dispatch":
             let action = try makeInputAction(parameters, appState: appState)
             let gate = appState.dispatchInput(action, source: .runtimeTrigger)

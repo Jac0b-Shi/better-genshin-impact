@@ -20,6 +20,7 @@ using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.AutoEat;
+using BetterGenshinImpact.GameTask.GameLoading;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Shell;
 using Microsoft.Extensions.Logging;
@@ -318,6 +319,34 @@ try
         new RpcRequest("attach", "platform.attach", null, sessionToken), cancellation.Token);
     var attachResponse = await callbackConnection.ReadResponseAsync(cancellation.Token);
     Require(attachResponse?.Error is null, attachResponse?.Error?.Message ?? "platform.attach failed");
+    var gameLoadingPlatform = new MacGameLoadingRuntimePlatform(
+        layout,
+        () => throw new InvalidOperationException("GameLoading verification did not request screen metrics."),
+        loggerFactory, server.PlatformCallbacks, sessionToken, cancellation.Token);
+    var gameLoadingResponder = Task.Run(async () =>
+    {
+        foreach (var expectedMethod in new[] { "window.metrics", "url.canOpen", "window.biliLogin" })
+        {
+            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                ?? throw new EndOfStreamException("GameLoading callback channel ended unexpectedly.");
+            Require(callback.Method == expectedMethod,
+                $"GameLoading expected {expectedMethod}, got {callback.Method}.");
+            object result = expectedMethod switch
+            {
+                "window.metrics" => new { dpiScale = 2d },
+                "url.canOpen" => new { available = false },
+                _ => new { type = "agreement" }
+            };
+            await callbackConnection.WriteResponseAsync(
+                RpcResponse.Success(callback.Id, result), cancellation.Token);
+        }
+    }, cancellation.Token);
+    Require(!gameLoadingPlatform.Config.AutoEnterGameEnabled &&
+            gameLoadingPlatform.DpiScale == 2d &&
+            !gameLoadingPlatform.IsPlaytimeTrackingAvailable() &&
+            gameLoadingPlatform.GetBiliLoginWindowType() == BiliLoginWindowType.Agreement,
+        "GameLoading macOS platform lost upstream config, DPI, URL or Bili-window semantics.");
+    await gameLoadingResponder;
     var quickTeleportPlatform = new MacQuickTeleportRuntimePlatform(
         layout, server.PlatformCallbacks, sessionToken, cancellation.Token);
     QuickTeleportRuntimePlatform.Configure(quickTeleportPlatform);
