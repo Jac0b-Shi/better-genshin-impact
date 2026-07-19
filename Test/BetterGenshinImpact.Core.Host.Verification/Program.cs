@@ -179,6 +179,7 @@ TaskControlPlatform.Configure(new MacTaskControlPlatform(
 var pathExecutorPlatform = new MacPathExecutorPlatform(
     server.PlatformCallbacks, sessionToken, cancellation.Token);
 PathExecutorPlatform.Configure(pathExecutorPlatform);
+PathExecutorAutoSkipPlatform.Configure(new MacPathExecutorAutoSkipPlatform());
 server.AttachPathExecutorPlatform(pathExecutorPlatform);
 var navigationPlatform = new MacNavigationPlatform(
     server.PlatformCallbacks, sessionToken, cancellation.Token);

@@ -109,6 +109,7 @@ ExitAndReloginPlatform.Configure(new MacExitAndReloginPlatform());
 var pathExecutorPlatform = new MacPathExecutorPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
 PathExecutorPlatform.Configure(pathExecutorPlatform);
+PathExecutorAutoSkipPlatform.Configure(new MacPathExecutorAutoSkipPlatform());
 server.AttachPathExecutorPlatform(pathExecutorPlatform);
 NavigationPlatform.Configure(new MacNavigationPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token));

@@ -229,6 +229,7 @@ public partial class App : Application
             _host.Services.GetRequiredService<Core.Recognition.OCR.OcrFactory>().Service);
         GameTask.Common.TaskControlPlatform.Configure(new Core.Runtime.Windows.WindowsTaskControlPlatform());
         GameTask.AutoPathing.PathExecutorPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorPlatform());
+        GameTask.AutoPathing.PathExecutorAutoSkipPlatform.Configure(new Core.Runtime.Windows.WindowsPathExecutorAutoSkipPlatform());
         GameTask.AutoPathing.NavigationPlatform.Configure(new Core.Runtime.Windows.WindowsNavigationPlatform());
         GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
             new Core.Runtime.Windows.WindowsCombatCommandPlatform());

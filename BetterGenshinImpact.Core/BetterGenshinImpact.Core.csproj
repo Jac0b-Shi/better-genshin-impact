@@ -80,6 +80,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/BlessingOfTheWelkinMoonTask.cs" Link="GameTask/Common/Job/BlessingOfTheWelkinMoonTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/CameraRotateTask.cs" Link="GameTask/AutoPathing/CameraRotateTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorPlatform.cs" Link="GameTask/AutoPathing/PathExecutorPlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutorAutoSkipPlatform.cs" Link="GameTask/AutoPathing/PathExecutorAutoSkipPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/NavigationPlatform.cs" Link="GameTask/AutoPathing/NavigationPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/NavigationInstance.cs" Link="GameTask/AutoPathing/NavigationInstance.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/Navigation.cs" Link="GameTask/AutoPathing/Navigation.cs" />

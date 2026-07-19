@@ -7,10 +7,7 @@ using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
-using BetterGenshinImpact.GameTask.AutoSkip;
-#if !BGI_PLATFORM_MAC
 using BetterGenshinImpact.GameTask.AutoSkip.Assets;
-#endif
 using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.Common.Job;
@@ -44,9 +41,8 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
     private readonly CameraRotateTask _rotateTask;
     private readonly TrapEscaper _trapEscaper;
     private readonly BlessingOfTheWelkinMoonTask _blessingOfTheWelkinMoonTask = new();
-#if !BGI_PLATFORM_MAC
-    private AutoSkipTrigger? _autoSkipTrigger;
-#endif
+    private IPathExecutorAutoSkipSession? _autoSkipSession;
+    private bool _autoSkipUnavailableLogged;
     public int SuccessFight = 0;
     //路径追踪完全走完所有路径结束的标识
     public bool SuccessEnd = false;
@@ -1324,7 +1320,6 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             imageRegion = CaptureToRectArea();
         }
 
-#if !BGI_PLATFORM_MAC
         // 一些异常界面处理
         var cookRa = imageRegion.Find(AutoSkipAssets.Instance.CookRo);
         var closeRa = imageRegion.Find(AutoSkipAssets.Instance.PageCloseMainRo);
@@ -1342,40 +1337,38 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             PressEscape();
             await Delay(1000, ct); // 等待界面关闭
         }
-#endif
 
         // 处理月卡
         await _blessingOfTheWelkinMoonTask.Start(ct);
 
         if (PartyConfig.AutoSkipEnabled)
         {
-#if !BGI_PLATFORM_MAC
             // 判断是否进入剧情
             await AutoSkip();
-#endif
         }
     }
 
-#if !BGI_PLATFORM_MAC
     private async Task AutoSkip()
     {
         var ra = CaptureToRectArea();
         var disabledUiButtonRa = ra.Find(AutoSkipAssets.Instance.DisabledUiButtonRo);
         if (disabledUiButtonRa.IsExist())
         {
-            Logger.LogWarning("进入剧情，自动点击剧情直到结束");
-
-            if (_autoSkipTrigger == null)
+            if (_autoSkipSession == null)
             {
-                _autoSkipTrigger = new AutoSkipTrigger(new AutoSkipConfig
+                _autoSkipSession = PathExecutorAutoSkipPlatform.Current.CreateSession();
+                if (_autoSkipSession == null)
                 {
-                    Enabled = true,
-                    QuicklySkipConversationsEnabled = true, // 快速点击过剧情
-                    ClosePopupPagedEnabled = true,
-                    ClickChatOption = "优先选择最后一个选项",
-                });
-                _autoSkipTrigger.Init();
+                    if (!_autoSkipUnavailableLogged)
+                    {
+                        Logger.LogWarning("当前平台未提供自动剧情能力，跳过自动剧情处理");
+                        _autoSkipUnavailableLogged = true;
+                    }
+                    return;
+                }
             }
+
+            Logger.LogWarning("进入剧情，自动点击剧情直到结束");
 
             int noDisabledUiButtonTimes = 0;
 
@@ -1385,7 +1378,7 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
                 disabledUiButtonRa = ra.Find(AutoSkipAssets.Instance.DisabledUiButtonRo);
                 if (disabledUiButtonRa.IsExist())
                 {
-                    _autoSkipTrigger.OnCapture(new CaptureContent(ra));
+                    _autoSkipSession.OnCapture(new CaptureContent(ra));
                     noDisabledUiButtonTimes = 0;
                 }
                 else
@@ -1402,7 +1395,6 @@ public class PathExecutor : IPathExecutor, IPathExecutorSuspendContext
             }
         }
     }
-#endif
 
     private void EndJudgment(ImageRegion ra)
     {
