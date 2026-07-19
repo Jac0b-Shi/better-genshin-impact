@@ -3,10 +3,14 @@ using BetterGenshinImpact.Core.Host.Runtime;
 using BetterGenshinImpact.Core.Script.Group;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script;
+using BetterGenshinImpact.Core.Script.Dependence;
+using BetterGenshinImpact.GameTask.Model.Area;
 using Newtonsoft.Json.Linq;
 using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
 using Microsoft.ClearScript.JavaScript;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 var root = args.Length == 1
     ? Path.GetFullPath(args[0])
@@ -43,6 +47,22 @@ foreach (var groupProject in javascriptProjects)
         $"saved_files={scriptProject.Manifest.SavedFiles?.Length ?? 0}, libraries={scriptProject.Manifest.Library?.Length ?? 0}");
 }
 
+var executableProject = javascriptProjects.SingleOrDefault(project =>
+    project.FolderName == "ExitGameMultipleMode")
+    ?? throw new InvalidDataException("狗粮+锄地 must reference ExitGameMultipleMode for execution verification.");
+var recordingRuntime = new RecordingGlobalMethodRuntime();
+GlobalMethod.Configure(recordingRuntime);
+ScriptHostServices.Configure(new VerificationScriptHostServices());
+ScriptProjectHost.Configure(new MacScriptProjectHostInitializer());
+await new ScriptProject(executableProject.FolderName).ExecuteAsync(executableProject.JsScriptSettingsObject);
+var expectedInput = new[] { "down:MENU", "down:F4", "up:MENU", "up:F4" };
+if (!recordingRuntime.Input.SequenceEqual(expectedInput, StringComparer.Ordinal))
+    throw new InvalidDataException(
+        $"Real User script input order mismatch: {string.Join(",", recordingRuntime.Input)}");
+Console.WriteLine(
+    "PASS ExitGameMultipleMode: actual User project executed through shared ScriptProject/ClearScript host; " +
+    "input=down:MENU,down:F4,up:MENU,up:F4");
+
 Console.WriteLine($"Real User verification passed: group={group.Name}, projects={group.Projects.Count}, javascript={javascriptProjects.Length}.");
 
 static void VerifyJavaScriptGraph(ScriptProject project, PackageDocumentLoader loader)
@@ -76,4 +96,43 @@ static void VerifyJavaScriptGraph(ScriptProject project, PackageDocumentLoader l
         // Static module linking has completed; execution stopped only because production host objects
         // are intentionally absent from this dependency-graph verifier.
     }
+}
+
+sealed class RecordingGlobalMethodRuntime : IGlobalMethodRuntime
+{
+    public List<string> Input { get; } = [];
+    public CancellationToken CancellationToken => CancellationToken.None;
+    public double DpiScale => 1;
+    public void KeyDown(string key) => Input.Add($"down:{key}");
+    public void KeyUp(string key) => Input.Add($"up:{key}");
+    public void KeyPress(string key) => Input.Add($"press:{key}");
+    public void MoveMouseBy(int x, int y) => Unexpected(nameof(MoveMouseBy));
+    public void MoveMouseToGameCoordinate(int x, int y, int gameWidth, int gameHeight) =>
+        Unexpected(nameof(MoveMouseToGameCoordinate));
+    public void LeftButtonClick() => Unexpected(nameof(LeftButtonClick));
+    public void LeftButtonDown() => Unexpected(nameof(LeftButtonDown));
+    public void LeftButtonUp() => Unexpected(nameof(LeftButtonUp));
+    public void RightButtonClick() => Unexpected(nameof(RightButtonClick));
+    public void RightButtonDown() => Unexpected(nameof(RightButtonDown));
+    public void RightButtonUp() => Unexpected(nameof(RightButtonUp));
+    public void MiddleButtonClick() => Unexpected(nameof(MiddleButtonClick));
+    public void MiddleButtonDown() => Unexpected(nameof(MiddleButtonDown));
+    public void MiddleButtonUp() => Unexpected(nameof(MiddleButtonUp));
+    public void VerticalScroll(int scrollAmountInClicks) => Unexpected(nameof(VerticalScroll));
+    public ImageRegion CaptureGameRegion() => throw UnexpectedException(nameof(CaptureGameRegion));
+    public string[] GetAvatars() => throw UnexpectedException(nameof(GetAvatars));
+    public void InputText(string text) => Unexpected(nameof(InputText));
+    private static void Unexpected(string member) => throw UnexpectedException(member);
+    private static InvalidOperationException UnexpectedException(string member) =>
+        new($"Real User execution invoked unexpected platform member {member}.");
+}
+
+sealed class VerificationScriptHostServices : IScriptHostServices
+{
+    public ILogger CreateLogger(string categoryName) => NullLogger.Instance;
+    public ScriptGroupProject? CurrentProject => null;
+    public TimeSpan ServerTimeZoneOffset => TimeSpan.FromHours(8);
+    public bool JsNotificationEnabled => false;
+    public void EmitNotification(ScriptNotificationKind kind, string message) =>
+        throw new InvalidOperationException("Real User execution unexpectedly emitted a notification.");
 }
