@@ -1272,7 +1272,6 @@ Console.WriteLine("B12.2: Real ONNX InferenceSession load test");
         Console.WriteLine($"B12.2: {sessionCount}/{testModels.Length} InferenceSessions created successfully");
     }
 }
-if (Directory.Exists(lockedRuntimeRoot)) Directory.Delete(lockedRuntimeRoot, recursive: true);
 Console.WriteLine();
 
 // ==== B12.3 PaddleOCR preprocessing/postprocessing validation ====
@@ -1303,15 +1302,9 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
         }
         throw new InvalidOperationException("character_dict not found in PostProcess");
     }
-    var realBase = Path.GetFullPath(Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "artifacts/provenance-audit/release-0.62.0/extracted/BetterGI/Assets/Model"));
-
-    if (!Directory.Exists(realBase))
-    {
-        Console.WriteLine("B12.3: SKIPPED — extracted model directory not found");
-    }
-    else
+    var realBase = Path.Combine(lockedRuntimeRoot, "Assets", "Model");
+    Assert("B12.3 locked model directory exists", Directory.Exists(realBase), realBase);
+    if (Directory.Exists(realBase))
     {
         var recYamls = Directory.GetFiles(Path.Combine(realBase, "PaddleOCR/Rec"), "inference.yml", SearchOption.AllDirectories);
 
@@ -1341,7 +1334,7 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
         try
         {
             var recV4EnModel = BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.PaddleOcrRecV4En;
-            var recV4EnYaml = Path.Combine(realBase, "PaddleOCR/Rec/V4/en_PP-OCRv4_mobile_rec_infer/inference.yml");
+            var recV4EnYaml = Path.Combine(realBase, "PaddleOCR/Rec/V4En/inference.yml");
             var labels = ParseCharacterDictFromYaml(recV4EnYaml);
 
             var factory = CpuFactory(new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(
@@ -1424,6 +1417,7 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
         }
     }
 }
+if (Directory.Exists(lockedRuntimeRoot)) Directory.Delete(lockedRuntimeRoot, recursive: true);
 Console.WriteLine();
 Global.StartUpPath = Path.Combine(Environment.CurrentDirectory, "BetterGenshinImpact");
 var b5SystemInfo = new VerificationSystemInfo();
