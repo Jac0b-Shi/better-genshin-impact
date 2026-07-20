@@ -26,11 +26,13 @@ using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Suspend;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
+using BetterGenshinImpact.GameTask.Common.Map;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.Common.Map.Maps;
 using BetterGenshinImpact.GameTask.Common.Map.Maps.Base;
@@ -2284,6 +2286,104 @@ try
             Math.Abs(pair.First.X - pair.Second.X) < 0.01f && Math.Abs(pair.First.Y - pair.Second.Y) < 0.01f),
         $"published={recordingNavigation.Positions.Count} expected={track.Count}");
 
+    // Drive the original PathExecutor movement loop with real localized frames. The
+    // route is aligned with the camera orientation recovered from the same minimap,
+    // so WaitUntilRotatedTo and MoveTo consume one coherent visual track.
+    using var orientationSource = BuildGroundTruthNavigationFrame(coarseMap, minimapRect, track[0]);
+    using var orientationFrame = orientationSource.Clone();
+    var cameraOrientation = CameraOrientation.Compute(orientationFrame);
+    var movementStartImage = navigationMap.ConvertGenshinMapCoordinatesToImageCoordinates(track[0]);
+    const float movementDistance = 120f;
+    var movementRadians = cameraOrientation * Math.PI / 180.0;
+    var movementTargetImage = new Point2f(
+        movementStartImage.X + movementDistance * (float)Math.Cos(movementRadians),
+        movementStartImage.Y + movementDistance * (float)Math.Sin(movementRadians));
+    var movementTargetGame = navigationMap.ConvertImageCoordinatesToGenshinMapCoordinates(movementTargetImage)
+        ?? throw new InvalidOperationException("PathExecutor target escaped the staged map layer.");
+    var movementGroundTruth = Enumerable.Range(0, 6).Select(step =>
+    {
+        var ratio = step / 5f;
+        return new Point2f(
+            track[0].X + (movementTargetGame.X - track[0].X) * ratio,
+            track[0].Y + (movementTargetGame.Y - track[0].Y) * ratio);
+    }).ToList();
+    var movementFrames = movementGroundTruth
+        .Select(point => BuildGroundTruthNavigationFrame(coarseMap, minimapRect, point))
+        .ToList();
+    var expectedMovementPositions = new List<Point2f>();
+    Navigation.Reset();
+    foreach (var movementFrame in movementFrames)
+    {
+        using var expectedRegion = new ImageRegion(movementFrame.Clone(), 0, 0);
+        expectedMovementPositions.Add(Navigation.GetPosition(
+            expectedRegion, MapTypes.Teyvat.ToString(), "TemplateMatch"));
+    }
+    var localizedTargetGame = navigationMap.ConvertImageCoordinatesToGenshinMapCoordinates(expectedMovementPositions[^1])
+        ?? throw new InvalidOperationException("Localized PathExecutor target escaped the staged map layer.");
+    var movementWaypoint = new WaypointForTrack(new Waypoint
+    {
+        X = localizedTargetGame.X,
+        Y = localizedTargetGame.Y,
+        Type = WaypointType.Path.Code,
+        MoveMode = MoveModeEnum.Walk.Code
+    }, MapTypes.Teyvat.ToString(), "TemplateMatch");
+
+    var movementCaptureIndex = 0;
+    var publishedBeforeMoveTo = recordingNavigation.Positions.Count;
+    recordingTaskControl.Calls.Clear();
+    recordingTaskControl.ActionStateQueries.Clear();
+    recordingTaskControl.CaptureFrameProvider = () =>
+    {
+        var index = recordingTaskControl.IsPressed(GIActions.MoveForward)
+            ? Math.Min(movementCaptureIndex++, movementFrames.Count - 1)
+            : 0;
+        return movementFrames[index].Clone();
+    };
+    Navigation.Reset();
+    try
+    {
+        var pathExecutor = new PathExecutor(CancellationToken.None)
+        {
+            PartyConfig = new PathingPartyConfig
+            {
+                SkipPartySwitch = true,
+                MainAvatarIndex = string.Empty,
+                GuardianAvatarIndex = string.Empty,
+                AutoRunEnabled = false,
+                AutoSkipEnabled = false,
+                UseGadgetIntervalMs = 0
+            }
+        };
+        await pathExecutor.MoveTo(movementWaypoint);
+    }
+    finally
+    {
+        recordingTaskControl.CaptureFrameProvider = null;
+        foreach (var movementFrame in movementFrames) movementFrame.Dispose();
+    }
+
+    var movementActionCalls = recordingTaskControl.Calls
+        .Where(call => call.StartsWith("action:MoveForward:", StringComparison.Ordinal))
+        .ToList();
+    Assert("PathExecutor MoveTo presses forward exactly once and releases it",
+        movementActionCalls.SequenceEqual([
+            "action:MoveForward:KeyDown",
+            "action:MoveForward:KeyUp"
+        ]), string.Join(" | ", movementActionCalls));
+    Assert("PathExecutor MoveTo reads the real platform key state while moving",
+        recordingTaskControl.ActionStateQueries.Count >= movementFrames.Count - 1 &&
+        recordingTaskControl.ActionStateQueries.All(action => action == GIActions.MoveForward),
+        $"queries={recordingTaskControl.ActionStateQueries.Count}");
+    var moveToPublished = recordingNavigation.Positions.Skip(publishedBeforeMoveTo).ToList();
+    Assert("PathExecutor MoveTo consumes the complete localized frame track",
+        movementCaptureIndex >= movementFrames.Count &&
+        moveToPublished.Count >= movementFrames.Count + 1 &&
+        Navigation.GetDistance(movementWaypoint, moveToPublished[^1]) < 0.01,
+        $"captures={movementCaptureIndex} published={moveToPublished.Count} finalDistance=" +
+        $"{(moveToPublished.Count == 0 ? double.NaN : Navigation.GetDistance(movementWaypoint, moveToPublished[^1])):F2}");
+    Assert("PathExecutor MoveTo leaves forward released",
+        !recordingTaskControl.IsPressed(GIActions.MoveForward), "MoveForward remains pressed");
+
     using (var blackFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black))
     using (var blackRegion = new ImageRegion(blackFrame, 0, 0))
     {
@@ -2504,14 +2604,27 @@ sealed class RecordingPathExecutorSuspendContext : IPathExecutorSuspendContext
 
 sealed class RecordingTaskControlPlatform : ITaskControlPlatform
 {
+    private readonly HashSet<GIActions> _pressedActions = [];
     public List<string> Calls { get; } = [];
+    public List<GIActions> ActionStateQueries { get; } = [];
+    public Func<Mat>? CaptureFrameProvider { get; set; }
     public Microsoft.Extensions.Logging.ILogger Logger => NullLogger.Instance;
     public double DpiScale => 1;
     public bool IsHdrCapture => false;
     public void EnsureGameActive() { }
     public void ReleasePressedInputs() { }
-    public void SimulateAction(GIActions action, KeyType keyType) => Calls.Add($"action:{action}:{keyType}");
-    public bool IsActionKeyDown(GIActions action) => false;
+    public void SimulateAction(GIActions action, KeyType keyType)
+    {
+        if (keyType == KeyType.KeyDown) _pressedActions.Add(action);
+        else if (keyType == KeyType.KeyUp) _pressedActions.Remove(action);
+        Calls.Add($"action:{action}:{keyType}");
+    }
+    public bool IsActionKeyDown(GIActions action)
+    {
+        ActionStateQueries.Add(action);
+        return IsPressed(action);
+    }
+    public bool IsPressed(GIActions action) => _pressedActions.Contains(action);
     public void MoveMouseBy(int x, int y) => Calls.Add($"move:{x},{y}");
     public void LeftButtonDown() => Calls.Add("leftDown");
     public void LeftButtonUp() => Calls.Add("leftUp");
@@ -2525,7 +2638,9 @@ sealed class RecordingTaskControlPlatform : ITaskControlPlatform
     public void VerticalScroll(int scrollAmountInClicks) { }
     public void PressKey(int windowsVirtualKey) { }
     public void PressEscape() { }
-    public ImageRegion CaptureToRectArea(bool forceNew) => throw new NotSupportedException();
+    public ImageRegion CaptureToRectArea(bool forceNew) => CaptureFrameProvider is null
+        ? throw new NotSupportedException()
+        : new ImageRegion(CaptureFrameProvider(), 0, 0);
 }
 
 sealed class RecordingCombatCommandAvatar(string name) : ICombatCommandAvatar
