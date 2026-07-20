@@ -30,6 +30,7 @@ using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Suspend;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.Common.Map.Maps;
 using BetterGenshinImpact.GameTask.Common.Map.Maps.Base;
@@ -791,6 +792,7 @@ var lockPath = System.IO.Path.Combine(
     "Manifest",
     "model-artifacts.source-lock.json");
 var lockJson = System.IO.File.ReadAllText(lockPath);
+var sharedArchiveCacheDir = Path.Combine(Path.GetTempPath(), "bgi-release-archive-cache");
 var lockDoc = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(lockJson);
 // Basic structure
 Assert("B11.6.1.4 Lock has version", lockDoc.TryGetProperty("schemaVersion", out _), "");
@@ -1184,7 +1186,7 @@ var lockedRuntimeRoot = Path.Combine(Path.GetTempPath(), "bgi-locked-runtime-" +
     using (var realDownloader = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader())
     {
         var installResult = await realDownloader.DownloadAsync(
-            lockedTestSourcePath, lockedRuntimeRoot, CancellationToken.None);
+            lockedTestSourcePath, lockedRuntimeRoot, CancellationToken.None, sharedArchiveCacheDir);
         Assert("B12.2 locked release installation succeeds", installResult.Success,
             string.Join("; ", installResult.Errors));
         Assert("B12.2 locked release installs all 30 artifacts",
@@ -2052,6 +2054,250 @@ var b103Empty = JsonSerializer.Deserialize<HashSet<string>>("[]") ?? [];
 var b103EmptyCount = b103Empty.Count;
 Assert("B10.3 empty array → empty set", b103EmptyCount == 0, $"got {b103EmptyCount}");
 
+// ==== Navigation execution: real TemplateMatch pipeline against ground-truth map imagery ====
+Console.WriteLine();
+Console.WriteLine("Navigation execution: ground-truth minimap track through the real TemplateMatch pipeline");
+static Mat BuildGroundTruthNavigationFrame(Mat coarseMap, Rect minimapRect, Point2f groundTruthGenshin)
+{
+    // The 1080p in-game minimap renders the surrounding 260 world units inside the
+    // center 156x156 px of the 212x212 minimap (MiniMapPreprocessorUtils.Size = 156,
+    // MiniMapMatchConfig RoughZoom = 5 => 52px coarse template = 260 world units).
+    // Reproduce that exact layout from the real release layer imagery at a known
+    // ground-truth genshin position, so the real upstream pipeline must recover it.
+    const double layerLeft = 8.0, layerTop = -1016.0;
+    var centerX = (int)Math.Round((layerLeft - groundTruthGenshin.X) / 5.0);
+    var centerY = (int)Math.Round((layerTop - groundTruthGenshin.Y) / 5.0);
+    var cropRect = new Rect(centerX - 26, centerY - 26, 52, 52);
+    if (cropRect.X < 0 || cropRect.Y < 0 || cropRect.Right > coarseMap.Width || cropRect.Bottom > coarseMap.Height)
+        throw new InvalidOperationException($"ground-truth crop escapes the staged layer: {cropRect}");
+    using var coarsePatch = new Mat(coarseMap, cropRect);
+    using var patch156 = new Mat();
+    Cv2.Resize(coarsePatch, patch156, new Size(156, 156), interpolation: InterpolationFlags.Cubic);
+    using var minimap = new Mat(minimapRect.Height, minimapRect.Width, MatType.CV_8UC3, Scalar.Black);
+    using (var minimapCenter = new Mat(minimap, new Rect(28, 28, 156, 156)))
+        patch156.CopyTo(minimapCenter);
+    var frame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+    using (var minimapTarget = new Mat(frame, minimapRect))
+        minimap.CopyTo(minimapTarget);
+    return frame;
+}
+static int OrientationDelta(int a, int b)
+{
+    var d = Math.Abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+}
+var mapVerificationRoot = Path.Combine(Path.GetTempPath(), "bgi-map-verify-" + Guid.NewGuid().ToString("N")[..8]);
+var startUpPathBeforeNavigation = Global.StartUpPath;
+try
+{
+    // Stage the real MapBack_3 layer (covers the 雷音权现前往 route) from the verified
+    // 0.62.0 release archive through the same hash-checked downloader pipeline as B12.2.
+    var releaseSource = downloaderLock.Sources.Single();
+    var mapStageSource = new ArtifactDownloader.SourceEntry
+    {
+        Id = releaseSource.Id,
+        Type = releaseSource.Type,
+        Url = releaseSource.Url,
+        Sha256 = releaseSource.Sha256,
+        Format = releaseSource.Format,
+        SizeBytes = releaseSource.SizeBytes,
+        Provenance = new ArtifactDownloader.SourceProvenance
+        {
+            Project = releaseSource.Provenance.Project,
+            ReleaseTag = releaseSource.Provenance.ReleaseTag,
+            CommitSha = releaseSource.Provenance.CommitSha,
+            PublishedAt = releaseSource.Provenance.PublishedAt
+        }
+    };
+    var navigationLocalArchive = Path.GetFullPath(Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "artifacts/provenance-audit/release-0.62.0/downloads/BetterGI_v0.62.0.7z"));
+    if (File.Exists(navigationLocalArchive))
+    {
+        mapStageSource.Url = new Uri(navigationLocalArchive).AbsoluteUri;
+    }
+    var mapLicense = new ArtifactDownloader.LicenseEvidenceEntry
+    {
+        SpdxId = "GPL-3.0",
+        Source = "BetterGI release 0.62.0 map layer data",
+        RedistributionStatus = "allowed"
+    };
+    ArtifactDownloader.ArtifactEntry MapArtifact(
+        string destinationRelativePath, string memberPath, long sizeBytes, string sha256) => new()
+    {
+        DestinationRelativePath = destinationRelativePath,
+        SourceId = mapStageSource.Id,
+        MemberPath = memberPath,
+        SizeBytes = sizeBytes,
+        Sha256 = sha256,
+        Transformation = "relocate",
+        LicenseEvidence = mapLicense
+    };
+    var mapStageLock = new ArtifactDownloader.SourceLock
+    {
+        SchemaVersion = 1,
+        ArtifactSetVersion = "0.62.0",
+        Sources = [mapStageSource],
+        Artifacts =
+        [
+            MapArtifact("Assets/Map/Teyvat/mapback_info.json", "BetterGI/Assets/Map/Teyvat/mapback_info.json", 705,
+                "7adf428edd494f8c6445a3e6f66a889f579b6ba0578a148d4cbf0bc1ddb135ea"),
+            MapArtifact("Assets/Map/Teyvat/MapBack_3_color.webp", "BetterGI/Assets/Map/Teyvat/MapBack_3_color.webp", 149064,
+                "e64715356c3e6e84646d4022533c4c7a709c57cfc93b92213a4cfc8d52b90fc4"),
+            MapArtifact("Assets/Map/Teyvat/MapBack_3_gray.webp", "BetterGI/Assets/Map/Teyvat/MapBack_3_gray.webp", 1302572,
+                "1bfafc57afbda3d0dd4a89a301d2ae645f47df3ad456eb63c856adc0193d1379")
+        ]
+    };
+    var mapStageLockPath = Path.Combine(Path.GetTempPath(), "bgi-map-lock-" + Guid.NewGuid().ToString("N") + ".json");
+    File.WriteAllText(mapStageLockPath, JsonSerializer.Serialize(mapStageLock, new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    }));
+    using (var mapDownloader = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader())
+    {
+        var mapInstall = await mapDownloader.DownloadAsync(
+            mapStageLockPath, mapVerificationRoot, CancellationToken.None, sharedArchiveCacheDir);
+        Assert("Navigation staged map layer installation succeeds", mapInstall.Success,
+            string.Join("; ", mapInstall.Errors));
+        Assert("Navigation staged map layer installs all 3 members",
+            mapInstall.ArtifactsExtracted == 3, $"got {mapInstall.ArtifactsExtracted}");
+    }
+    File.Delete(mapStageLockPath);
+
+    // Trim the descriptor to the staged layer only; the upstream loader loads every
+    // json entry's imagery and would fail on the unstaged sibling layers.
+    var stagedDescriptorPath = Path.Combine(mapVerificationRoot, "Assets", "Map", "Teyvat", "mapback_info.json");
+    using (var stagedDescriptor = JsonDocument.Parse(await File.ReadAllTextAsync(stagedDescriptorPath)))
+    {
+        var mapBack3Entry = stagedDescriptor.RootElement.EnumerateArray()
+            .Single(e => e.GetProperty("LayerId").GetString() == "MapBack_3");
+        Assert("Navigation staged descriptor preserves the release origin values",
+            mapBack3Entry.GetProperty("Left").GetDouble() == 8.0 &&
+            mapBack3Entry.GetProperty("Top").GetDouble() == -1016.0 &&
+            mapBack3Entry.GetProperty("Scale").GetDouble() == 1.0 &&
+            mapBack3Entry.GetProperty("Floor").GetInt32() == 0, mapBack3Entry.GetRawText());
+        await File.WriteAllTextAsync(stagedDescriptorPath, "[" + mapBack3Entry.GetRawText() + "]");
+    }
+
+    Global.StartUpPath = mapVerificationRoot;
+    MapAssets.Initialize(b5SystemInfo);
+    var recordingNavigation = new RecordingNavigationPlatform();
+    NavigationPlatform.Configure(recordingNavigation);
+
+    var navigationMap = MapManager.GetMap(MapTypes.Teyvat, "TemplateMatch");
+    var templateNavigationMap = navigationMap as SceneBaseMapByTemplateMatch
+        ?? throw new InvalidOperationException($"Expected TemplateMatch map, got {navigationMap.GetType().Name}.");
+    var stagedLayers = templateNavigationMap.Layers;
+    Assert("Navigation real upstream loader reads exactly the staged MapBack_3 layer",
+        stagedLayers.Count == 1 && stagedLayers[0].LayerId == "MapBack_3",
+        $"layers={stagedLayers.Count}");
+    Assert("Navigation staged layer carries real match imagery",
+        stagedLayers.Count == 1 && !stagedLayers[0].FineGrayMap.Empty(),
+        "FineGrayMap empty");
+
+    using var coarseMap = Cv2.ImRead(
+        Path.Combine(mapVerificationRoot, "Assets", "Map", "Teyvat", "MapBack_3_color.webp"), ImreadModes.Color);
+    Assert("Navigation staged coarse layer image decodes", !coarseMap.Empty(),
+        $"{coarseMap.Width}x{coarseMap.Height}");
+
+    // Ground-truth track: the real route 雷音权现前往 (teleport waypoint -> path waypoint),
+    // extended along the same bearing so the walk covers a meaningful distance.
+    var navRouteTask = PathingTask.BuildFromFilePath(realPathingFixture)
+        ?? throw new InvalidDataException("The real pathing fixture could not be loaded.");
+    var routePositions = navRouteTask.Positions
+        ?? throw new InvalidDataException("The real pathing fixture has no positions.");
+    if (routePositions.Count < 2)
+        throw new InvalidDataException($"The real pathing fixture has only {routePositions.Count} position(s).");
+    var navWp1 = new WaypointForTrack(routePositions[0], MapTypes.Teyvat.ToString(), "TemplateMatch");
+    var navWp2 = new WaypointForTrack(routePositions[1], MapTypes.Teyvat.ToString(), "TemplateMatch");
+    var track = new List<Point2f>();
+    for (var step = 0; step <= 8; step++)
+    {
+        var t = step * 0.25;
+        track.Add(new Point2f(
+            (float)(navWp1.GameX + (navWp2.GameX - navWp1.GameX) * t),
+            (float)(navWp1.GameY + (navWp2.GameY - navWp1.GameY) * t)));
+    }
+
+    var minimapRect = MapAssets.Instance.MimiMapRect;
+    var matchedPositions = new List<Point2f>();
+    var groundTruthImagePositions = new List<Point2f>();
+    Navigation.Reset();
+    for (var i = 0; i < track.Count; i++)
+    {
+        var groundTruthImage = navigationMap.ConvertGenshinMapCoordinatesToImageCoordinates(track[i]);
+        groundTruthImagePositions.Add(groundTruthImage);
+        using var frame = BuildGroundTruthNavigationFrame(coarseMap, minimapRect, track[i]);
+        using var region = new ImageRegion(frame, 0, 0);
+        // The exact call PathExecutor makes every loop iteration (PathExecutor.cs:1228).
+        var position = Navigation.GetPosition(region, MapTypes.Teyvat.ToString(), "TemplateMatch");
+        matchedPositions.Add(position);
+        var error = position == default
+            ? double.NaN
+            : Math.Sqrt(Math.Pow(position.X - groundTruthImage.X, 2) + Math.Pow(position.Y - groundTruthImage.Y, 2));
+        Console.WriteLine($"  track[{i}] genshin=({track[i].X:F1},{track[i].Y:F1}) " +
+                          $"position=({position.X:F1},{position.Y:F1}) error={error:F2}px " +
+                          $"confidence={templateNavigationMap.PrevSuccessResult.Confidence:F4}");
+    }
+
+    for (var i = 0; i < track.Count; i++)
+    {
+        Assert($"Navigation track[{i}] returns a position through the real pipeline",
+            matchedPositions[i] != default, "pipeline returned default (unrecognized)");
+        if (matchedPositions[i] == default) continue;
+        var error = Math.Sqrt(
+            Math.Pow(matchedPositions[i].X - groundTruthImagePositions[i].X, 2) +
+            Math.Pow(matchedPositions[i].Y - groundTruthImagePositions[i].Y, 2));
+        Assert($"Navigation track[{i}] matches ground truth within 15px", error <= 15, $"error={error:F2}px");
+    }
+
+    // Movement decisions PathExecutor derives from positions: distance must shrink as the
+    // walk approaches the target waypoint, and the target orientation must match the
+    // ground-truth bearing (both computed by the real upstream math).
+    var approachDistances = matchedPositions.Select(p => Navigation.GetDistance(navWp2, p)).ToList();
+    for (var i = 1; i <= 4; i++)
+    {
+        Assert($"Navigation approach distance shrinks at track[{i}]",
+            matchedPositions[i] != default && matchedPositions[i - 1] != default &&
+            approachDistances[i] < approachDistances[i - 1] + 1.0,
+            $"{approachDistances[i - 1]:F1} -> {approachDistances[i]:F1}");
+    }
+    Assert("Navigation reaches the real target waypoint at track[4]",
+        matchedPositions[4] != default && approachDistances[4] <= 15,
+        $"distance={approachDistances[4]:F1}");
+    Assert("Navigation distance grows again after passing the target waypoint",
+        approachDistances[^1] > approachDistances[4] + 100,
+        $"target={approachDistances[4]:F1} final={approachDistances[^1]:F1}");
+    for (var i = 0; i < track.Count - 1; i++)
+    {
+        if (matchedPositions[i] == default || approachDistances[i] <= 40) continue;
+        var matchedOrientation = Navigation.GetTargetOrientation(navWp2, matchedPositions[i]);
+        var truthOrientation = Navigation.GetTargetOrientation(navWp2, groundTruthImagePositions[i]);
+        Assert($"Navigation track[{i}] target orientation matches ground-truth bearing",
+            OrientationDelta(matchedOrientation, truthOrientation) <= 8,
+            $"matched={matchedOrientation} truth={truthOrientation}");
+    }
+
+    Assert("Navigation platform publishes every position PathExecutor consumes",
+        recordingNavigation.Positions.Count == track.Count &&
+        recordingNavigation.Positions.Zip(matchedPositions).All(pair =>
+            Math.Abs(pair.First.X - pair.Second.X) < 0.01f && Math.Abs(pair.First.Y - pair.Second.Y) < 0.01f),
+        $"published={recordingNavigation.Positions.Count} expected={track.Count}");
+
+    using (var blackFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black))
+    using (var blackRegion = new ImageRegion(blackFrame, 0, 0))
+    {
+        var blackPosition = Navigation.GetPosition(blackRegion, MapTypes.Teyvat.ToString(), "TemplateMatch");
+        Assert("Navigation rejects a frame without map content instead of inventing a position",
+            blackPosition == default, $"unexpected ({blackPosition.X:F1},{blackPosition.Y:F1})");
+    }
+}
+finally
+{
+    Global.StartUpPath = startUpPathBeforeNavigation;
+    if (Directory.Exists(mapVerificationRoot)) Directory.Delete(mapVerificationRoot, recursive: true);
+}
+
 Console.WriteLine();
 Console.WriteLine($"=== {passed} passed, {failed} failed ===");
 Microsoft.ML.OnnxRuntime.OrtEnv.Instance().Dispose();
@@ -2061,6 +2307,12 @@ class DeadProvider : BetterGenshinImpact.Core.Abstractions.Runtime.IOcrRuntimeCo
 {
     public PaddleOcrModelConfig PaddleModel => throw new InvalidOperationException("Dead provider");
     public string GameCultureInfoName => throw new InvalidOperationException("Dead provider");
+}
+
+sealed class RecordingNavigationPlatform : INavigationPlatform
+{
+    public List<Point2f> Positions { get; } = [];
+    public void PublishCurrentPosition(Point2f position) => Positions.Add(position);
 }
 
 class CultureOnlyProvider : BetterGenshinImpact.Core.Abstractions.Runtime.IOcrRuntimeConfigProvider
