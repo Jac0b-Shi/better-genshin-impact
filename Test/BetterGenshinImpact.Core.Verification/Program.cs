@@ -45,7 +45,11 @@ using System.Globalization;
 using BetterGenshinImpact.Service;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.AutoFight.Script;
+using BetterGenshinImpact.GameTask.AutoFight;
+using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.FarmingPlan;
+using BetterGenshinImpact.GameTask.AutoSkip.Assets;
+using BetterGenshinImpact.GameTask.GameLoading.Assets;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -1435,12 +1439,31 @@ Console.WriteLine("B12.3: PaddleOCR pipeline validation");
         }
     }
 }
-if (Directory.Exists(lockedRuntimeRoot)) Directory.Delete(lockedRuntimeRoot, recursive: true);
 Console.WriteLine();
 Global.StartUpPath = Path.Combine(Environment.CurrentDirectory, "BetterGenshinImpact");
 var b5SystemInfo = new VerificationSystemInfo();
 var defaultLogger = NullLogger<AutoPickAssets>.Instance;
 var triggerLogger = NullLogger<AutoPickTrigger>.Instance;
+GameTaskManagerPlatform.Configure(new VerificationGameTaskManagerPlatform(b5SystemInfo, triggerLogger));
+var verificationOcrService = new VerificationOcrService();
+BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(verificationOcrService);
+BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Configure(
+    new VerificationTaskParameterPlatform("zh-CN"));
+var verificationAutoFightConfig = new AutoFightConfig
+{
+    TeamNames = "钟离,夜兰,纳西妲,久岐忍"
+};
+AutoFightRuntimePlatform.Configure(new VerificationAutoFightRuntimePlatform(
+    b5SystemInfo, verificationAutoFightConfig, verificationOcrService,
+    CpuFactory(new ModelRootPathResolver(lockedRuntimeRoot))));
+ElementAssets.DestroyInstance();
+ElementAssets.Initialize(b5SystemInfo);
+AutoFightAssets.DestroyInstance();
+AutoFightAssets.Initialize(b5SystemInfo);
+AutoSkipAssets.DestroyInstance();
+AutoSkipAssets.Initialize(b5SystemInfo);
+GameLoadingAssets.DestroyInstance();
+GameLoadingAssets.Initialize(b5SystemInfo);
 
 // Initialize AutoPickAssets before any trigger creation (trigger ctor accesses Instance)
 AutoPickAssets.DestroyInstance();
@@ -1911,7 +1934,6 @@ Assert("B8.1.1 trigger wired with externalConfig null",
 
 // ==== B8.2: shared GameTaskManager lifecycle and platform construction ====
 Console.WriteLine("B8.2: shared GameTaskManager lifecycle and platform construction");
-GameTaskManagerPlatform.Configure(new VerificationGameTaskManagerPlatform(b5SystemInfo, triggerLogger));
 recorder.Clear();
 GameCaptureRegion.GameRegion1080PPosClick(1500, 1000);
 Assert("SetTime shared game-region click uses composed capture metrics",
@@ -2181,6 +2203,17 @@ try
         await File.WriteAllTextAsync(stagedDescriptorPath, "[" + mapBack3Entry.GetRawText() + "]");
     }
 
+    var stagedCombatAssetDirectory = Path.Combine(
+        mapVerificationRoot, "GameTask", "AutoFight", "Assets");
+    Directory.CreateDirectory(stagedCombatAssetDirectory);
+    var stagedCombatAvatarPath = Path.Combine(stagedCombatAssetDirectory, "combat_avatar.json");
+    File.Copy(
+        Path.Combine(startUpPathBeforeNavigation, "GameTask", "AutoFight", "Assets", "combat_avatar.json"),
+        stagedCombatAvatarPath);
+    Assert("Navigation runtime stages the original configured-team combat metadata",
+        new FileInfo(stagedCombatAvatarPath).Length > 0,
+        stagedCombatAvatarPath);
+
     Global.StartUpPath = mapVerificationRoot;
     MapAssets.Initialize(b5SystemInfo);
     var recordingNavigation = new RecordingNavigationPlatform();
@@ -2384,6 +2417,86 @@ try
     Assert("PathExecutor MoveTo leaves forward released",
         !recordingTaskControl.IsPressed(GIActions.MoveForward), "MoveForward remains pressed");
 
+    using var pathingPaimon = Cv2.ImRead(paimonPath, ImreadModes.Color);
+    var pathingFrames = movementGroundTruth.Select(point =>
+    {
+        var frame = BuildGroundTruthNavigationFrame(coarseMap, minimapRect, point);
+        using var paimonTarget = new Mat(frame, new Rect(24, 20, pathingPaimon.Width, pathingPaimon.Height));
+        pathingPaimon.CopyTo(paimonTarget);
+        return frame;
+    }).ToList();
+    var pathingCaptureIndex = 0;
+    recordingTaskControl.Calls.Clear();
+    recordingTaskControl.ActionStateQueries.Clear();
+    recordingTaskControl.CaptureFrameProvider = () =>
+    {
+        var index = recordingTaskControl.IsPressed(GIActions.MoveForward)
+            ? Math.Min(pathingCaptureIndex++, pathingFrames.Count - 1)
+            : 0;
+        return pathingFrames[index].Clone();
+    };
+    var pathingPlatform = new RecordingPathExecutorPlatform(b5SystemInfo, verificationOcrService);
+    PathExecutorPlatform.Configure(pathingPlatform);
+    RunnerContext.Instance.Reset();
+    Navigation.Reset();
+    var fullPathExecutor = new PathExecutor(CancellationToken.None)
+    {
+        PartyConfig = new PathingPartyConfig
+        {
+            SkipPartySwitch = true,
+            OnlyInTeleportRecover = true,
+            MainAvatarIndex = string.Empty,
+            GuardianAvatarIndex = string.Empty,
+            AutoRunEnabled = false,
+            AutoSkipEnabled = false,
+            UseGadgetIntervalMs = 0
+        }
+    };
+    var fullPathingTask = new PathingTask
+    {
+        Info = new PathingTaskInfo
+        {
+            Name = "Core verification configured-team path",
+            MapName = MapTypes.Teyvat.ToString(),
+            MapMatchMethod = "TemplateMatch"
+        },
+        Positions =
+        [
+            new Waypoint
+            {
+                X = localizedTargetGame.X,
+                Y = localizedTargetGame.Y,
+                Type = WaypointType.Path.Code,
+                MoveMode = MoveModeEnum.Walk.Code
+            }
+        ]
+    };
+    try
+    {
+        await fullPathExecutor.Pathing(fullPathingTask);
+    }
+    finally
+    {
+        recordingTaskControl.CaptureFrameProvider = null;
+        foreach (var pathingFrame in pathingFrames) pathingFrame.Dispose();
+        RunnerContext.Instance.Reset();
+    }
+    Assert("PathExecutor Pathing initializes the configured upstream CombatScenes team",
+        verificationAutoFightConfig.TeamNames == "钟离,夜兰,纳西妲,久岐忍",
+        verificationAutoFightConfig.TeamNames);
+    Assert("PathExecutor Pathing publishes the exact task through its platform boundary",
+        ReferenceEquals(pathingPlatform.CurrentPathing, fullPathingTask),
+        pathingPlatform.CurrentPathing?.Info.Name ?? "null");
+    Assert("PathExecutor Pathing completes the shared waypoint orchestration",
+        fullPathExecutor.SuccessEnd && fullPathExecutor.SuccessFight == 0,
+        $"successEnd={fullPathExecutor.SuccessEnd} successFight={fullPathExecutor.SuccessFight}");
+    Assert("PathExecutor Pathing drives and releases movement through TaskControl",
+        pathingCaptureIndex >= pathingFrames.Count &&
+        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyDown") == 1 &&
+        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyUp") >= 2 &&
+        !recordingTaskControl.IsPressed(GIActions.MoveForward),
+        $"captures={pathingCaptureIndex} calls={string.Join(" | ", recordingTaskControl.Calls)}");
+
     using (var blackFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black))
     using (var blackRegion = new ImageRegion(blackFrame, 0, 0))
     {
@@ -2396,6 +2509,7 @@ finally
 {
     Global.StartUpPath = startUpPathBeforeNavigation;
     if (Directory.Exists(mapVerificationRoot)) Directory.Delete(mapVerificationRoot, recursive: true);
+    if (Directory.Exists(lockedRuntimeRoot)) Directory.Delete(lockedRuntimeRoot, recursive: true);
 }
 
 Console.WriteLine();
@@ -2641,6 +2755,49 @@ sealed class RecordingTaskControlPlatform : ITaskControlPlatform
     public ImageRegion CaptureToRectArea(bool forceNew) => CaptureFrameProvider is null
         ? throw new NotSupportedException()
         : new ImageRegion(CaptureFrameProvider(), 0, 0);
+}
+
+sealed class RecordingPathExecutorPlatform(
+    VerificationSystemInfo systemInfo,
+    BetterGenshinImpact.Core.Recognition.OCR.IOcrService ocrService) : IPathExecutorPlatform
+{
+    public PathingTask? CurrentPathing { get; private set; }
+    public (int Width, int Height) GetGameScreenSize() =>
+        (systemInfo.GameScreenSize.Width, systemInfo.GameScreenSize.Height);
+    public void PublishCurrentPathing(PathingTask task) => CurrentPathing = task;
+    public string AutoFetchDispatchAdventurersGuildCountry => string.Empty;
+    public PathingConditionConfig PathingConditionConfig { get; } = new();
+    public BetterGenshinImpact.Core.Recognition.OCR.IOcrService OcrService { get; } = ocrService;
+}
+
+sealed class VerificationAutoFightRuntimePlatform(
+    VerificationSystemInfo systemInfo,
+    AutoFightConfig autoFightConfig,
+    BetterGenshinImpact.Core.Recognition.OCR.IOcrService ocrService,
+    BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory onnxFactory) : IAutoFightRuntimePlatform
+{
+    public BetterGenshinImpact.GameTask.Model.ISystemInfo SystemInfo => systemInfo;
+    public AutoFightConfig AutoFightConfig => autoFightConfig;
+    public BetterGenshinImpact.Core.Recognition.OCR.IOcrService OcrService { get; } = ocrService;
+    public double DpiScale => 1;
+    public int CombatMacroPriority => 0;
+    public Microsoft.Extensions.Logging.ILogger<T> GetLogger<T>() => NullLogger<T>.Instance;
+    public BetterGenshinImpact.Core.Recognition.ONNX.BgiYoloPredictor CreateYoloPredictor(
+        BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel model) => onnxFactory.CreateYoloPredictor(model);
+}
+
+sealed class VerificationOcrService : BetterGenshinImpact.Core.Recognition.OCR.IOcrService
+{
+    public string Ocr(Mat mat) => string.Empty;
+    public string OcrWithoutDetector(Mat mat) => string.Empty;
+    public BetterGenshinImpact.Core.Recognition.OCR.OcrResult OcrResult(Mat mat) => new([]);
+}
+
+sealed class VerificationTaskParameterPlatform(string gameCultureInfoName) : BetterGenshinImpact.GameTask.Model.ITaskParameterPlatform
+{
+    public string GameCultureInfoName { get; } = gameCultureInfoName;
+    public Microsoft.Extensions.Localization.IStringLocalizer<T> GetStringLocalizer<T>() =>
+        new BetterGenshinImpact.Core.Infrastructure.EmbeddedResourceStringLocalizer<T>();
 }
 
 sealed class RecordingCombatCommandAvatar(string name) : ICombatCommandAvatar
