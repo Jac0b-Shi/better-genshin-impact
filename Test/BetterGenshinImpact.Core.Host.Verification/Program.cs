@@ -192,6 +192,7 @@ await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), """
         "autoEnterGameEnabled": false
       },
       "quickTeleportConfig": { "enabled": true, "hotkeyTpEnabled": true },
+      "tpConfig": { "mapZoomEnabled": false },
       "hotKeyConfig": { "quickTeleportTickHotkey": "F6" },
       "autoEatConfig": { "enabled": true, "eatInterval": 1234 }
     }
@@ -309,6 +310,7 @@ var navigationPlatform = new MacNavigationPlatform(
 NavigationPlatform.Configure(navigationPlatform);
 var verificationInputBackend = new MacSemanticInputBackend(
     server.PlatformCallbacks, sessionToken, cancellation.Token);
+DesktopRegionInputPlatform.Configure(verificationInputBackend);
 var verificationAutoPickConfig = new BetterGenshinImpact.GameTask.AutoPick.AutoPickConfig();
 var verificationAutoPickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     verificationAutoPickConfig, BetterGenshinImpact.Core.Recognition.PaddleOcrModelConfig.V5Auto, "zh-Hans");
@@ -1156,6 +1158,109 @@ try
     await genshinMapResponder;
     Console.WriteLine("Real BetterGI genshin.getPositionFromMap passed: ClearScript, capture ring and upstream TemplateMatch navigation.");
 
+    const double teleportX = -1642.421;
+    const double teleportY = 2163.664;
+    using (var bigMapFrame = BuildGroundTruthBigMapFrame(
+               layout.RootPath, sourceRoot, teleportX, teleportY))
+    using (var teleportFrame = bigMapFrame.Clone())
+    using (var mainUiFrame = new OpenCvSharp.Mat(
+               schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
+    using (var teleportButton = OpenCvSharp.Cv2.ImRead(
+               Path.Combine(sourceRoot, "QuickTeleport/Assets/1920x1080/GoTeleport.png"),
+               OpenCvSharp.ImreadModes.Color))
+    using (var paimon = OpenCvSharp.Cv2.ImRead(
+               Path.Combine(sourceRoot, "Common/Element/Assets/1920x1080/paimon_menu.png"),
+               OpenCvSharp.ImreadModes.Color))
+    {
+        using (var target = new OpenCvSharp.Mat(teleportFrame,
+                   new OpenCvSharp.Rect(1500, 1008, teleportButton.Width, teleportButton.Height)))
+            teleportButton.CopyTo(target);
+        using (var target = new OpenCvSharp.Mat(mainUiFrame,
+                   new OpenCvSharp.Rect(24, 20, paimon.Width, paimon.Height)))
+            paimon.CopyTo(target);
+
+        var teleportFixturePath = Path.Combine(layout.UserPath, "JsScript", "GenshinTeleport");
+        Directory.CreateDirectory(teleportFixturePath);
+        await File.WriteAllTextAsync(Path.Combine(teleportFixturePath, "manifest.json"), """
+            {"name":"Genshin Teleport","version":"1.0.0","description":"verification","authors":[{"name":"BetterGI"}],"main":"main.js","settings":[],"library":[]}
+            """);
+        var teleportScript = "export {}; await genshin.tp(" +
+            teleportX.ToString(System.Globalization.CultureInfo.InvariantCulture) + "," +
+            teleportY.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            ", \"Teyvat\", true);";
+        await File.WriteAllTextAsync(Path.Combine(teleportFixturePath, "main.js"), teleportScript);
+
+        var teleportCaptureCount = 0;
+        var teleportMetricsCount = 0;
+        var teleportActivationCount = 0;
+        var teleportInputActions = new List<string>();
+        var teleportResponder = Task.Run(async () =>
+        {
+            while (teleportCaptureCount < 8)
+            {
+                var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                    ?? throw new EndOfStreamException("genshin.tp callback channel ended unexpectedly.");
+                if (callback.Method == "window.metrics")
+                {
+                    teleportMetricsCount++;
+                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                    {
+                        captureX = 0, captureY = 0, captureWidth = schedulerWidth, captureHeight = schedulerHeight,
+                        workingAreaWidth = schedulerWidth, workingAreaHeight = schedulerHeight,
+                        dpiScale = 1.0, processId = 1
+                    }), cancellation.Token);
+                    continue;
+                }
+                if (callback.Method == "window.activate")
+                {
+                    teleportActivationCount++;
+                    await callbackConnection.WriteResponseAsync(
+                        RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+                    continue;
+                }
+                if (callback.Method == "capture.request")
+                {
+                    teleportCaptureCount++;
+                    var frame = teleportCaptureCount switch
+                    {
+                        <= 6 => bigMapFrame,
+                        7 => teleportFrame,
+                        8 => mainUiFrame,
+                        _ => throw new InvalidOperationException()
+                    };
+                    await WriteCaptureRingFrameAsync(captureRingPath, frame, (ulong)(10 + teleportCaptureCount));
+                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                    {
+                        ringPath = captureRingPath, frameId = (ulong)(10 + teleportCaptureCount),
+                        sequence = 2UL, slot = 0, width = schedulerWidth, height = schedulerHeight,
+                        stride = schedulerStride, pixelFormat = "BGRA8"
+                    }), cancellation.Token);
+                    continue;
+                }
+
+                Require(callback.Method == "input.dispatch",
+                    $"genshin.tp emitted unexpected callback {callback.Method}.");
+                teleportInputActions.Add(callback.Params?.Value<string>("action") ?? "");
+                await callbackConnection.WriteResponseAsync(
+                    RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+            }
+        }, cancellation.Token);
+        await new ScriptProject("GenshinTeleport").ExecuteAsync();
+        await teleportResponder;
+        Require(teleportCaptureCount == 8,
+            $"genshin.tp capture sequence changed: {teleportCaptureCount}.");
+        Require(teleportMetricsCount == 3 && teleportActivationCount == 5,
+            $"genshin.tp platform sequence changed: metrics={teleportMetricsCount}, " +
+            $"activations={teleportActivationCount}.");
+        Require(teleportInputActions.SequenceEqual([
+                "releaseAll",
+                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "moveMouseToScreen", "mouseDown", "mouseUp"
+            ]),
+            $"genshin.tp input sequence changed: {string.Join(",", teleportInputActions)}.");
+    }
+    Console.WriteLine("Real BetterGI genshin.tp passed: big-map SIFT, target click, teleport button and main-UI completion.");
+
     using (var partyFrame = new OpenCvSharp.Mat(
                schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
     using (var partyButton = OpenCvSharp.Cv2.ImRead(
@@ -1422,7 +1527,13 @@ static async Task StageMapBack3Async(string runtimeRoot, CancellationToken cance
             Artifact("Assets/Map/Teyvat/MapBack_3_color.webp", "BetterGI/Assets/Map/Teyvat/MapBack_3_color.webp", 149064,
                 "e64715356c3e6e84646d4022533c4c7a709c57cfc93b92213a4cfc8d52b90fc4"),
             Artifact("Assets/Map/Teyvat/MapBack_3_gray.webp", "BetterGI/Assets/Map/Teyvat/MapBack_3_gray.webp", 1302572,
-                "1bfafc57afbda3d0dd4a89a301d2ae645f47df3ad456eb63c856adc0193d1379")
+                "1bfafc57afbda3d0dd4a89a301d2ae645f47df3ad456eb63c856adc0193d1379"),
+            Artifact("Assets/Map/Teyvat/Teyvat_0_256.png", "BetterGI/Assets/Map/Teyvat/Teyvat_0_256.png", 3671250,
+                "3fcce29d0951117e7a0ff8c707537255f8aa980f1227718b27f84ed9b209ca7c"),
+            Artifact("Assets/Map/Teyvat/Teyvat_0_256_SIFT.kp.bin", "BetterGI/Assets/Map/Teyvat/Teyvat_0_256_SIFT.kp.bin", 856128,
+                "6a0f18b74adfa4c00a21c95f0a7ff4f32087b0495b19f75972723367ac85dc73"),
+            Artifact("Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png", "BetterGI/Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png", 3451880,
+                "70e10ebb9f2ace54dd878037742651be38e2d40af473dc7625202e3318f97221")
         ]
     };
     var temporaryLockPath = Path.Combine(Path.GetTempPath(), $"bgi-host-map-{Guid.NewGuid():N}.json");
@@ -1517,6 +1628,33 @@ static OpenCvSharp.Mat BuildGroundTruthNavigationFrame(
     var frame = new OpenCvSharp.Mat(1080, 1920, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black);
     using (var target = new OpenCvSharp.Mat(frame, minimapRect))
         minimap.CopyTo(target);
+    return frame;
+}
+
+static OpenCvSharp.Mat BuildGroundTruthBigMapFrame(
+    string runtimeRoot, string sourceRoot, double genshinX, double genshinY)
+{
+    using var fullMap = OpenCvSharp.Cv2.ImRead(
+        Path.Combine(runtimeRoot, "Assets", "Map", "Teyvat", "Teyvat_0_256.png"),
+        OpenCvSharp.ImreadModes.Color);
+    Require(!fullMap.Empty(), "Teyvat_0_256 big-map fixture image did not decode.");
+    var centerX = (int)Math.Round(4096 - genshinX / 4);
+    var centerY = (int)Math.Round(2048 - genshinY / 4);
+    var cropRect = new OpenCvSharp.Rect(centerX - 240, centerY - 135, 480, 270);
+    Require(cropRect.X >= 0 && cropRect.Y >= 0 && cropRect.Right <= fullMap.Width &&
+            cropRect.Bottom <= fullMap.Height,
+        $"Big-map fixture crop {cropRect} is outside {fullMap.Size()}.");
+    using var crop = new OpenCvSharp.Mat(fullMap, cropRect);
+    var frame = new OpenCvSharp.Mat();
+    OpenCvSharp.Cv2.Resize(crop, frame, new OpenCvSharp.Size(1920, 1080),
+        interpolation: OpenCvSharp.InterpolationFlags.Cubic);
+    using var scaleButton = OpenCvSharp.Cv2.ImRead(
+        Path.Combine(sourceRoot, "QuickTeleport/Assets/1920x1080/MapScaleButton.png"),
+        OpenCvSharp.ImreadModes.Color);
+    Require(!scaleButton.Empty(), "MapScaleButton fixture image did not decode.");
+    using (var target = new OpenCvSharp.Mat(frame,
+               new OpenCvSharp.Rect(30, 456, scaleButton.Width, scaleButton.Height)))
+        scaleButton.CopyTo(target);
     return frame;
 }
 

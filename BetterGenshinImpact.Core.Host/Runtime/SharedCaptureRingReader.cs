@@ -1,4 +1,5 @@
 using BetterGenshinImpact.GameTask.Model.Area;
+using BetterGenshinImpact.GameTask.Model.Area.Converter;
 using Newtonsoft.Json.Linq;
 using OpenCvSharp;
 using System.IO.MemoryMappedFiles;
@@ -9,7 +10,9 @@ using System.Text;
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 [SupportedOSPlatform("macos")]
-public sealed class SharedCaptureRingReader(RuntimeLayout layout)
+public sealed class SharedCaptureRingReader(
+    RuntimeLayout layout,
+    Func<DesktopRegion>? desktopRegionProvider = null)
 {
     private const long HeaderSize = 128;
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("BGIRING1");
@@ -73,7 +76,9 @@ public sealed class SharedCaptureRingReader(RuntimeLayout layout)
             var sequenceAfter = view.ReadUInt64(80);
             if (sequenceAfter != sequenceBefore || (sequenceAfter & 1) != 0)
                 throw new InvalidDataException("Capture ring frame changed while it was being read.");
-            return new ImageRegion(mat, captureX, captureY);
+            var desktop = desktopRegionProvider?.Invoke() ?? new DesktopRegion(width, height);
+            return new GameCaptureRegion(
+                mat, captureX, captureY, desktop, new TranslationConverter(captureX, captureY));
         }
         catch
         {

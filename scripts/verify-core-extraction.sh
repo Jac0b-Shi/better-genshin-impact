@@ -56,6 +56,16 @@ rg -q 'genshin\.screenDpiScale' \
 rg -q 'genshin\.switchParty\("Team"\)' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "production ClearScript genshin party switching is not behavior-verified"
+rg -q 'await genshin\.tp' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "production ClearScript genshin teleport is not behavior-verified"
+for big_map_asset in Teyvat_0_256_SIFT.kp.bin Teyvat_0_256_SIFT.mat.png; do
+  rg -q "Assets/Map/Teyvat/${big_map_asset}" \
+    BetterGenshinImpact.Core/Manifest/model-artifacts.source-lock.json \
+    || fail "production source-lock omits ${big_map_asset}"
+done
+rg -q 'new GameCaptureRegion' BetterGenshinImpact.Core.Host/Runtime/SharedCaptureRingReader.cs \
+  || fail "capture ring frames do not retain the upstream clickable Region graph"
 rg -q 'ColorConversionCodes\.BGRA2BGR' \
   BetterGenshinImpact/GameTask/Common/Map/MiniMap/MaskCalculator.cs \
   || fail "real BGRA capture frames are not normalized for upstream mini-map processing"

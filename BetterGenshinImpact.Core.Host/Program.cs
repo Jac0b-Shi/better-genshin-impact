@@ -75,11 +75,12 @@ var runtimeArtifactProvisioner = new RuntimeArtifactProvisioner(
     layout, loggerFactory.CreateLogger<RuntimeArtifactProvisioner>());
 server.AttachRuntimeArtifactInitializer(() =>
     runtimeArtifactProvisioner.EnsureInstalled(shutdown.Token));
-var captureRing = new SharedCaptureRingReader(layout);
-var globalMethodRuntime = new MacGlobalMethodRuntime(
-    server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing);
 var gameTaskManagerPlatform = new MacGameTaskManagerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token, loggerFactory);
+var captureRing = new SharedCaptureRingReader(
+    layout, () => gameTaskManagerPlatform.SystemInfo.DesktopRectArea);
+var globalMethodRuntime = new MacGlobalMethodRuntime(
+    server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing);
 BetterGenshinImpact.Core.BgiVision.BvRuntimePlatform.Configure(
     new MacBvRuntimePlatform(() => gameTaskManagerPlatform.SystemInfo));
 var bvSimpleOperationPlatform = new MacBvSimpleOperationPlatform(
