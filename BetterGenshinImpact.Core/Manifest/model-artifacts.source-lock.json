@@ -408,6 +408,32 @@
         "source": "BetterGI release model asset; bettergi repository root LICENSE GPLv3 and Assets/Model/LICENSE",
         "redistributionStatus": "allowed-under-GPLv3"
       }
+    },
+    {
+      "destinationRelativePath": "Assets/Map/Teyvat/Teyvat_0_256_SIFT.kp.bin",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Map/Teyvat/Teyvat_0_256_SIFT.kp.bin",
+      "sizeBytes": 856128,
+      "sha256": "6a0f18b74adfa4c00a21c95f0a7ff4f32087b0495b19f75972723367ac85dc73",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release Teyvat big-map SIFT data; bettergi repository root LICENSE GPLv3",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
+      "destinationRelativePath": "Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png",
+      "sizeBytes": 3451880,
+      "sha256": "70e10ebb9f2ace54dd878037742651be38e2d40af473dc7625202e3318f97221",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI release Teyvat big-map SIFT data; bettergi repository root LICENSE GPLv3",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
     }
   ]
 }
