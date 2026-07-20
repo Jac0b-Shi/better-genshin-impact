@@ -1648,6 +1648,32 @@ Assert("MiningHandler leaves movement actions released",
     string.Join(" | ", recordingTaskControl.Calls));
 Console.WriteLine();
 
+Console.WriteLine("Pathing stop-flying: upstream before-handler and motion recognition");
+recordingTaskControl.Calls.Clear();
+var stopFlyingCaptureCount = 0;
+recordingTaskControl.CaptureFrameProvider = () =>
+{
+    stopFlyingCaptureCount++;
+    return Cv2.ImRead(miningFixturePath, ImreadModes.Color);
+};
+try
+{
+    var stopFlyingHandler = ActionFactory.GetBeforeHandler(ActionEnum.StopFlying.Code);
+    Assert("ActionFactory selects the upstream StopFlyingHandler",
+        stopFlyingHandler is StopFlyingHandler, stopFlyingHandler.GetType().FullName ?? "null");
+    await stopFlyingHandler.RunAsync(CancellationToken.None);
+}
+finally
+{
+    recordingTaskControl.CaptureFrameProvider = null;
+}
+Assert("StopFlyingHandler emits the upstream plunge attack",
+    recordingTaskControl.Calls.SequenceEqual(["action:NormalAttack:KeyPress"]),
+    string.Join(" | ", recordingTaskControl.Calls));
+Assert("StopFlyingHandler exits after one real normal-motion frame",
+    stopFlyingCaptureCount == 1, $"captures={stopFlyingCaptureCount}");
+Console.WriteLine();
+
 AutoSkipAssets.DestroyInstance();
 AutoSkipAssets.Initialize(b5SystemInfo);
 GameLoadingAssets.DestroyInstance();
