@@ -6,19 +6,19 @@ import SwiftUI
 final class MacGIApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        requestInputPermissionsIfNeeded()
+        requestPermissionsIfNeeded()
     }
 
-    private func requestInputPermissionsIfNeeded() {
-        guard !AXIsProcessTrusted() else { return }
+    private func requestPermissionsIfNeeded() {
+        if !CGPreflightScreenCaptureAccess() {
+            _ = CGRequestScreenCaptureAccess()
+        }
 
-        let options = [
-            "AXTrustedCheckOptionPrompt": true
-        ] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-
-        if !CGPreflightPostEventAccess() {
-            _ = CGRequestPostEventAccess()
+        if !AXIsProcessTrusted() {
+            let options = [
+                "AXTrustedCheckOptionPrompt": true
+            ] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
         }
     }
 }

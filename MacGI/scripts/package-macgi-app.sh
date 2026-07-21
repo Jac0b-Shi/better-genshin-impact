@@ -13,7 +13,13 @@ executable_name=betterGI-mac
 bundle_identifier=${MACGI_BUNDLE_IDENTIFIER:-cn.jac0bshi.bettergi.mac}
 short_version=${MACGI_SHORT_VERSION:-0.1.0}
 bundle_version=${MACGI_BUNDLE_VERSION:-1}
-signing_identity=${EXPANDED_CODE_SIGN_IDENTITY:--}
+signing_identity=${EXPANDED_CODE_SIGN_IDENTITY:-}
+if [[ -z ${signing_identity} ]]; then
+  signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
+    | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' \
+    | head -n 1)
+fi
+signing_identity=${signing_identity:--}
 
 swift build --package-path ${macgi_root} -c ${swift_configuration} --product ${executable_name}
 bin_dir=$(swift build --package-path ${macgi_root} -c ${swift_configuration} --show-bin-path)
@@ -60,4 +66,5 @@ codesign ${sign_options[@]} ${contents}/MacOS/${executable_name}
 codesign ${sign_options[@]} ${app}
 codesign --verify --deep --strict --verbose=2 ${app}
 
+print "Signing identity: ${signing_identity}"
 print "betterGI-mac app packaged at ${app}"
