@@ -21,6 +21,7 @@ using BetterGenshinImpact.GameTask.Common.Reward;
 using BetterGenshinImpact.GameTask.Model.GameUI;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoFight;
@@ -29,6 +30,7 @@ using BetterGenshinImpact.GameTask.AutoFight.Model;
 using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.AutoTrackPath.Model;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
+using BetterGenshinImpact.GameTask.Common.Map.Maps;
 using BetterGenshinImpact.GameTask.FarmingPlan;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.AutoEat;
@@ -36,6 +38,7 @@ using BetterGenshinImpact.GameTask.GameLoading;
 using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.SkillCd;
 using BetterGenshinImpact.Service;
+using BetterGenshinImpact.Helpers;
 using BetterGenshinImpact.GameTask.Shell;
 using Microsoft.Extensions.Logging;
 using Microsoft.ClearScript;
@@ -236,6 +239,8 @@ var scriptHostServices = new MacScriptHostServices(
     loggerFactory, server.PlatformCallbacks, sessionToken, cancellation.Token);
 scriptHostServices.SetJsNotificationEnabled(true);
 scriptHostServices.SetServerTimeZoneOffset(TimeSpan.FromHours(8));
+ServerTimeHelper.Initialize(new ServerTimeProvider(
+    TimeProvider.System, () => scriptHostServices.ServerTimeZoneOffset));
 scriptHostServices.SetCurrentProject(new ScriptGroupProject(upstreamProject) { AllowJsNotification = true });
 ScriptHostServices.Configure(scriptHostServices);
 server.AttachScriptHostServices(scriptHostServices);
@@ -1418,6 +1423,9 @@ try
     using (var teleportFrame = bigMapFrame.Clone())
     using (var mainUiFrame = new OpenCvSharp.Mat(
                schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
+    using (var forceTeleportPartyFrame = OpenCvSharp.Cv2.ImRead(
+               Path.Combine(AppContext.BaseDirectory, "Fixtures", "AutoFight", "别人进我世界_2人.png"),
+               OpenCvSharp.ImreadModes.Color))
     using (var teleportButton = OpenCvSharp.Cv2.ImRead(
                Path.Combine(sourceRoot, "QuickTeleport/Assets/1920x1080/GoTeleport.png"),
                OpenCvSharp.ImreadModes.Color))
@@ -1511,8 +1519,171 @@ try
                 "moveMouseToScreen", "mouseDown", "mouseUp"
             ]),
             $"genshin.tp input sequence changed: {string.Join(",", teleportInputActions)}.");
+
+        var forceTeleportCaptureCount = 0;
+        var forceTeleportSetupCaptureCount = 0;
+        var forceTeleportMetricsCount = 0;
+        var forceTeleportActivationCount = 0;
+        var forceTeleportInputDetails = new List<string>();
+        var forceTeleportCurrentPathing = false;
+        using var forceTeleportResponderCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
+        var forceTeleportResponder = Task.Run(async () =>
+        {
+            var mapOpened = false;
+            try
+            {
+                while (true)
+                {
+                    var callback = await callbackConnection.ReadRequestAsync(forceTeleportResponderCancellation.Token)
+                        ?? throw new EndOfStreamException("force_tp callback channel ended unexpectedly.");
+                    if (callback.Method == "window.metrics")
+                    {
+                        forceTeleportMetricsCount++;
+                        await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                        {
+                            width = schedulerWidth, height = schedulerHeight,
+                            captureX = 0, captureY = 0, captureWidth = schedulerWidth, captureHeight = schedulerHeight,
+                            workingAreaWidth = schedulerWidth, workingAreaHeight = schedulerHeight,
+                            dpiScale = 1.0, processId = 1
+                        }), forceTeleportResponderCancellation.Token);
+                        continue;
+                    }
+                    if (callback.Method == "pathing.current")
+                    {
+                        forceTeleportCurrentPathing =
+                            callback.Params?.Value<string>("name") == "Force TP Verification" &&
+                            callback.Params?.Value<int>("waypointCount") == 1;
+                        await callbackConnection.WriteResponseAsync(
+                            RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                            forceTeleportResponderCancellation.Token);
+                        continue;
+                    }
+                    if (callback.Method == "window.activate")
+                    {
+                        forceTeleportActivationCount++;
+                        await callbackConnection.WriteResponseAsync(
+                            RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                            forceTeleportResponderCancellation.Token);
+                        continue;
+                    }
+                    if (callback.Method == "capture.request")
+                    {
+                        OpenCvSharp.Mat frame;
+                        ulong frameId;
+                        if (!mapOpened)
+                        {
+                            forceTeleportSetupCaptureCount++;
+                            frame = forceTeleportPartyFrame;
+                            frameId = (ulong)(20 + forceTeleportSetupCaptureCount);
+                        }
+                        else
+                        {
+                            forceTeleportCaptureCount++;
+                            frame = forceTeleportCaptureCount switch
+                            {
+                                <= 6 => bigMapFrame,
+                                7 => teleportFrame,
+                                8 => mainUiFrame,
+                                _ => throw new InvalidOperationException()
+                            };
+                            frameId = (ulong)(30 + forceTeleportCaptureCount);
+                        }
+                        await WriteCaptureRingFrameAsync(captureRingPath, frame, frameId);
+                        await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                        {
+                            ringPath = captureRingPath, frameId,
+                            sequence = 2UL, slot = 0, width = schedulerWidth, height = schedulerHeight,
+                            stride = schedulerStride, pixelFormat = "BGRA8"
+                        }), forceTeleportResponderCancellation.Token);
+                        continue;
+                    }
+
+                    Require(callback.Method == "input.dispatch",
+                        $"force_tp emitted unexpected callback {callback.Method}.");
+                    var action = callback.Params?.Value<string>("action") ?? "";
+                    var gameAction = callback.Params?.Value<string>("gameAction");
+                    var keyType = callback.Params?.Value<string>("keyType");
+                    forceTeleportInputDetails.Add(gameAction is null
+                        ? action
+                        : $"{action}:{gameAction}:{keyType}");
+                    mapOpened |= callback.Params?.Value<string>("gameAction") == "openMap";
+                    await callbackConnection.WriteResponseAsync(
+                        RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                        forceTeleportResponderCancellation.Token);
+                }
+            }
+            catch (OperationCanceledException) when (forceTeleportResponderCancellation.IsCancellationRequested) { }
+        }, cancellation.Token);
+        var forceTeleportTask = new PathingTask
+        {
+            Info = new PathingTaskInfo
+            {
+                Name = "Force TP Verification",
+                MapName = "Teyvat",
+                MapMatchMethod = "TemplateMatch"
+            },
+            Positions =
+            [
+                new Waypoint
+                {
+                    X = teleportX,
+                    Y = teleportY,
+                    Type = WaypointType.Teleport.Code,
+                    MoveMode = MoveModeEnum.Walk.Code,
+                    Action = ActionEnum.ForceTp.Code
+                }
+            ]
+        };
+        var forceTeleportExecutor = new PathExecutor(cancellation.Token)
+        {
+            PartyConfig = new PathingPartyConfig
+            {
+                SkipPartySwitch = true,
+                MainAvatarIndex = string.Empty,
+                GuardianAvatarIndex = string.Empty,
+                AutoRunEnabled = false,
+                AutoSkipEnabled = false,
+                UseGadgetIntervalMs = 0
+            }
+        };
+        await forceTeleportExecutor.Pathing(forceTeleportTask);
+        forceTeleportResponderCancellation.Cancel();
+        await forceTeleportResponder;
+
+        var navigationInstance = typeof(Navigation)
+            .GetField("_instance", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?.GetValue(null) ?? throw new InvalidOperationException("Navigation instance was not available.");
+        var previousX = (float)(navigationInstance.GetType()
+            .GetField("_prevX", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?.GetValue(navigationInstance) ?? throw new InvalidOperationException("Navigation previous X was not available."));
+        var previousY = (float)(navigationInstance.GetType()
+            .GetField("_prevY", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?.GetValue(navigationInstance) ?? throw new InvalidOperationException("Navigation previous Y was not available."));
+        var expectedPreviousPosition = MapManager.GetMap("Teyvat", "TemplateMatch")
+            .ConvertGenshinMapCoordinatesToImageCoordinates(
+                new OpenCvSharp.Point2f((float)teleportX, (float)teleportY));
+        Require(forceTeleportExecutor.SuccessEnd && forceTeleportCurrentPathing,
+            "PathExecutor did not complete and publish the real force_tp route.");
+        Require(forceTeleportSetupCaptureCount == 6 && forceTeleportCaptureCount == 8 &&
+                forceTeleportMetricsCount == 9 &&
+                forceTeleportActivationCount == 9,
+            $"force_tp platform sequence changed: setupCaptures={forceTeleportSetupCaptureCount}, " +
+            $"teleportCaptures={forceTeleportCaptureCount}, " +
+            $"metrics={forceTeleportMetricsCount}, activations={forceTeleportActivationCount}.");
+        Require(forceTeleportInputDetails.SequenceEqual([
+                "releaseAll", "gameAction:openMap:keyPress",
+                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "gameAction:moveForward:keyUp", "mouseUp"
+            ]),
+            $"force_tp input sequence changed: {string.Join(",", forceTeleportInputDetails)}.");
+        Require(Math.Abs(previousX - expectedPreviousPosition.X) < 0.01f &&
+                Math.Abs(previousY - expectedPreviousPosition.Y) < 0.01f,
+            $"force_tp did not seed Navigation from the route coordinate: ({previousX},{previousY}).");
     }
     Console.WriteLine("Real BetterGI genshin.tp passed: big-map SIFT, target click, teleport button and main-UI completion.");
+    Console.WriteLine("Real BetterGI force_tp passed: PathExecutor control flow, forced route coordinate and Navigation cache.");
 
     const double statueX = -575.6;
     const double statueY = 1859.34;
@@ -2376,28 +2547,30 @@ static async Task StageLockedRuntimeArtifactsAsync(string runtimeRoot, Cancellat
     var sourceLockPath = Path.Combine(
         Directory.GetCurrentDirectory(), "BetterGenshinImpact.Core", "Manifest", "model-artifacts.source-lock.json");
     var completeLock = BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader.LoadSourceLock(sourceLockPath);
-    var ocrPaths = new HashSet<string>(StringComparer.Ordinal)
+    var runtimeArtifactPaths = new HashSet<string>(StringComparer.Ordinal)
     {
+        "Assets/Model/Common/avatar_side_classify_sim.onnx",
         "Assets/Model/PaddleOCR/Det/V5/ppocr_det_v5.onnx",
         "Assets/Model/PaddleOCR/Rec/V5/ppocr_rec_v5.onnx",
         "Assets/Model/PaddleOCR/Rec/V5/inference.yml",
         "Assets/Model/PaddleOCR/test_pp_ocr.png"
     };
-    var ocrLock = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader.SourceLock
+    var runtimeArtifactLock = new BetterGenshinImpact.Core.Infrastructure.ArtifactDownloader.SourceLock
     {
         SchemaVersion = completeLock.SchemaVersion,
         ArtifactSetVersion = completeLock.ArtifactSetVersion,
         Sources = completeLock.Sources,
         Artifacts = completeLock.Artifacts
-            .Where(artifact => ocrPaths.Contains(artifact.DestinationRelativePath)).ToList()
+            .Where(artifact => runtimeArtifactPaths.Contains(artifact.DestinationRelativePath)).ToList()
     };
-    Require(ocrLock.Artifacts.Count == ocrPaths.Count,
-        $"OCR source-lock selection returned {ocrLock.Artifacts.Count} of {ocrPaths.Count} artifacts.");
-    var temporaryLockPath = Path.Combine(Path.GetTempPath(), $"bgi-host-ocr-{Guid.NewGuid():N}.json");
+    Require(runtimeArtifactLock.Artifacts.Count == runtimeArtifactPaths.Count,
+        $"Runtime source-lock selection returned {runtimeArtifactLock.Artifacts.Count} " +
+        $"of {runtimeArtifactPaths.Count} artifacts.");
+    var temporaryLockPath = Path.Combine(Path.GetTempPath(), $"bgi-host-runtime-{Guid.NewGuid():N}.json");
     try
     {
         await File.WriteAllTextAsync(temporaryLockPath, System.Text.Json.JsonSerializer.Serialize(
-            ocrLock, new System.Text.Json.JsonSerializerOptions
+            runtimeArtifactLock, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             }), cancellationToken);
@@ -2405,7 +2578,7 @@ static async Task StageLockedRuntimeArtifactsAsync(string runtimeRoot, Cancellat
         var result = await downloader.EnsureInstalledAsync(
             temporaryLockPath, runtimeRoot, cancellationToken,
             Path.Combine(Path.GetTempPath(), "bgi-release-archive-cache"));
-        Require(result.Success, "Locked OCR artifact install failed: " + string.Join("; ", result.Errors));
+        Require(result.Success, "Locked runtime artifact install failed: " + string.Join("; ", result.Errors));
     }
     finally
     {
