@@ -18,4 +18,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.4" />
     <PackageReference Include="OpenCvSharp4.runtime.osx.arm64" Version="4.13.0.20260627" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BetterGenshinImpact.Core.Host.Verification" />
+  </ItemGroup>
 </Project>

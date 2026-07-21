@@ -251,6 +251,12 @@ if rg -n 'class (Mac|Windows)PathExecutorAutoSkipPlatform' \
   BetterGenshinImpact BetterGenshinImpact.Core.Host; then
   fail "PathExecutor AutoSkip policy is duplicated by platform adapters"
 fi
+rg -q 'one failing macOS trigger stopped later triggers from processing the same frame' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "macOS trigger dispatcher does not verify per-trigger exception isolation"
+rg -q 'macOS trigger dispatcher did not restart after a prior loop failure' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "macOS trigger dispatcher does not verify restart after loop failure"
 
 if rg -n '由 Rust/OpenCV 提供|Rust.*(脚本|调度|路径|识别)' MacGI/Sources/MacGI; then
   fail "Swift UI assigns BetterGI business authority to Rust"

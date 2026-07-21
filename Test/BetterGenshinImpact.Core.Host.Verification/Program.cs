@@ -540,6 +540,42 @@ try
     Require(productionTriggerList.Error is null && productionTriggerNames.SetEquals(new[]
         { "GameLoading", "AutoPick", "QuickTeleport", "AutoSkip", "AutoFish", "AutoEat", "MapMask", "SkillCd" }),
         productionTriggerList.Error?.Message ?? "core.initialize did not register the exact production trigger set");
+    var successfulTriggerFrames = 0;
+    var isolatedDispatcher = new MacTriggerDispatcher(
+        loggerFactory.CreateLogger<MacTriggerDispatcher>(), cancellation.Token);
+    using (var triggerContent = new CaptureContent(
+               new ImageRegion(new OpenCvSharp.Mat(8, 8, OpenCvSharp.MatType.CV_8UC4), 0, 0), 0, 50))
+    {
+        isolatedDispatcher.DispatchTriggers(
+        [
+            new VerificationTrigger("Failing Trigger", _ => throw new InvalidOperationException("verification trigger failure")),
+            new VerificationTrigger("Successful Trigger", _ => successfulTriggerFrames++)
+        ], triggerContent);
+    }
+    Require(successfulTriggerFrames == 1,
+        "one failing macOS trigger stopped later triggers from processing the same frame");
+
+    using var restartDispatcherCancellation = new CancellationTokenSource();
+    var dispatcherRuns = 0;
+    var restartableDispatcher = new MacTriggerDispatcher(
+        loggerFactory.CreateLogger<MacTriggerDispatcher>(), restartDispatcherCancellation.Token,
+        async token =>
+        {
+            if (Interlocked.Increment(ref dispatcherRuns) == 1)
+                throw new InvalidOperationException("verification dispatcher failure");
+            await Task.Delay(Timeout.Infinite, token);
+        });
+    restartableDispatcher.Start();
+    for (var attempt = 0; attempt < 100 && restartableDispatcher.IsRunning; attempt++)
+        await Task.Delay(10, cancellation.Token);
+    Require(!restartableDispatcher.IsRunning && dispatcherRuns == 1,
+        "faulted macOS trigger dispatcher did not expose a restartable stopped state");
+    restartableDispatcher.Start();
+    for (var attempt = 0; attempt < 100 && dispatcherRuns < 2; attempt++)
+        await Task.Delay(10, cancellation.Token);
+    Require(restartableDispatcher.IsRunning && dispatcherRuns == 2,
+        "macOS trigger dispatcher did not restart after a prior loop failure");
+    restartDispatcherCancellation.Cancel();
     var gameLoadingPlatform = new MacGameLoadingRuntimePlatform(
         layout,
         () => throw new InvalidOperationException("GameLoading verification did not request screen metrics."),
@@ -2844,14 +2880,14 @@ sealed class VerificationOverlayDrawPlatform : IOverlayDrawPlatform
     public void ClearAll() { }
 }
 
-sealed class VerificationTrigger : ITaskTrigger
+sealed class VerificationTrigger(string name = "Verification Trigger", Action<CaptureContent>? onCapture = null) : ITaskTrigger
 {
-    public string Name => "Verification Trigger";
+    public string Name { get; } = name;
     public bool IsEnabled { get; set; }
     public int Priority => 42;
     public bool IsExclusive => false;
     public void Init() { }
-    public void OnCapture(CaptureContent content) { }
+    public void OnCapture(CaptureContent content) => onCapture?.Invoke(content);
 }
 
 sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellationToken) : IDispatcherRuntimePlatform
