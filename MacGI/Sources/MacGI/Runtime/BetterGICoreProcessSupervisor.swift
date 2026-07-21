@@ -247,7 +247,7 @@ actor BetterGICoreProcessSupervisor {
     }
 
     private func waitForSocket(_ socketURL: URL, process: Process) async throws {
-        for _ in 0..<100 {
+        for _ in 0..<400 {
             guard process.isRunning else {
                 throw BetterGICoreRPCError.socket("BetterGI Core exited before creating its RPC socket.")
             }

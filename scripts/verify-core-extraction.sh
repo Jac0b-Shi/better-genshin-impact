@@ -257,6 +257,8 @@ if rg -n 'PathExecutorPlatform\.Current|PathExecutorAutoSkipPlatform\.Current|Sc
 fi
 rg -q 'mac-core-extraction' .github/workflows/wpf-build.yml \
   || fail "Windows WPF build does not gate mac-core-extraction pushes"
+rg -q 'for _ in 0\.\.<400' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  || fail "Swift does not allow the Core Host a bounded native cold-start window"
 if rg -n 'continue-on-error:[[:space:]]*true' .github/workflows/wpf-build.yml; then
   fail "Windows WPF build is configured as a soft failure"
 fi
