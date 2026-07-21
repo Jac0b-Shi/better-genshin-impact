@@ -192,6 +192,16 @@ if rg -n -U 'Button\s*(?:\([^)]*\))?\s*\{\s*\}' MacGI/Sources/MacGI/Views; then
   fail "production Swift UI contains a clickable action with an empty implementation"
 fi
 
+if rg -n '当前阶段只写入 Action Log|Test Actions' MacGI/Sources/MacGI/Views; then
+  fail "production Swift UI contains an input action that only writes a log"
+fi
+
+rg -q 'Core input callback rejects a platform dispatch failure' \
+  MacGI/Tests/MacGITests/BetterGICoreInputAcknowledgementTests.swift \
+  || fail "Swift tests do not prove failed CGEvent dispatch is rejected back to Core"
+rg -q 'return \.blocked\(reason: reason\)' MacGI/Sources/MacGI/App/AppState.swift \
+  || fail "Swift input dispatch failures can still be acknowledged to Core"
+
 if rg -n '由 Rust/OpenCV 提供|Rust.*(脚本|调度|路径|识别)' MacGI/Sources/MacGI; then
   fail "Swift UI assigns BetterGI business authority to Rust"
 fi

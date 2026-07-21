@@ -80,19 +80,6 @@ struct InputPage: View {
                         }
                     }
                 }
-
-                BGISectionCard("Test Actions", subtitle: "当前阶段只写入 Action Log。前缀: ○=dry-run, →=dispatched, ✕=blocked。", symbolName: "keyboard") {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: BGISpacing.small) {
-                        ForEach(["Press F", "Press ESC", "Click Center", "Release All Keys"], id: \.self) { action in
-                            Button {
-                                appState.testInputAction(action)
-                            } label: {
-                                Text(action)
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-                    }
-                }
             }
 
             BGISectionCard("Action Log", subtitle: "事件前缀: →(dispatched) ○(dry-run) ✕(blocked)。", symbolName: "list.bullet.rectangle") {

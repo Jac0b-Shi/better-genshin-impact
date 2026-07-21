@@ -282,7 +282,8 @@ final class AppState: ObservableObject {
     let safetyGate = InputSafetyGate()
 
     private let frameProvider = ScreenCaptureKitFrameProvider()
-    private let inputDispatcher = CGEventInputDispatcher()
+    private let inputDispatcher: any InputDispatching
+    private let isTargetWindowFrontmost: (WindowInfo) -> Bool
     private let runtimeResourceStore: BGIRuntimeResourceStore
     let latestFrameStore = LatestFrameStore()
     private var runtimeFrameIndex: UInt64 = 0
@@ -314,8 +315,14 @@ final class AppState: ObservableObject {
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
 
-    init(resourceStore: BGIRuntimeResourceStore = .defaultStore()) {
+    init(
+        resourceStore: BGIRuntimeResourceStore = .defaultStore(),
+        inputDispatcher: any InputDispatching = CGEventInputDispatcher(),
+        isTargetWindowFrontmost: @escaping (WindowInfo) -> Bool = ForegroundWindowGuard.isTargetFrontmost
+    ) {
         runtimeResourceStore = resourceStore
+        self.inputDispatcher = inputDispatcher
+        self.isTargetWindowFrontmost = isTargetWindowFrontmost
         addLog(.info, "betterGI-mac Swift UI initialized")
         addLog(.info, "Waiting for BetterGI C# Core Host")
         refreshWindows()
@@ -748,8 +755,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    func testInputAction(_ name: String, prefix: String = "○") {
-        inputStatus = .ok
+    private func recordInputAction(_ name: String, prefix: String) {
         let line = "[\(LogEntry.formatter.string(from: Date()))] \(prefix) \(name)"
         inputActionLog.insert(line, at: 0)
         if inputActionLog.count > 24 {
@@ -768,7 +774,7 @@ final class AppState: ObservableObject {
             && safetyGate.realInputEnabled
 
         let foregroundOK = requiresForegroundCheck
-            ? ForegroundWindowGuard.isTargetFrontmost(selectedWindow)
+            ? isTargetWindowFrontmost(selectedWindow)
             : true
 
         let result = safetyGate.check(
@@ -783,18 +789,20 @@ final class AppState: ObservableObject {
             do {
                 let report = try inputDispatcher.perform(action, targetWindow: selectedWindow)
                 inputStatus = .ok
-                testInputAction(action.displayName, prefix: "→")
+                recordInputAction(action.displayName, prefix: "→")
                 addLog(.debug, "CGEvent dispatched: \(report.detail), events=\(report.eventCount)")
             } catch {
                 inputStatus = .error
-                testInputAction(action.displayName, prefix: "✕")
-                addLog(.error, "CGEvent dispatch failed: \(error.localizedDescription)")
+                recordInputAction(action.displayName, prefix: "✕")
+                let reason = "CGEvent dispatch failed: \(error.localizedDescription)"
+                addLog(.error, reason)
+                return .blocked(reason: reason)
             }
         case .dryRun:
-            testInputAction(action.displayName, prefix: "○")
+            recordInputAction(action.displayName, prefix: "○")
         case .blocked:
             inputStatus = .error
-            testInputAction(action.displayName, prefix: "✕")
+            recordInputAction(action.displayName, prefix: "✕")
             addLog(.warn, "Input blocked: \(result.reason)")
         }
         return result
@@ -805,7 +813,7 @@ final class AppState: ObservableObject {
         let key = keyBindings.key(for: action)
         guard let inputAction = keyBindings.inputAction(for: key, type: type) else {
             inputStatus = .error
-            testInputAction("\(action.displayName): \(key.displayName)", prefix: "✕")
+            recordInputAction("\(action.displayName): \(key.displayName)", prefix: "✕")
             addLog(.error, "Input mapping unsupported: \(action.rawValue) -> \(key.rawValue)")
             return .blocked(reason: "Unsupported key binding: \(action.rawValue) -> \(key.rawValue)")
         }

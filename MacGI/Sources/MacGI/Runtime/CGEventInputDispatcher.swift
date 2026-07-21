@@ -34,12 +34,16 @@ struct CGEventDispatchReport: Equatable {
     let detail: String
 }
 
+protocol InputDispatching {
+    func perform(_ action: InputAction, targetWindow: WindowInfo) throws -> CGEventDispatchReport
+}
+
 /// macOS counterpart to BetterGI's `InputSimulator` + `WindowsInputMessageDispatcher`.
 ///
 /// Upstream builds a `User32.INPUT[]` sequence, then calls `SendInput` once. CoreGraphics does
 /// not expose the same batch API, so this dispatcher keeps the same typed action boundary and
 /// posts the equivalent CGEvents in order.
-final class CGEventInputDispatcher {
+final class CGEventInputDispatcher: InputDispatching {
     private let tap: CGEventTapLocation = .cghidEventTap
     private let clickDelayUsec: useconds_t = 50_000
 
