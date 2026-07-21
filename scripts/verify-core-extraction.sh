@@ -37,6 +37,19 @@ rg -q 'Core/Script/Dependence/Dispatcher.cs' BetterGenshinImpact.Core/BetterGens
 rg -q 'AddHostObject\("dispatcher", new Dispatcher' \
   BetterGenshinImpact.Core.Host/Runtime/MacScriptProjectHostInitializer.cs \
   || fail "ClearScript dispatcher host is not registered"
+real_user_verifier=Test/BetterGenshinImpact.RealUser.Verification/Program.cs
+rg -q 'VerifyProductionHostSurface\(javascriptProjects\)' "$real_user_verifier" \
+  || fail "real User verification does not audit the production ClearScript host surface"
+rg -q 'new MacScriptProjectHostInitializer\(\)\.Initialize' "$real_user_verifier" \
+  || fail "real User host audit does not use the production macOS initializer"
+rg -q 'Real User projects reference missing production host members' "$real_user_verifier" \
+  || fail "real User host audit does not reject missing host members"
+rg -q 'Production script host is missing canonical globals' "$real_user_verifier" \
+  || fail "real User host audit does not reject missing canonical globals"
+rg -q 'name is not \("AutoPick" or "AutoSkip"\)' "$real_user_verifier" \
+  || fail "real User host audit does not reject uncomposed realtime triggers"
+rg -q 'timerNames\.SetEquals\(\["AutoPick", "AutoSkip"\]\)' "$real_user_verifier" \
+  || fail "real User host audit does not require the composed realtime trigger set"
 for bv_type in BvPage BvLocator BvImage; do
   rg -q "AddHostType\(\"${bv_type}\", typeof\(${bv_type}\)\)" \
     BetterGenshinImpact.Core.Host/Runtime/MacScriptProjectHostInitializer.cs \
