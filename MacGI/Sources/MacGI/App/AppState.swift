@@ -498,12 +498,9 @@ final class AppState: ObservableObject {
             Task { [weak self] in
                 do {
                     try await supervisor.resumeScheduler(taskID: taskID)
-                    self?.appStatus = .running
-                    self?.schedulerExecutionStatus = "running"
-                    self?.addLog(.info, "Core scheduler resumed \(taskID)")
+                    self?.handleCoreSchedulerControlAccepted(taskID: taskID, state: "running")
                 } catch {
-                    self?.appStatus = .error
-                    self?.addLog(.error, "Core scheduler resume failed: \(error.localizedDescription)")
+                    self?.handleCoreSchedulerControlFailed(operation: "resume", error: error)
                 }
             }
             return
@@ -525,12 +522,9 @@ final class AppState: ObservableObject {
         Task { [weak self] in
             do {
                 try await supervisor.pauseScheduler(taskID: taskID)
-                self?.appStatus = .paused
-                self?.schedulerExecutionStatus = "paused"
-                self?.addLog(.warn, "Core scheduler paused \(taskID)")
+                self?.handleCoreSchedulerControlAccepted(taskID: taskID, state: "paused")
             } catch {
-                self?.appStatus = .error
-                self?.addLog(.error, "Core scheduler pause failed: \(error.localizedDescription)")
+                self?.handleCoreSchedulerControlFailed(operation: "pause", error: error)
             }
         }
     }
@@ -614,6 +608,34 @@ final class AppState: ObservableObject {
         addLog(.info, "Core scheduler started group \(groupName) as \(taskID)")
     }
 
+    func handleCoreSchedulerControlAccepted(taskID: String, state: String) {
+        guard !Self.terminalSchedulerStates.contains(schedulerExecutionStatus) else { return }
+        guard currentSchedulerProjectID == taskID else { return }
+        switch state {
+        case "running":
+            schedulerExecutionStatus = state
+            appStatus = .running
+            addLog(.info, "Core scheduler resumed \(taskID)")
+        case "paused":
+            schedulerExecutionStatus = state
+            appStatus = .paused
+            addLog(.warn, "Core scheduler paused \(taskID)")
+        case "stopping":
+            schedulerExecutionStatus = state
+            addLog(.warn, "Core scheduler stop requested for \(taskID)")
+        default:
+            addLog(.error, "Unsupported scheduler control response: \(state)")
+        }
+    }
+
+    func handleCoreSchedulerControlFailed(operation: String, error: Error) {
+        guard !Self.terminalSchedulerStates.contains(schedulerExecutionStatus) else { return }
+        schedulerExecutionStatus = "\(operation.capitalized) failed"
+        schedulerExecutionError = error.localizedDescription
+        appStatus = .error
+        addLog(.error, "Core scheduler \(operation) failed: \(error.localizedDescription)")
+    }
+
     func handleCoreSchedulerEvent(taskID: String, state: String, error: String?) throws {
         if let currentSchedulerProjectID, currentSchedulerProjectID != taskID {
             throw BetterGICorePlatformAdapterError.invalidParameters(
@@ -658,19 +680,18 @@ final class AppState: ObservableObject {
         schedulerExecutionTask?.cancel()
         schedulerExecutionTask = nil
         let taskID = currentSchedulerProjectID
-        currentSchedulerProjectID = nil
         guard let supervisor = betterGICoreSupervisor, let taskID else {
             schedulerExecutionStatus = "Cancelled"
+            schedulerExecutionError = nil
+            appStatus = .idle
             return
         }
         Task { [weak self] in
             do {
                 try await supervisor.stopScheduler(taskID: taskID)
-                self?.schedulerExecutionStatus = "stopping"
-                self?.addLog(.warn, "Core scheduler stop requested for \(taskID)")
+                self?.handleCoreSchedulerControlAccepted(taskID: taskID, state: "stopping")
             } catch {
-                self?.schedulerExecutionStatus = "Stop failed"
-                self?.addLog(.error, "Core scheduler stop failed: \(error.localizedDescription)")
+                self?.handleCoreSchedulerControlFailed(operation: "stop", error: error)
             }
         }
     }

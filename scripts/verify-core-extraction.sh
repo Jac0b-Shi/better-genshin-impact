@@ -211,6 +211,9 @@ rg -q 'Failed event clears the active task and exposes the Core error' \
 rg -q 'Terminal event cannot be overwritten by a late run response' \
   MacGI/Tests/MacGITests/BetterGICoreSchedulerEventTests.swift \
   || fail "Swift tests do not cover the scheduler event/run response race"
+rg -q 'Terminal event cannot be overwritten by late control responses' \
+  MacGI/Tests/MacGITests/BetterGICoreSchedulerEventTests.swift \
+  || fail "Swift tests do not cover scheduler event/control response races"
 rg -q 'Text\(schedulerError\)' MacGI/Sources/MacGI/Views/Pages/WorkflowPages.swift \
   || fail "Swift scheduler UI does not expose the Core terminal error"
 rg -q 'catch \(PlatformCallbackException\)' \

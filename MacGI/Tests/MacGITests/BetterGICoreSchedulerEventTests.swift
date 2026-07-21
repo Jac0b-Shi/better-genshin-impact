@@ -38,6 +38,30 @@ struct BetterGICoreSchedulerEventTests {
     }
 
     @MainActor
+    @Test("Terminal event cannot be overwritten by late control responses")
+    func terminalEventWinsControlResponseRace() throws {
+        let appState = makeSchedulerEventAppState()
+        try appState.handleCoreSchedulerEvent(
+            taskID: "task-1",
+            state: "failed",
+            error: "verification failure"
+        )
+
+        for state in ["running", "paused", "stopping"] {
+            appState.handleCoreSchedulerControlAccepted(taskID: "task-1", state: state)
+        }
+        appState.handleCoreSchedulerControlFailed(
+            operation: "stop",
+            error: BetterGICoreRPCError.protocolViolation("late failure")
+        )
+
+        #expect(appState.schedulerExecutionStatus == "failed")
+        #expect(appState.schedulerExecutionError == "verification failure")
+        #expect(appState.currentSchedulerProjectID == nil)
+        #expect(appState.appStatus == .error)
+    }
+
+    @MainActor
     private func makeSchedulerEventAppState() -> AppState {
         AppState(resourceStore: BGIRuntimeResourceStore(
             rootURL: FileManager.default.temporaryDirectory
