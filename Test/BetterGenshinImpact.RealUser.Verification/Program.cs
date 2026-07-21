@@ -4,6 +4,8 @@ using BetterGenshinImpact.Core.Script.Group;
 using BetterGenshinImpact.Core.Script.Project;
 using BetterGenshinImpact.Core.Script;
 using BetterGenshinImpact.Core.Script.Dependence;
+using BetterGenshinImpact.GameTask.AutoPathing.Handler;
+using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.Model.Area;
 using Newtonsoft.Json.Linq;
 using Microsoft.ClearScript;
@@ -53,6 +55,7 @@ GlobalMethod.Configure(recordingRuntime);
 ScriptHostServices.Configure(new VerificationScriptHostServices());
 ScriptProjectHost.Configure(new MacScriptProjectHostInitializer());
 VerifyProductionHostSurface(javascriptProjects);
+VerifyPathingActionSurface(javascriptProjects);
 
 var executableProject = javascriptProjects.SingleOrDefault(project =>
     project.FolderName == "ExitGameMultipleMode")
@@ -67,6 +70,82 @@ Console.WriteLine(
     "input=down:MENU,down:F4,up:MENU,up:F4");
 
 Console.WriteLine($"Real User verification passed: group={group.Name}, projects={group.Projects.Count}, javascript={javascriptProjects.Length}.");
+
+static void VerifyPathingActionSurface(IEnumerable<ScriptGroupProject> projects)
+{
+    var actionCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+    var pathingDocumentCount = 0;
+
+    foreach (var project in projects)
+    {
+        var projectPath = new ScriptProject(project.FolderName).ProjectPath;
+        foreach (var jsonPath in Directory.EnumerateFiles(projectPath, "*.json", SearchOption.AllDirectories))
+        {
+            var root = JToken.Parse(File.ReadAllText(jsonPath));
+            var positions = (root as JObject)?["positions"] as JArray;
+            if (positions is null)
+                continue;
+
+            pathingDocumentCount++;
+            foreach (var position in positions.OfType<JObject>())
+            {
+                var action = position.Value<string>("action");
+                if (string.IsNullOrEmpty(action))
+                    continue;
+                actionCounts[action] = actionCounts.GetValueOrDefault(action) + 1;
+            }
+        }
+    }
+
+    if (pathingDocumentCount == 0)
+        throw new InvalidDataException("Real User projects contain no pathing documents.");
+
+    var behaviorVerifiedActions = new HashSet<string>(StringComparer.Ordinal)
+    {
+        ActionEnum.CombatScript.Code,
+        ActionEnum.Fight.Code,
+        ActionEnum.ForceTp.Code,
+        ActionEnum.LogOutput.Code,
+        ActionEnum.Mining.Code,
+        ActionEnum.PickAround.Code,
+        ActionEnum.PyroCollect.Code,
+        ActionEnum.StopFlying.Code,
+        ActionEnum.UpDownGrabLeaf.Code
+    };
+    var unresolvedActions = new List<string>();
+    foreach (var action in actionCounts.Keys.Order(StringComparer.Ordinal))
+    {
+        if (behaviorVerifiedActions.Contains(action))
+            continue;
+        try
+        {
+            _ = ActionFactory.GetAfterHandler(action);
+        }
+        catch (ArgumentException)
+        {
+            unresolvedActions.Add(action);
+        }
+    }
+
+    if (unresolvedActions.Count > 0)
+        throw new InvalidDataException(
+            "Real User pathing documents reference unsupported actions: " +
+            string.Join(", ", unresolvedActions));
+
+    string[] expectedActions =
+    [
+        "combat_script", "fight", "force_tp", "log_output", "mining", "pick_around",
+        "pyro_collect", "set_time", "stop_flying", "up_down_grab_leaf"
+    ];
+    if (!actionCounts.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(expectedActions))
+        throw new InvalidDataException(
+            "Real User pathing action surface changed: " +
+            string.Join(", ", actionCounts.Keys.Order(StringComparer.Ordinal)));
+
+    Console.WriteLine(
+        $"PASS production pathing action surface: documents={pathingDocumentCount}, " +
+        $"actions={string.Join(",", actionCounts.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}:{pair.Value}"))}");
+}
 
 static void VerifyProductionHostSurface(IEnumerable<ScriptGroupProject> projects)
 {

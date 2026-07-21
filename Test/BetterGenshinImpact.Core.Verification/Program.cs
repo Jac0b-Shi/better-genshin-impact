@@ -2446,6 +2446,18 @@ var setTimePosition = (double[])typeof(BetterGenshinImpact.GameTask.Common.Job.S
 Assert("SetTime real upstream dial geometry is linked",
     Math.Abs(setTimePosition[0] - 1471d) < 0.001 && Math.Abs(setTimePosition[1] - 501.6d) < 0.001,
     $"x={setTimePosition[0]}, y={setTimePosition[1]}");
+var setTimeHandler = ActionFactory.GetAfterHandler(ActionEnum.SetTime.Code);
+Assert("ActionFactory selects the upstream SetTimeHandler",
+    setTimeHandler is SetTimeHandler, setTimeHandler.GetType().FullName ?? "unknown");
+recordingTaskControl.Calls.Clear();
+await setTimeHandler.RunAsync(
+    CancellationToken.None,
+    new WaypointForTrack(
+        new Waypoint { Action = ActionEnum.SetTime.Code, ActionParams = string.Empty },
+        MapTypes.Teyvat.ToString(),
+        "SIFT"));
+Assert("SetTimeHandler preserves empty-parameter no-op semantics",
+    recordingTaskControl.Calls.Count == 0, string.Join(" | ", recordingTaskControl.Calls));
 var lowPriority = new VerificationTrigger("low", 1, false);
 var highPriority = new VerificationTrigger("high", 10, false);
 GameTaskManager.TriggerDictionary = new ConcurrentDictionary<string, ITaskTrigger>(

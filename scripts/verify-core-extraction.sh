@@ -157,8 +157,9 @@ rg -q 'AttachRuntimeArtifactInitializer' BetterGenshinImpact.Core.Host/Program.c
   || fail "published Core Host does not provision locked runtime artifacts"
 rg -q 'EnsureInstalledAsync' BetterGenshinImpact.Core.Host/Runtime/RuntimeArtifactProvisioner.cs \
   || fail "Core runtime artifact provisioner is not source-lock backed"
-rg -q 'overall first-step status therefore remains \*\*partial\*\*' Docs/core-extraction-map.md \
-  || fail "completion map must retain the live-game Gate"
+rg -Fq '| Live game execution | partial / blocked on explicit input authorization |' Docs/core-extraction-map.md \
+  && rg -q 'overall first-step status remains \*\*partial\*\* until the four game-dependent projects complete' Docs/core-extraction-map.md \
+  || fail "completion map must retain the explicit-input live-game Gate"
 
 if rg -n 'BGIJSScriptRuntime|BGIScriptGroupScheduler' MacGI/Sources/MacGI MacGI/Package.swift; then
   fail "Swift owns BetterGI script execution or scheduling again"
