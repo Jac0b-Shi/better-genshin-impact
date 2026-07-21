@@ -132,7 +132,8 @@ var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
 GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
-    () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform, "TemplateMatch"));
+    () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform,
+    imageRegionOcrService, loggerFactory, "TemplateMatch"));
 DispatcherRuntimePlatform.Configure(new MacDispatcherRuntimePlatform(
     shutdown.Token, autoPickRuntimeState, semanticInputBackend,
     () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
@@ -154,7 +155,8 @@ TpTaskRuntimePlatform.Configure(new MacTpTaskRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo));
 AutoSkipRuntimePlatform.Configure(new MacAutoSkipRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo, loggerFactory, imageRegionOcrService,
-    server.PlatformCallbacks, sessionToken, shutdown.Token, foregroundInputCoordinator));
+    server.PlatformCallbacks, sessionToken, shutdown.Token, foregroundInputCoordinator,
+    autoPickConfigProvider));
 AutoEatRuntimePlatform.Configure(new MacAutoEatRuntimePlatform(layout, loggerFactory));
 GameLoadingRuntimePlatform.Configure(new MacGameLoadingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, loggerFactory,

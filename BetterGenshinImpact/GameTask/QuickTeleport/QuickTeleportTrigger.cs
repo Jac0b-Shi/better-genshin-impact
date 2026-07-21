@@ -1,4 +1,4 @@
-﻿using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.Core.Recognition.OpenCv;
 using BetterGenshinImpact.GameTask.Common;
@@ -21,7 +21,7 @@ public class QuickTeleportTrigger : ITaskTrigger
 
     public GameUiCategory SupportedGameUiCategory => GameUiCategory.BigMap;
 
-    private readonly QuickTeleportAssets _assets;
+    private QuickTeleportAssets? _assets;
 
     private DateTime _prevClickOptionButtonTime = DateTime.MinValue;
 
@@ -34,7 +34,6 @@ public class QuickTeleportTrigger : ITaskTrigger
     public QuickTeleportTrigger()
     {
         _runtime = QuickTeleportRuntimePlatform.Current;
-        _assets = QuickTeleportAssets.Instance;
         _config = _runtime.Config;
     }
 
@@ -44,8 +43,14 @@ public class QuickTeleportTrigger : ITaskTrigger
         IsExclusive = false;
     }
 
+    private static RecognitionObject GetRecognitionObject(string objectName, Region region)
+    {
+        return RecognitionAssets.Get("QuickTeleport", objectName, region);
+    }
+
     public void OnCapture(CaptureContent content)
     {
+        _assets = QuickTeleportAssets.Get(content.CaptureRectArea);
         if ((DateTime.Now - _prevExecute).TotalMilliseconds <= 300)
         {
             return;
@@ -74,14 +79,14 @@ public class QuickTeleportTrigger : ITaskTrigger
             if (!hasTeleportButton)
             {
                 // 存在地图关闭按钮，说明未选中传送点，直接返回
-                var mapCloseRa = content.CaptureRectArea.Find(_assets.MapCloseButtonRo);
+                var mapCloseRa = content.CaptureRectArea.Find(GetRecognitionObject("MapCloseButton", content.CaptureRectArea));
                 if (!mapCloseRa.IsEmpty())
                 {
                     return;
                 }
 
                 // 存在地图选择按钮，说明未选中传送点，直接返回
-                var mapChooseRa = content.CaptureRectArea.Find(_assets.MapChooseRo);
+                var mapChooseRa = content.CaptureRectArea.Find(GetRecognitionObject("MapChoose", content.CaptureRectArea));
                 if (!mapChooseRa.IsEmpty())
                 {
                     return;
@@ -101,7 +106,7 @@ public class QuickTeleportTrigger : ITaskTrigger
     private bool CheckTeleportButton(ImageRegion imageRegion)
     {
         var hasTeleportButton = false;
-        imageRegion.Find(_assets.TeleportButtonRo, ra =>
+        imageRegion.Find(GetRecognitionObject("TeleportButton", imageRegion), ra =>
         {
             ra.Click();
             hasTeleportButton = true;
@@ -126,8 +131,9 @@ public class QuickTeleportTrigger : ITaskTrigger
         var isHdrCapture = _runtime.IsHdrCapture;
 
         // 全匹配一遍
-        using var mapChooseIconRoi = content.CaptureRectArea.CacheGreyMat[_assets.MapChooseIconRoi].Clone();
-        var rResultList = MatchTemplateHelper.MatchMultiPicForOnePic(mapChooseIconRoi, _assets.MapChooseIconGreyMatList, isHdrCapture ? 0.7 : 0.8);
+        var assets = _assets ?? QuickTeleportAssets.Get(content.CaptureRectArea);
+        using var mapChooseIconRoi = content.CaptureRectArea.CacheGreyMat[assets.MapChooseIconRoi].Clone();
+        var rResultList = MatchTemplateHelper.MatchMultiPicForOnePic(mapChooseIconRoi, assets.MapChooseIconGreyMatList, isHdrCapture ? 0.7 : 0.8);
 
         // 按高度排序
         if (rResultList.Count > 0)
@@ -137,7 +143,7 @@ public class QuickTeleportTrigger : ITaskTrigger
             foreach (var iconRect in rResultList)
             {
                 // 200宽度的文字区域
-                using var ra = content.CaptureRectArea.DeriveCrop(_assets.MapChooseIconRoi.X + iconRect.X + iconRect.Width, _assets.MapChooseIconRoi.Y + iconRect.Y - 8, 200, iconRect.Height + 16);
+                using var ra = content.CaptureRectArea.DeriveCrop(assets.MapChooseIconRoi.X + iconRect.X + iconRect.Width, assets.MapChooseIconRoi.Y + iconRect.Y - 8, 200, iconRect.Height + 16);
                 using var textRegion = ra.Find(new RecognitionObject
                 {
                     RecognitionType = isHdrCapture ? RecognitionTypes.Ocr : RecognitionTypes.ColorRangeAndOcr,

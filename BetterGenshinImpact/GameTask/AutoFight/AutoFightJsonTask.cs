@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.AutoFight.Model;
 using BetterGenshinImpact.GameTask.AutoFight.Script;
+using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
+using BetterGenshinImpact.GameTask.Common.BgiVision;
 
 namespace BetterGenshinImpact.GameTask.AutoFight;
 
@@ -325,7 +327,8 @@ public class AutoFightJsonTask : ISoloTask
         ExperienceDetector? expDetector = null;
         if (_taskParam.KazuhaPickupEnabled && _taskParam.ExpBasedPickupEnabled)
         {
-            var expRos = AutoFightAssets.Instance.ExperienceRecognitionObjects;
+            using var gameCaptureRegion = CaptureToRectArea();
+            var expRos = AutoFightAssets.Get(gameCaptureRegion).ExperienceRecognitionObjects;
             expDetector = new ExperienceDetector(expRos, cts2.Token);
             expDetector.Start();
         }
@@ -415,7 +418,7 @@ public class AutoFightJsonTask : ISoloTask
                                 }
                             }
 
-                            evaluator.UpdateLastExecTime(prioritizedAction.Priority);
+                            evaluator.UpdateLastExecTime(action.Index);
                             lastExecutedAction = action;
                             anyExecuted = true;
                             lastFightName = action.Character ?? "";
@@ -515,6 +518,8 @@ public class AutoFightJsonTask : ISoloTask
                 cmd.Execute(combatScenes, lastSubCmd);
                 lastSubCmd = cmd;
 
+                if (_fightEndFlag) break;
+
                 // 仅由 check 指令触发战斗结束检测
                 if (cmd.Method == Method.Check && _taskParam.FightFinishDetectEnabled)
                 {
@@ -522,6 +527,7 @@ public class AutoFightJsonTask : ISoloTask
                     if (_fightEndFlag)
                     {
                         Logger.LogInformation("{Name} 检测到战斗结束", action.Name);
+                        break;
                     }
                 }
             }
@@ -636,31 +642,28 @@ public class AutoFightJsonTask : ISoloTask
         {
             if (_ct.IsCancellationRequested) break;
 
+            var firstSpaceIndex = preAction.IndexOf(' ');
+            var character = CombatScriptParser.CurrentAvatarName;
+            var commands = preAction;
+            if (firstSpaceIndex > 0)
+            {
+                character = preAction[..firstSpaceIndex];
+                commands = preAction[(firstSpaceIndex + 1)..];
+            }
+
+            var cmdList = CombatScriptParser.ParseLineCommands(commands, character);
+            var combatScript = new CombatScript([character], cmdList);
+
             try
             {
-                var firstSpaceIndex = preAction.IndexOf(' ');
-                var character = CombatScriptParser.CurrentAvatarName;
-                var commands = preAction;
-                if (firstSpaceIndex > 0)
-                {
-                    character = preAction[..firstSpaceIndex];
-                    commands = preAction[(firstSpaceIndex + 1)..];
-                }
-
-                var cmdList = CombatScriptParser.ParseLineCommands(commands, character);
-                foreach (var cmd in cmdList)
-                {
-                    if (_ct.IsCancellationRequested) break;
-                    cmd.Execute(combatScenes);
-                    await Delay(300, _ct);
-                }
-
-                Logger.LogInformation("战斗前动作：{Action}", preAction);
+                await CombatScriptExecutor.ExecuteAsync(combatScript, _ct, Logger, combatScenes);
             }
-            catch (Exception e)
+            catch (RetryException e)
             {
-                Logger.LogWarning("战斗前动作执行失败：{Action}，{Msg}", preAction, e.Message);
+                Logger.LogWarning("战斗前动作重试异常，跳过此动作继续：{Msg}", e.Message);
             }
+            Logger.LogInformation("战斗前动作：{Action}", preAction);
+            await Delay(300, _ct);
         }
     }
 
@@ -686,7 +689,7 @@ public class AutoFightJsonTask : ISoloTask
                 {
                     SimulateAction(GIActions.OpenPartySetupScreen);
                     var enterGameAppear = await NewRetry.WaitForElementAppear(
-                        ElementAssets.Instance.PartyBtnChooseView,
+                        ElementRecognition.Get("PartyBtnChooseView"),
                         () => { },
                         _ct,
                         15,
@@ -708,7 +711,7 @@ public class AutoFightJsonTask : ISoloTask
                 while (timeWaitStart < 6000)
                 {
                     using var ra = CaptureToRectArea();
-                    var partyViewBtn = ra.Find(ElementAssets.Instance.PartyBtnChooseView);
+                    var partyViewBtn = ra.Find(ElementRecognition.Get("PartyBtnChooseView"));
                     if (partyViewBtn.IsExist())
                     {
                         var rawPartyName = ra.Find(new RecognitionObject
@@ -831,7 +834,7 @@ public class AutoFightJsonTask : ISoloTask
                                                 {
                                                     using (var imagePick = CaptureToRectArea())
                                                     {
-                                                        if (imagePick.Find(AutoPickAssets.Instance.PickRo).IsExist())
+                                                        if (imagePick.Find(AutoPickAssets.Get(imagePick, BvSimpleOperationPlatform.Current.AutoPickConfig.PickKey).PickRo).IsExist())
                                                         {
                                                             find = false;
                                                         }

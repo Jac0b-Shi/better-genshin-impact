@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
+using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Exception;
-using BetterGenshinImpact.GameTask.AutoWood.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Model.Area;
 using Microsoft.Extensions.Logging;
@@ -11,7 +11,10 @@ namespace BetterGenshinImpact.GameTask.Common.Job;
 
 public class ExitAndReloginJob
 {
-    private AutoWoodAssets _assets = AutoWoodAssets.Instance;
+    private static RecognitionObject GetAutoWoodRecognitionObject(string objectName)
+    {
+        return RecognitionAssets.Get("AutoWood", objectName);
+    }
 
     public async Task Start(CancellationToken ct)
     {
@@ -20,7 +23,7 @@ public class ExitAndReloginJob
 
         // 等待菜单界面出现
         await NewRetry.WaitForElementAppear(
-            _assets.MenuBagRo,
+            GetAutoWoodRecognitionObject("MenuBag"),
             () => TaskControlPlatform.Current.PressEscape(),
             ct,
             10,
@@ -29,7 +32,7 @@ public class ExitAndReloginJob
 
         // 点击退出按钮并等待确认弹窗出现
         await NewRetry.WaitForElementAppear(
-            _assets.ConfirmRo,
+            GetAutoWoodRecognitionObject("Confirm"),
             () => GameCaptureRegion.GameRegionClick((size, scale) => (50 * scale, size.Height - 50 * scale)),
             ct,
             5,
@@ -38,11 +41,11 @@ public class ExitAndReloginJob
 
         // 点击确认退出并等待确认弹窗消失
         await NewRetry.WaitForElementDisappear(
-            _assets.ConfirmRo,
+            GetAutoWoodRecognitionObject("Confirm"),
             screen =>
             {
                 // 接收当前截图作为参数
-                screen.Find(_assets.ConfirmRo, ra =>
+                screen.Find(RecognitionAssets.Get("AutoWood", "Confirm", screen), ra =>
                 {
                     ra.Click();
                     ra.Dispose();
@@ -63,7 +66,7 @@ public class ExitAndReloginJob
 
         // 等待进入游戏按钮出现并点击
         var enterGameAppear = await NewRetry.WaitForElementAppear(
-            _assets.EnterGameRo,
+            GetAutoWoodRecognitionObject("EnterGame"),
             () => { },
             ct,
             120,
@@ -76,7 +79,7 @@ public class ExitAndReloginJob
 
         // 点击进入游戏按钮直到它消失
         var waitForEnterGameRoDisappear = await NewRetry.WaitForElementDisappear(
-            _assets.EnterGameRo,
+            GetAutoWoodRecognitionObject("EnterGame"),
             () => GameCaptureRegion.GameRegion1080PPosClick(955, 666),
             ct,
             120,
@@ -90,7 +93,7 @@ public class ExitAndReloginJob
 
         // 等待主界面出现
         var mainUiFound = await NewRetry.WaitForElementAppear(
-            ElementAssets.Instance.PaimonMenuRo,
+            ElementRecognition.Get("PaimonMenu"),
             () => { },
             ct,
             120,

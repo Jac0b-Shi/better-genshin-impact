@@ -1,7 +1,6 @@
 using BetterGenshinImpact.Core.Simulator;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
-using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.Model;
 
@@ -11,5 +10,6 @@ public sealed class WindowsBvSimpleOperationPlatform : IBvSimpleOperationPlatfor
 {
     public ISystemInfo SystemInfo => TaskContext.Instance().SystemInfo;
     public AutoPickConfig AutoPickConfig => TaskContext.Instance().Config.AutoPickConfig;
-    public void PressPickKey() => Simulation.SendInput.Keyboard.KeyPress(AutoPickAssets.Instance.PickVk);
+    public void PressPickKey() => Simulation.SendInput.SimulateAction(
+        Core.Simulator.Extensions.GIActions.PickUpOrInteract);
 }

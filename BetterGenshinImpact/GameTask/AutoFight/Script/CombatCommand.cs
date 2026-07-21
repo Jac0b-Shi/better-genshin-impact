@@ -7,11 +7,8 @@ namespace BetterGenshinImpact.GameTask.AutoFight.Script;
 public partial class CombatCommand
 {
     public string Name { get; set; }
-
     public Method Method { get; set; }
-
     public List<string>? Args { get; set; }
-
     public List<int> ActivatingRound { get; set; } = [];
 
     public CombatCommand(string name, string command)
@@ -22,10 +19,8 @@ public partial class CombatCommand
         if (startIndex > 0)
         {
             var endIndex = command.IndexOf(')');
-            var method = command[..startIndex];
-            method = method.Trim();
+            var method = command[..startIndex].Trim();
             Method = Method.GetEnumByCode(method);
-
             var parameters = command.Substring(startIndex + 1, endIndex - startIndex - 1);
             Args = [..parameters.Split(',', StringSplitOptions.TrimEntries)];
         }
@@ -35,12 +30,10 @@ public partial class CombatCommand
             Args = [];
         }
 
-        // 校验参数
         if (Method == Method.Walk)
         {
             AssertUtils.IsTrue(Args.Count == 2, "walk方法必须有两个入参，第一个参数是方向，第二个参数是行走时间。例：walk(s, 0.2)");
-            var s = double.Parse(Args[1]);
-            AssertUtils.IsTrue(s > 0, "行走时间必须大于0");
+            AssertUtils.IsTrue(double.Parse(Args[1]) > 0, "行走时间必须大于0");
         }
         else if (Method == Method.W || Method == Method.A || Method == Method.S || Method == Method.D)
         {
@@ -68,10 +61,6 @@ public partial class CombatCommand
             AssertUtils.IsTrue(int.TryParse(Args[0], out _), "滚动格数必须是整数");
         }
     }
-    
-    public override string ToString()
-    {
-        return $"<CombatCommand {Name}, {Method}({Args}) (rounds {ActivatingRound})>";
-    }
 
+    public override string ToString() => $"<CombatCommand {Name}, {Method}({Args}) (rounds {ActivatingRound})>";
 }

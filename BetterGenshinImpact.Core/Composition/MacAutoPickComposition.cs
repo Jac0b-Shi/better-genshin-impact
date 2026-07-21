@@ -65,7 +65,6 @@ public sealed class MacAutoPickComposition
 
         try
         {
-            AutoPickAssets.Initialize(systemInfo, configProvider, autoPickAssetsLogger);
             var trigger = new AutoPickTrigger(externalConfig, runtimeState, configProvider, inputBackend, systemInfo, autoPickTriggerLogger, paddleRecognizer, yapRecognizer);
             trigger.Init();
 
@@ -111,7 +110,6 @@ public sealed class MacAutoPickComposition
     {
         lock (StateLock)
         {
-            AutoPickAssets.DestroyInstance();
             _state = CompositionState.NotComposed;
         }
     }

@@ -53,8 +53,6 @@ using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
 using BetterGenshinImpact.GameTask.AutoFight.Model;
 using BetterGenshinImpact.GameTask.FarmingPlan;
-using BetterGenshinImpact.GameTask.AutoSkip.Assets;
-using BetterGenshinImpact.GameTask.GameLoading.Assets;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -74,6 +72,7 @@ BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory CpuFactory(IOnnxModelPa
 DesktopRegionInputPlatform.Configure(recorder);
 DesktopRegion.DisplayWidth = 1920;
 DesktopRegion.DisplayHeight = 1080;
+Global.StartUpPath = Path.Combine(Environment.CurrentDirectory, "BetterGenshinImpact");
 
 int passed = 0, failed = 0;
 void Assert(string label, bool condition, string detail)
@@ -141,7 +140,7 @@ using (var paimonBgra = new Mat())
     {
         using var region = new ImageRegion(capture.Clone(), 0, 0);
         Assert("Bv.IsInMainUi finds the actual upstream Paimon asset",
-            Bv.IsInMainUi(region, paimonRo, confirmRo, "复苏"), "main UI was not recognized");
+            Bv.IsInMainUi(region), "main UI was not recognized");
     }
     finally
     {
@@ -1596,11 +1595,6 @@ var verificationAutoFightConfig = new AutoFightConfig
 AutoFightRuntimePlatform.Configure(new VerificationAutoFightRuntimePlatform(
     b5SystemInfo, verificationAutoFightConfig, verificationOcrService,
     CpuFactory(new ModelRootPathResolver(lockedRuntimeRoot))));
-ElementAssets.DestroyInstance();
-ElementAssets.Initialize(b5SystemInfo);
-AutoFightAssets.DestroyInstance();
-AutoFightAssets.Initialize(b5SystemInfo);
-
 Console.WriteLine("AutoFight end detection: upstream TXT and JSON task flows");
 var autoFightStrategyDirectory = Path.Combine("/tmp", "bgi-auto-fight-end-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(autoFightStrategyDirectory);
@@ -1730,7 +1724,7 @@ Console.WriteLine();
 
 Console.WriteLine("Pathing pyro collect: upstream elemental handler and real Avatar attack");
 using var pyroCollectFrame = new Mat(1080, 1920, MatType.CV_8UC4, Scalar.Black);
-var paimonTemplate = ElementAssets.Instance.PaimonMenuRo.TemplateImageMat
+var paimonTemplate = ElementRecognition.Get("PaimonMenu", 1920, 1080).TemplateImageMat
     ?? throw new InvalidOperationException("Paimon template is not initialized.");
 using var pyroCollectPaimon = new Mat();
 Cv2.CvtColor(paimonTemplate, pyroCollectPaimon, ColorConversionCodes.BGR2BGRA);
@@ -1739,7 +1733,7 @@ using (var paimonTarget = new Mat(pyroCollectFrame,
 {
     pyroCollectPaimon.CopyTo(paimonTarget);
 }
-foreach (var indexRect in AutoFightAssets.Instance.AvatarIndexRectList.Skip(1))
+foreach (var indexRect in AutoFightAssets.Get(1920, 1080).AvatarIndexRectList.Skip(1))
 {
     using var inactiveIndex = new Mat(pyroCollectFrame, indexRect);
     inactiveIndex.SetTo(Scalar.White);
@@ -1814,12 +1808,13 @@ foreach (var point in new[] { new Point(1500, 1000), new Point(1508, 1041), new 
     leafDetectionFrame.Set(point.Y, point.X, new Vec3b(255, 255, 255));
 }
 using var flyingFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
-var sourceSpaceTemplate = ElementAssets.Instance.SpaceKey.TemplateImageMat
+var spaceRecognition = ElementRecognition.Get("SpaceKey", 1920, 1080);
+var sourceSpaceTemplate = spaceRecognition.TemplateImageMat
     ?? throw new InvalidOperationException("SpaceKey template is not initialized.");
 using var spaceTemplate = sourceSpaceTemplate.Channels() == 4
     ? sourceSpaceTemplate.CvtColor(ColorConversionCodes.BGRA2BGR)
     : sourceSpaceTemplate.Clone();
-var spaceRoi = ElementAssets.Instance.SpaceKey.RegionOfInterest;
+var spaceRoi = spaceRecognition.RegionOfInterest;
 using (var target = new Mat(flyingFrame, new Rect(spaceRoi.X + 10, spaceRoi.Y + 10, spaceTemplate.Width, spaceTemplate.Height)))
 {
     spaceTemplate.CopyTo(target);
@@ -1960,18 +1955,6 @@ catch (ArgumentOutOfRangeException exception)
 }
 Console.WriteLine();
 
-AutoSkipAssets.DestroyInstance();
-AutoSkipAssets.Initialize(b5SystemInfo);
-GameLoadingAssets.DestroyInstance();
-GameLoadingAssets.Initialize(b5SystemInfo);
-
-// Initialize AutoPickAssets before any trigger creation (trigger ctor accesses Instance)
-AutoPickAssets.DestroyInstance();
-AutoPickAssets.Initialize(b5SystemInfo,
-    new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-        new AutoPickConfig { PickKey = "F" }, PaddleOcrModelConfig.V5, "zh-Hans"),
-    defaultLogger);
-
 var stopCountProp = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
     .GetProperty("StopCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 var extField = typeof(BetterGenshinImpact.GameTask.AutoPick.AutoPickTrigger)
@@ -2041,67 +2024,16 @@ catch (ArgumentNullException) { Assert("null inputBackend → ArgumentNullExcept
 try { _ = new AutoPickTrigger(null, defaultRuntimeState, null!, b5Recorder, b5SystemInfo, triggerLogger, testPaddle, testYap); Assert("null configProvider should throw", false, ""); }
 catch (ArgumentNullException) { Assert("null configProvider → ArgumentNullException", true, ""); }
 
-// ==== B6: AutoPickAssets.Initialize lifecycle ====
-Console.WriteLine("AutoPickAssets: Initialize lifecycle");
-var pickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    new AutoPickConfig { PickKey = "W" },
-    PaddleOcrModelConfig.V5, "zh-Hans");
-
-// 1. Field access before Initialize should throw (Instance throws)
-AutoPickAssets.DestroyInstance();
-try { _ = AutoPickAssets.Instance; Assert("Instance pre-Initialize should throw", false, "no exception"); }
-catch (InvalidOperationException) { Assert("Instance pre-Initialize throws", true, ""); }
-
-// 2. Configure via Initialize (falls back to F since no test assets exist)
-AutoPickAssets.DestroyInstance();
-AutoPickAssets.Initialize(b5SystemInfo, pickConfigProvider, defaultLogger);
-AutoPickAssets? assets = AutoPickAssets.Instance;
-Assert("After Initialize PickVk = F", assets.PickVk == BgiKey.F, $"got {assets.PickVk}");
-Assert("PickRo is FRo (fallback)", ReferenceEquals(assets.PickRo, assets.FRo), "not FRo");
-Assert("ChatPickRo null (fallback)", assets.ChatPickRo == null, $"got {assets.ChatPickRo}");
-Assert("PickKey written back to F", pickConfigProvider.AutoPickConfig.PickKey == "F", $"got {pickConfigProvider.AutoPickConfig.PickKey}");
-
-// EnsureConfigured actually passes (not a no-op)
-AutoPickAssets.EnsureConfigured();
-Assert("EnsureConfigured post-Configure passes", true, "");
-
-// 3. Duplicate Initialize throws
-AutoPickAssets.DestroyInstance();
-AutoPickAssets.Initialize(b5SystemInfo, pickConfigProvider, defaultLogger);
-try { AutoPickAssets.Initialize(b5SystemInfo, pickConfigProvider, defaultLogger); Assert("duplicate should throw", false, ""); }
-catch (InvalidOperationException) { Assert("Duplicate Initialize throws", true, ""); }
-
-// 4. Destroy + re-Initialize
-AutoPickAssets.DestroyInstance();
-var freshConfig = new AutoPickConfig { PickKey = "S" };
-var freshProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    freshConfig, PaddleOcrModelConfig.V5, "zh-Hans");
-AutoPickAssets.Initialize(b5SystemInfo, freshProvider, defaultLogger);
-var freshAssets = AutoPickAssets.Instance;
-Assert("Re-initialized PickVk = F", freshAssets.PickVk == BgiKey.F, $"got {freshAssets.PickVk}");
-Assert("Re-initialized PickKey=F", freshConfig.PickKey == "F", $"got {freshConfig.PickKey}");
-
-// 5. Destroy + Instance access throws
-AutoPickAssets.DestroyInstance();
-try { _ = AutoPickAssets.Instance; Assert("post-Destroy Instance should throw", false, ""); }
-catch (InvalidOperationException) { Assert("Post-Destroy Instance throws", true, ""); }
-
-// 6. Empty-key behavior: Initialize with empty key uses defaults, no write-back
-AutoPickAssets.DestroyInstance();
-var emptyCfg = new AutoPickConfig { PickKey = "" };
-var emptyProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    emptyCfg, PaddleOcrModelConfig.V5, "zh-Hans");
-AutoPickAssets.Initialize(b5SystemInfo, emptyProv, defaultLogger);
-var emptyAssets = AutoPickAssets.Instance;
-Assert("Empty key: PickVk = F", emptyAssets.PickVk == BgiKey.F, $"got {emptyAssets.PickVk}");
-Assert("Empty key: PickRo is FRo", ReferenceEquals(emptyAssets.PickRo, emptyAssets.FRo), "not FRo");
-Assert("Empty key: PickKey unchanged (empty)", emptyCfg.PickKey == "", $"got '{emptyCfg.PickKey}'");
-
-// Cleanup: return singleton to configured state for remaining tests
-var cleanupProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    new AutoPickConfig { PickKey = "F" }, PaddleOcrModelConfig.V5, "zh-Hans");
-AutoPickAssets.DestroyInstance();
-AutoPickAssets.Initialize(b5SystemInfo, cleanupProv, defaultLogger);
+// ==== B6: AutoPickAssets dynamic cache ====
+Console.WriteLine("AutoPickAssets: capture-size and key cache");
+var assets = AutoPickAssets.Get(1920, 1080, "F");
+var sameAssets = AutoPickAssets.Get(1920, 1080, "F");
+var scaledAssets = AutoPickAssets.Get(2560, 1440, "F");
+var alternateKeyAssets = AutoPickAssets.Get(1920, 1080, "W");
+Assert("Same capture size and key reuse assets", ReferenceEquals(assets, sameAssets), "cache miss");
+Assert("Different capture size creates assets", !ReferenceEquals(assets, scaledAssets), "cache collision");
+Assert("Different pick key creates assets", !ReferenceEquals(assets, alternateKeyAssets), "key omitted from cache");
+Assert("Default PickVk is F", assets.PickVk == BgiKey.F, $"got {assets.PickVk}");
 Console.WriteLine();
 
 // ==== B6.3: property guards ====
@@ -2116,10 +2048,6 @@ Assert("PickVk setter not public", pickVkProp?.GetSetMethod() == null, "found se
 Assert("PickRo setter not public", pickRoProp?.GetSetMethod() == null, "found setter");
 Assert("ChatPickRo setter not public", chatProp?.GetSetMethod() == null, "found setter");
 
-// Initialize systemInfo at known state for the remaining B7 tests
-// (B7 Compose calls will re-initialize via their own Initialize calls)
-AutoPickAssets.DestroyInstance();
-AutoPickAssets.Initialize(b5SystemInfo, cleanupProv, defaultLogger);
 Console.WriteLine();
 
 // ==== B7: MacAutoPickComposition ====
@@ -2335,12 +2263,6 @@ Assert("B7.15 From Failed: after ResetForVerification, Compose succeeds",
     b715Comp.Trigger != null, "trigger null");
 Console.WriteLine();
 
-// Final cleanup: restore configured singleton for any subsequent tests
-AutoPickAssets.DestroyInstance();
-var b7CleanupProv = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
-    new AutoPickConfig { PickKey = "F", Enabled = true }, PaddleOcrModelConfig.V5, "zh-Hans");
-AutoPickAssets.Initialize(b5SystemInfo, b7CleanupProv, defaultLogger);
-
 // ==== B8.1.0: Win32InputHelpers pure functions ====
 Console.WriteLine("B8.1.0: Win32InputHelpers coordinate + key mapping");
 
@@ -2472,7 +2394,7 @@ var b82Recorder = new RecordingInputBackend();
 var b82Prov = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     new AutoPickConfig { PickKey = "F", Enabled = true },
     PaddleOcrModelConfig.V5, "zh-Hans");
-var assetsBefore = AutoPickAssets.Instance;
+var assetsBefore = AutoPickAssets.Get(1920, 1080, "F");
 
 // Real AddTrigger call (not pseudo-trigger via new ctor)
 GameTaskManager.ClearTriggers();
@@ -2483,8 +2405,8 @@ Assert("B8.2 shared TriggerDictionary contains AutoPick",
 var addedTrigger = GameTaskManager.TriggerDictionary?["AutoPick"];
 Assert("B8.2 platform-created trigger is AutoPickTrigger",
     addedTrigger is AutoPickTrigger, $"got {addedTrigger?.GetType().Name}");
-var assetsAfter = AutoPickAssets.Instance;
-Assert("B8.2 AddTrigger preserves Assets singleton",
+var assetsAfter = AutoPickAssets.Get(1920, 1080, "F");
+Assert("B8.2 AddTrigger preserves cached assets",
     ReferenceEquals(assetsAfter, assetsBefore), "assets were replaced by duplicate Initialize");
 
 Console.WriteLine();
@@ -2727,7 +2649,6 @@ try
         stagedCombatAvatarPath);
 
     Global.StartUpPath = mapVerificationRoot;
-    MapAssets.Initialize(b5SystemInfo);
     var recordingNavigation = new RecordingNavigationPlatform();
     NavigationPlatform.Configure(recordingNavigation);
 
@@ -2766,7 +2687,7 @@ try
             (float)(navWp1.GameY + (navWp2.GameY - navWp1.GameY) * t)));
     }
 
-    var minimapRect = MapAssets.Instance.MimiMapRect;
+    var minimapRect = MapAssets.Get(1920, 1080).MimiMapRect;
     var matchedPositions = new List<Point2f>();
     var groundTruthImagePositions = new List<Point2f>();
     Navigation.Reset();

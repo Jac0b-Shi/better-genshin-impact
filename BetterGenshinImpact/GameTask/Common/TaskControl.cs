@@ -162,19 +162,38 @@ public class TaskControl
 #if BGI_FULL_WINDOWS
     public static Mat CaptureGameImage(IGameCapture? gameCapture)
     {
-        var image = gameCapture?.Capture();
-        if (image != null) return image;
-        Logger.LogWarning("截图失败!");
-        for (var i = 0; i < 3; i++)
+        var captureFrame = gameCapture?.Capture();
+        var image = captureFrame?.Frame;
+        if (image == null)
         {
-            image = gameCapture?.Capture();
-            if (image != null) return image;
-            Sleep(30);
+            captureFrame?.Dispose();
+            Logger.LogWarning("截图失败!");
+            // 重试3次
+            for (var i = 0; i < 3; i++)
+            {
+                captureFrame = gameCapture?.Capture();
+                image = captureFrame?.Frame;
+                if (image != null)
+                {
+                    return image;
+                }
+
+                captureFrame?.Dispose();
+                Sleep(30);
+            }
+
+            throw new Exception("尝试多次后,截图失败!");
         }
-        throw new Exception("尝试多次后,截图失败!");
+        else
+        {
+            return image;
+        }
     }
 
-    public static Mat? CaptureGameImageNoRetry(IGameCapture? gameCapture) => gameCapture?.Capture();
+    public static Mat? CaptureGameImageNoRetry(IGameCapture? gameCapture)
+    {
+        return gameCapture?.Capture()?.Frame;
+    }
 #endif
 
     public static ImageRegion CaptureToRectArea(bool forceNew = false) =>

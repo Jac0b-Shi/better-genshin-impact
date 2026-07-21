@@ -1,205 +1,68 @@
-using System;
-using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Recognition;
-using BetterGenshinImpact.GameTask.Model;
+using BetterGenshinImpact.GameTask.Model.Area;
+using BetterGenshinImpact.GameTask.Model.Assets;
 using BetterGenshinImpact.Helpers;
 using BetterGenshinImpact.Platform.Abstractions;
 using OpenCvSharp;
-using System.Drawing;
-using Microsoft.Extensions.Logging;
+using System;
 
 namespace BetterGenshinImpact.GameTask.AutoPick.Assets;
 
-public class AutoPickAssets : BaseAssets<AutoPickAssets>
+public sealed class AutoPickAssets
 {
-    private readonly ILogger<AutoPickAssets> _logger;
+    private static readonly AssetsCache<CacheKey, AutoPickAssets> Cache = new(
+        static key => new AutoPickAssets(key.CaptureSize, key.PickKey));
 
-    // Template-only assets (no config dependency)
-    public RecognitionObject FRo = null!;
-    public RecognitionObject ChatIconRo = null!;
-    public RecognitionObject SettingsIconRo = null!;
-    public RecognitionObject LRo = null!;
+    public BgiKey PickVk { get; private set; } = BgiKey.F;
+    public RecognitionObject PickRo { get; private set; }
+    public RecognitionObject ChatPickRo { get; private set; }
 
-    // Config-dependent assets — property-backed with instance-level guard
-    private BgiKey _pickVk = BgiKey.F;
-    private RecognitionObject? _pickRo;
-    private RecognitionObject? _chatPickRo;
-    private bool _configured;
+    private int CaptureHeight { get; }
+    private double AssetScale { get; }
 
-    private static readonly object InitializationLock = new();
-
-    // ── Singleton entry point ──
-
-    /// <summary>
-    /// Sole initialization entry point. Must be called once before any Instance access.
-    /// </summary>
-    public static void Initialize(ISystemInfo systemInfo, IAutoPickConfigProvider configProvider, ILogger<AutoPickAssets> logger)
+    private AutoPickAssets(CaptureSize captureSize, string pickKey)
     {
-        ArgumentNullException.ThrowIfNull(systemInfo);
-        ArgumentNullException.ThrowIfNull(configProvider);
-        ArgumentNullException.ThrowIfNull(logger);
-        lock (InitializationLock)
+        CaptureHeight = captureSize.Height;
+        AssetScale = captureSize.AssetScale;
+        PickRo = RecognitionAssets.Get("AutoPick", "F", captureSize.Width, captureSize.Height);
+        ChatPickRo = LoadCustomChatPickKey("F", captureSize);
+        if (pickKey == "F")
         {
-            if (_instance != null)
-                throw new InvalidOperationException(
-                    "AutoPickAssets is already initialized. Call DestroyInstance() first.");
-
-            var instance = new AutoPickAssets(systemInfo, logger);
-            instance.Configure(configProvider);
-            _instance = instance;
-        }
-    }
-
-    /// <summary>
-    /// Hidden static property. Does NOT fall back to Activator/parameterless constructor.
-    /// Throws if <see cref="Initialize"/> has not been called.
-    /// </summary>
-    public new static AutoPickAssets Instance =>
-        _instance ?? throw new InvalidOperationException(
-            "AutoPickAssets.Initialize(...) must be called before Instance.");
-
-    // ── Property guards ──
-
-    private void EnsureThisConfigured()
-    {
-        if (!_configured)
-            throw new InvalidOperationException(
-                "AutoPickAssets has not been configured. Call Configure() before accessing config-dependent fields.");
-    }
-
-    public BgiKey PickVk { get { EnsureThisConfigured(); return _pickVk; } }
-    public RecognitionObject PickRo { get { EnsureThisConfigured(); return _pickRo!; } }
-    public RecognitionObject? ChatPickRo { get { EnsureThisConfigured(); return _chatPickRo; } }
-
-    /// <summary>
-    /// Static convenience: check the current singleton. Instance-level checks use <see cref="EnsureThisConfigured"/>.
-    /// </summary>
-    public static void EnsureConfigured() =>
-        Instance.EnsureThisConfigured();
-
-    // ── Constructors ──
-
-    /// <summary>
-    /// Parameterized ctor used by <see cref="Initialize"/>. Receives ISystemInfo and ILogger explicitly.
-    /// </summary>
-    private AutoPickAssets(ISystemInfo systemInfo, ILogger<AutoPickAssets> logger)
-        : base(systemInfo)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        InitTemplateAssets();
-    }
-
-    private void InitTemplateAssets()
-    {
-        FRo = new RecognitionObject
-        {
-            Name = "F",
-            RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", "F.png", systemInfo),
-            RegionOfInterest = new Rect((int)(1090 * AssetScale),
-                (int)(330 * AssetScale),
-                (int)(60 * AssetScale),
-                (int)(420 * AssetScale)),
-            DrawOnWindow = false
-        }.InitTemplate();
-
-        ChatIconRo = new RecognitionObject
-        {
-            Name = "ChatIcon",
-            RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoSkip", "icon_option.png", systemInfo),
-            DrawOnWindow = false,
-#if BGI_FULL_WINDOWS
-            DrawOnWindowPen = new Pen(Color.Chocolate, 2),
-#endif
-        }.InitTemplate();
-
-        SettingsIconRo = new RecognitionObject
-        {
-            Name = "SettingsIcon",
-            RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", "icon_settings.png", systemInfo),
-            DrawOnWindow = false,
-#if BGI_FULL_WINDOWS
-            DrawOnWindowPen = new Pen(Color.Chocolate, 2),
-#endif
-        }.InitTemplate();
-
-        LRo = new RecognitionObject
-        {
-            Name = "L",
-            RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", "L.png", systemInfo),
-            RegionOfInterest = new Rect(CaptureRect.Width-(int)(110 * AssetScale),
-                (int)(550 * AssetScale),
-                (int)(70 * AssetScale),
-                (int)(100 * AssetScale)),
-        }.InitTemplate();
-    }
-
-    // ── Configuration ──
-
-    /// <summary>
-    /// Single-use configuration. Any repeated Configure call throws.
-    /// All config-dependent asset initialization (PickKey, PickVk, PickRo, ChatPickRo)
-    /// happens here. On failure, falls back to F-key defaults and writes back PickKey="F".
-    /// </summary>
-    public void Configure(IAutoPickConfigProvider provider)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-        if (_configured)
-            throw new InvalidOperationException("AutoPickAssets is already configured.");
-
-        var keyName = provider.AutoPickConfig.PickKey;
-
-        if (string.IsNullOrEmpty(keyName))
-        {
-            // No custom key configured — defaults apply
-            _pickRo = FRo;
-            _pickVk = BgiKey.F;
-            _chatPickRo = null;
-            _configured = true;
             return;
         }
 
         try
         {
-            _pickRo = LoadCustomPickKey(keyName);
-            _pickVk = BgiKeyMapper.ToKey(keyName);
-#if BGI_FULL_WINDOWS
-            TaskContext.Instance().Config.KeyBindingsConfig.PickUpOrInteract = (Core.Config.KeyId)(int)_pickVk;
-#endif
-            _chatPickRo = LoadCustomChatPickKey(keyName);
+            PickRo = LoadCustomPickKey(pickKey, captureSize);
+            PickVk = BgiKeyMapper.ToKey(pickKey);
+            ChatPickRo = LoadCustomChatPickKey(pickKey, captureSize);
         }
-        catch (Exception e)
+        catch
         {
-            _logger.LogDebug(e, "加载自定义拾取按键时发生异常");
-            _logger.LogError("加载自定义拾取按键失败，继续使用默认的F键");
-            provider.AutoPickConfig.PickKey = "F";
-            _pickRo = FRo;
-            _pickVk = BgiKey.F;
-            _chatPickRo = null;
-            _configured = true; // configured to fallback state
-            return;
+            PickRo = RecognitionAssets.Get("AutoPick", "F", captureSize.Width, captureSize.Height);
+            PickVk = BgiKey.F;
+            ChatPickRo = LoadCustomChatPickKey("F", captureSize);
         }
-
-        if (keyName != "F")
-        {
-            _logger.LogInformation("自定义拾取按键：{Key}", keyName);
-        }
-
-        _configured = true;
     }
 
-    // ── Load helpers ──
+    public static AutoPickAssets Get(Region region, string pickKey) => Get(CaptureSize.From(region), pickKey);
 
-    public RecognitionObject LoadCustomPickKey(string key)
+    public static AutoPickAssets Get(int captureWidth, int captureHeight, string pickKey) =>
+        Get(new CaptureSize(captureWidth, captureHeight), pickKey);
+
+    private static AutoPickAssets Get(CaptureSize captureSize, string pickKey)
+    {
+        var normalizedPickKey = string.IsNullOrWhiteSpace(pickKey) ? "F" : pickKey.Trim().ToUpperInvariant();
+        return Cache.Get(new CacheKey(captureSize, normalizedPickKey));
+    }
+
+    private RecognitionObject LoadCustomPickKey(string key, CaptureSize captureSize)
     {
         return new RecognitionObject
         {
             Name = key,
             RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", key + ".png", systemInfo),
+            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", key + ".png", captureSize.Width, captureSize.Height),
             RegionOfInterest = new Rect((int)(1090 * AssetScale),
                 (int)(330 * AssetScale),
                 (int)(60 * AssetScale),
@@ -208,18 +71,20 @@ public class AutoPickAssets : BaseAssets<AutoPickAssets>
         }.InitTemplate();
     }
 
-    public RecognitionObject LoadCustomChatPickKey(string key)
+    private RecognitionObject LoadCustomChatPickKey(string key, CaptureSize captureSize)
     {
         return new RecognitionObject
         {
             Name = "chatPick" + key,
             RecognitionType = RecognitionTypes.TemplateMatch,
-            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", key + ".png", systemInfo),
+            TemplateImageMat = GameTaskManager.LoadAssetImage("AutoPick", key + ".png", captureSize.Width, captureSize.Height),
             RegionOfInterest = new Rect((int)(1200 * AssetScale),
                 (int)(350 * AssetScale),
                 (int)(50 * AssetScale),
-                CaptureRect.Height - (int)(220 * AssetScale) - (int)(350 * AssetScale)),
+                CaptureHeight - (int)(220 * AssetScale) - (int)(350 * AssetScale)),
             DrawOnWindow = false
         }.InitTemplate();
     }
+
+    private readonly record struct CacheKey(CaptureSize CaptureSize, string PickKey);
 }

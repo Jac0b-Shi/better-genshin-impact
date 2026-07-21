@@ -14,6 +14,7 @@ namespace BetterGenshinImpact.Core.Runtime.Windows;
 public sealed class WindowsAutoSkipRuntimePlatform : IAutoSkipRuntimePlatform
 {
     public ISystemInfo SystemInfo => TaskContext.Instance().SystemInfo;
+    public string PickKey => TaskContext.Instance().Config.AutoPickConfig.PickKey;
     public ILogger<T> GetLogger<T>() => App.GetLogger<T>();
     public IOcrService OcrService => OcrFactory.Paddle;
     public bool IsGameActive() => SystemControl.IsGenshinImpactActive();

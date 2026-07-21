@@ -128,6 +128,8 @@ public class ImageRegion : Region
         {
             Mat roi;
             Mat? template;
+            Rect effectiveRegionOfInterest;
+            double referenceScale;
             if (ro.Use3Channels)
             {
                 template = ro.TemplateImageMat;
@@ -154,46 +156,74 @@ public class ImageRegion : Region
                 throw new Exception($"[TemplateMatch]识别对象{ro.Name}的模板图片不能为null");
             }
 
-            if (ro.RegionOfInterest != default)
+            if (!ImageRegionReferenceSearchHelper.TryGetReferenceSearchRegion(this, ro, out effectiveRegionOfInterest, out referenceScale))
             {
-                // TODO roi 是可以加缓存的
-                if (!(0 <= ro.RegionOfInterest.X && 0 <= ro.RegionOfInterest.Width &&
-                      ro.RegionOfInterest.X + ro.RegionOfInterest.Width <= roi.Cols
-                      && 0 <= ro.RegionOfInterest.Y && 0 <= ro.RegionOfInterest.Height &&
-                      ro.RegionOfInterest.Y + ro.RegionOfInterest.Height <= roi.Rows))
-                {
-#if !BGI_PLATFORM_MAC
-                    TaskControl.Logger.LogError("在图像{W1}x{H1}中查找模板,名称：{Name},ROI位置{X2}x{Y2},区域{H2}x{W2},边界溢出！",
-                        roi.Width, roi.Height, ro.Name, ro.RegionOfInterest.X, ro.RegionOfInterest.Y,
-                        ro.RegionOfInterest.Width, ro.RegionOfInterest.Height);
-#endif
-                }
-
-                roi = new Mat(roi, ro.RegionOfInterest);
-            }
-
-            var p = MatchTemplateHelper.MatchTemplate(roi, template, ro.TemplateMatchMode, ro.MaskMat, ro.Threshold);
-            if (p != new Point())
-            {
-                var newRa = Derive(p.X + ro.RegionOfInterest.X, p.Y + ro.RegionOfInterest.Y, template.Width,
-                    template.Height);
-                if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
-                {
-                    OverlayDrawPlatform.Current.RemoveRectangles(ro.Name);
-                }
-
-                successAction?.Invoke(newRa);
-                return newRa;
-            }
-            else
-            {
-                if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
-                {
-                    drawContent.RemoveRectangles(ro.Name);
-                }
-
                 failAction?.Invoke();
                 return new Region();
+            }
+
+            // 参考搜索会根据输入截图尺寸同步缩放模板和 mask，普通搜索则直接复用原始 Mat。
+            var effectiveTemplate = ImageRegionReferenceSearchHelper.GetEffectiveTemplate(ro, template, referenceScale, out var shouldDisposeTemplate);
+            var effectiveMask = ImageRegionReferenceSearchHelper.GetEffectiveMask(ro.MaskMat, effectiveTemplate, out var shouldDisposeMask);
+            try
+            {
+                if (effectiveRegionOfInterest != default)
+                {
+                    // TODO roi 是可以加缓存的
+                    if (!(0 <= effectiveRegionOfInterest.X && 0 <= effectiveRegionOfInterest.Width &&
+                          effectiveRegionOfInterest.X + effectiveRegionOfInterest.Width <= roi.Cols
+                          && 0 <= effectiveRegionOfInterest.Y && 0 <= effectiveRegionOfInterest.Height &&
+                          effectiveRegionOfInterest.Y + effectiveRegionOfInterest.Height <= roi.Rows))
+                    {
+                        TaskControl.Logger.LogError("在图像{W1}x{H1}中查找模板,名称：{Name},ROI位置{X2}x{Y2},区域{H2}x{W2},边界溢出！",
+                            roi.Width, roi.Height, ro.Name, effectiveRegionOfInterest.X, effectiveRegionOfInterest.Y,
+                            effectiveRegionOfInterest.Width, effectiveRegionOfInterest.Height);
+                    }
+
+                    roi = new Mat(roi, effectiveRegionOfInterest);
+                }
+
+                if (roi.Width < effectiveTemplate.Width || roi.Height < effectiveTemplate.Height)
+                {
+                    failAction?.Invoke();
+                    return new Region();
+                }
+
+                var p = MatchTemplateHelper.MatchTemplate(roi, effectiveTemplate, ro.TemplateMatchMode, effectiveMask, ro.Threshold);
+                if (p != new Point())
+                {
+                    var newRa = Derive(p.X + effectiveRegionOfInterest.X, p.Y + effectiveRegionOfInterest.Y, effectiveTemplate.Width,
+                        effectiveTemplate.Height);
+                    if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
+                    {
+                        newRa.DrawSelf(ro.Name, ro.DrawOnWindowPen);
+                    }
+
+                    successAction?.Invoke(newRa);
+                    return newRa;
+                }
+                else
+                {
+                    if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
+                    {
+                        drawContent.RemoveRectangles(ro.Name);
+                    }
+
+                    failAction?.Invoke();
+                    return new Region();
+                }
+            }
+            finally
+            {
+                if (shouldDisposeMask)
+                {
+                    effectiveMask?.Dispose();
+                }
+
+                if (shouldDisposeTemplate)
+                {
+                    effectiveTemplate.Dispose();
+                }
             }
         }
         else if (RecognitionTypes.OcrMatch.Equals(ro.RecognitionType))
@@ -203,10 +233,16 @@ public class ImageRegion : Region
                 throw new Exception($"[OCR]识别对象{ro.Name}的匹配文本不能全为空");
             }
 
-            var roi = SrcMat;
-            if (ro.RegionOfInterest != default)
+            if (!ImageRegionReferenceSearchHelper.TryGetReferenceSearchRegion(this, ro, out var effectiveRegionOfInterest, out _))
             {
-                roi = new Mat(SrcMat, ro.RegionOfInterest);
+                failAction?.Invoke();
+                return new Region();
+            }
+
+            var roi = SrcMat;
+            if (effectiveRegionOfInterest != default)
+            {
+                roi = new Mat(SrcMat, effectiveRegionOfInterest);
             }
 
             var result = ImageRegionOcrPlatform.Current.OcrResult(roi);
@@ -254,13 +290,13 @@ public class ImageRegion : Region
                 && successRegexCount == ro.RegexMatchText.Count
                 && (ro.OneContainMatchText.Count == 0 || successOneContain))
             {
-                var newRa = Derive(ro.RegionOfInterest);
+                var newRa = Derive(effectiveRegionOfInterest);
                 if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
                 {
 #if BGI_FULL_WINDOWS
                     // 画出OCR识别到的区域
                     var drawList = result.Regions.Select(item =>
-                        this.ToRectDrawable(item.Rect.BoundingRect() + ro.RegionOfInterest.Location, ro.Name,
+                        this.ToRectDrawable(item.Rect.BoundingRect() + effectiveRegionOfInterest.Location, ro.Name,
                             ro.DrawOnWindowPen)).ToList();
                     VisionContext.Instance().DrawContent.PutOrRemoveRectList(ro.Name, drawList);
 #endif
@@ -283,13 +319,19 @@ public class ImageRegion : Region
         else if (RecognitionTypes.Ocr.Equals(ro.RecognitionType) ||
                  RecognitionTypes.ColorRangeAndOcr.Equals(ro.RecognitionType))
         {
+            if (!ImageRegionReferenceSearchHelper.TryGetReferenceSearchRegion(this, ro, out var effectiveRegionOfInterest, out _))
+            {
+                failAction?.Invoke();
+                return new Region();
+            }
+
             Mat roi;
             if (RecognitionTypes.ColorRangeAndOcr.Equals(ro.RecognitionType))
             {
                 roi = SrcMat;
-                if (ro.RegionOfInterest != default)
+                if (effectiveRegionOfInterest != default)
                 {
-                    roi = new Mat(SrcMat, ro.RegionOfInterest);
+                    roi = new Mat(SrcMat, effectiveRegionOfInterest);
                 }
 
                 roi = roi.Clone();
@@ -303,9 +345,9 @@ public class ImageRegion : Region
             else
             {
                 roi = SrcMat;
-                if (ro.RegionOfInterest != default)
+                if (effectiveRegionOfInterest != default)
                 {
-                    roi = new Mat(SrcMat, ro.RegionOfInterest);
+                    roi = new Mat(SrcMat, effectiveRegionOfInterest);
                 }
             }
 
@@ -319,15 +361,15 @@ public class ImageRegion : Region
 #if BGI_FULL_WINDOWS
                     // 画出OCR识别到的区域
                     var drawList = result.Regions.Select(item =>
-                        this.ToRectDrawable(item.Rect.BoundingRect() + ro.RegionOfInterest.Location, ro.Name,
+                        this.ToRectDrawable(item.Rect.BoundingRect() + effectiveRegionOfInterest.Location, ro.Name,
                             ro.DrawOnWindowPen)).ToList();
                     VisionContext.Instance().DrawContent.PutOrRemoveRectList(ro.Name, drawList);
 #endif
                 }
 
-                if (ro.RegionOfInterest != default)
+                if (effectiveRegionOfInterest != default)
                 {
-                    var newRa = Derive(ro.RegionOfInterest);
+                    var newRa = Derive(effectiveRegionOfInterest);
                     newRa.Text = text;
                     successAction?.Invoke(newRa);
                     return newRa;
@@ -380,6 +422,8 @@ public class ImageRegion : Region
         {
             Mat roi;
             Mat? template;
+            Rect effectiveRegionOfInterest;
+            double referenceScale;
             if (ro.Use3Channels)
             {
                 template = ro.TemplateImageMat;
@@ -397,45 +441,79 @@ public class ImageRegion : Region
                 throw new Exception($"[TemplateMatch]识别对象{ro.Name}的模板图片不能为null");
             }
 
-            if (ro.RegionOfInterest != default)
+            if (!ImageRegionReferenceSearchHelper.TryGetReferenceSearchRegion(this, ro, out effectiveRegionOfInterest, out referenceScale))
             {
-                roi = new Mat(roi, ro.RegionOfInterest);
-            }
-
-            var rectList =
-                MatchTemplateHelper.MatchOnePicForOnePic(roi, template, ro.TemplateMatchMode, ro.MaskMat, ro.Threshold);
-            if (rectList.Count > 0)
-            {
-                var resRaList = rectList.Select(r => this.Derive(r + ro.RegionOfInterest.Location)).ToList();
-
-                if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
-                {
-#if BGI_FULL_WINDOWS
-                    VisionContext.Instance().DrawContent.PutOrRemoveRectList(ro.Name,
-                        resRaList.Select(ra => ra.SelfToRectDrawable(ro.Name)).ToList());
-#endif
-                }
-
-                successAction?.Invoke(resRaList);
-                return resRaList;
-            }
-            else
-            {
-                if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
-                {
-                    OverlayDrawPlatform.Current.RemoveRectangles(ro.Name);
-                }
-
                 failAction?.Invoke();
                 return [];
+            }
+
+            // 参考搜索会根据输入截图尺寸同步缩放模板和 mask，普通搜索则直接复用原始 Mat。
+            var effectiveTemplate = ImageRegionReferenceSearchHelper.GetEffectiveTemplate(ro, template, referenceScale, out var shouldDisposeTemplate);
+            var effectiveMask = ImageRegionReferenceSearchHelper.GetEffectiveMask(ro.MaskMat, effectiveTemplate, out var shouldDisposeMask);
+            try
+            {
+                if (effectiveRegionOfInterest != default)
+                {
+                    roi = new Mat(roi, effectiveRegionOfInterest);
+                }
+
+                if (roi.Width < effectiveTemplate.Width || roi.Height < effectiveTemplate.Height)
+                {
+                    failAction?.Invoke();
+                    return [];
+                }
+
+                var rectList =
+                    MatchTemplateHelper.MatchOnePicForOnePic(roi, effectiveTemplate, ro.TemplateMatchMode, effectiveMask, ro.Threshold);
+                if (rectList.Count > 0)
+                {
+                    var resRaList = rectList.Select(r => this.Derive(r + effectiveRegionOfInterest.Location)).ToList();
+
+                    if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
+                    {
+                        OverlayDrawPlatform.Current.SetRectangles(
+                            ro.Name, this, resRaList.Select(ra => new Rect(ra.X, ra.Y, ra.Width, ra.Height)).ToList());
+                    }
+
+                    successAction?.Invoke(resRaList);
+                    return resRaList;
+                }
+                else
+                {
+                    if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
+                    {
+                        OverlayDrawPlatform.Current.RemoveRectangles(ro.Name);
+                    }
+
+                    failAction?.Invoke();
+                    return [];
+                }
+            }
+            finally
+            {
+                if (shouldDisposeMask)
+                {
+                    effectiveMask?.Dispose();
+                }
+
+                if (shouldDisposeTemplate)
+                {
+                    effectiveTemplate.Dispose();
+                }
             }
         }
         else if (RecognitionTypes.Ocr.Equals(ro.RecognitionType))
         {
-            var roi = SrcMat;
-            if (ro.RegionOfInterest != default)
+            if (!ImageRegionReferenceSearchHelper.TryGetReferenceSearchRegion(this, ro, out var effectiveRegionOfInterest, out _))
             {
-                roi = new Mat(SrcMat, ro.RegionOfInterest);
+                failAction?.Invoke();
+                return [];
+            }
+
+            var roi = SrcMat;
+            if (effectiveRegionOfInterest != default)
+            {
+                roi = new Mat(SrcMat, effectiveRegionOfInterest);
             }
 
             var result = ImageRegionOcrPlatform.Current.OcrResult(roi);
@@ -444,7 +522,7 @@ public class ImageRegion : Region
             {
                 var resRaList = result.Regions.Select(r =>
                 {
-                    var newRa = this.Derive(r.Rect.BoundingRect() + ro.RegionOfInterest.Location);
+                    var newRa = this.Derive(r.Rect.BoundingRect() + effectiveRegionOfInterest.Location);
                     newRa.Text = r.Text;
                     foreach (var entry in ro.ReplaceDictionary)
                     {
@@ -458,13 +536,11 @@ public class ImageRegion : Region
                 if (ro.DrawOnWindow && !string.IsNullOrEmpty(ro.Name))
                 {
 #if BGI_FULL_WINDOWS
-#if BGI_FULL_WINDOWS
                     // 画出OCR识别到的区域
                     var drawList = result.Regions.Select(item =>
-                        this.ToRectDrawable(item.Rect.BoundingRect() + ro.RegionOfInterest.Location, ro.Name,
+                        this.ToRectDrawable(item.Rect.BoundingRect() + effectiveRegionOfInterest.Location, ro.Name,
                             ro.DrawOnWindowPen)).ToList();
                     VisionContext.Instance().DrawContent.PutOrRemoveRectList(ro.Name, drawList);
-#endif
 #endif
                 }
 

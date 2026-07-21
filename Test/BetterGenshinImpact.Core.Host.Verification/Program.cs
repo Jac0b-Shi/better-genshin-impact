@@ -348,7 +348,8 @@ var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
 GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
-    () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform, "TemplateMatch"));
+    () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform,
+    imageRegionOcrService, loggerFactory, "TemplateMatch"));
 AutoFightRuntimePlatform.Configure(new MacAutoFightRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory));
 var tpTaskPlatform = new MacTpTaskRuntimePlatform(
@@ -379,7 +380,10 @@ var quickTeleportPlatform = new MacQuickTeleportRuntimePlatform(
 QuickTeleportRuntimePlatform.Configure(quickTeleportPlatform);
 AutoSkipRuntimePlatform.Configure(new MacAutoSkipRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo, loggerFactory, imageRegionOcrService,
-    server.PlatformCallbacks, sessionToken, cancellation.Token, foregroundInputCoordinator));
+    server.PlatformCallbacks, sessionToken, cancellation.Token, foregroundInputCoordinator,
+    new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
+        new BetterGenshinImpact.GameTask.AutoPick.AutoPickConfig(),
+        BetterGenshinImpact.Core.Recognition.PaddleOcrModelConfig.V5Auto, "zh-Hans")));
 AutoEatRuntimePlatform.Configure(new MacAutoEatRuntimePlatform(layout, loggerFactory));
 var triggerGameLoadingPlatform = new MacGameLoadingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, loggerFactory,
@@ -856,7 +860,8 @@ try
     var autoSkipPlatform = new MacAutoSkipRuntimePlatform(
         () => throw new InvalidOperationException("Verification did not request AutoSkip system metrics."),
         loggerFactory, imageRegionOcrService,
-        server.PlatformCallbacks, sessionToken, cancellation.Token, foregroundInputCoordinator);
+        server.PlatformCallbacks, sessionToken, cancellation.Token, foregroundInputCoordinator,
+        verificationAutoPickConfigProvider);
     var autoSkipResponder = Task.Run(async () =>
     {
         var input = await callbackConnection.ReadRequestAsync(cancellation.Token)
@@ -1609,7 +1614,7 @@ try
     var mapFixturePosition = new OpenCvSharp.Point2f(-4251.583984375f, -4785.17578125f);
     await StageMapBack3Async(layout.RootPath, cancellation.Token);
     using (var mapFrame = BuildGroundTruthNavigationFrame(
-               layout.RootPath, MapAssets.Instance.MimiMapRect, mapFixturePosition))
+               layout.RootPath, MapAssets.Get(1920, 1080).MimiMapRect, mapFixturePosition))
     using (var paimon = OpenCvSharp.Cv2.ImRead(
                Path.Combine(sourceRoot, "Common/Element/Assets/1920x1080/paimon_menu.png"),
                OpenCvSharp.ImreadModes.Color))
@@ -2032,7 +2037,7 @@ try
     Console.WriteLine("Real BetterGI genshin.tpToStatueOfTheSeven passed: configured statue, teleport and restore wait.");
 
     using (var movementStartFrame = BuildGroundTruthNavigationFrame(
-               layout.RootPath, MapAssets.Instance.MimiMapRect, mapFixturePosition))
+               layout.RootPath, MapAssets.Get(1920, 1080).MimiMapRect, mapFixturePosition))
     {
         BetterGenshinImpact.GameTask.AutoPathing.Navigation.Reset();
         var movementPositionProbe = Task.Run(async () =>
@@ -2093,7 +2098,7 @@ try
         using var movementMainUiFrame = new OpenCvSharp.Mat(
             schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black);
         using var movementTargetFrame = BuildGroundTruthNavigationFrame(
-            layout.RootPath, MapAssets.Instance.MimiMapRect, movementTargetGroundTruth);
+            layout.RootPath, MapAssets.Get(1920, 1080).MimiMapRect, movementTargetGroundTruth);
         using var movementTeleportButton = OpenCvSharp.Cv2.ImRead(
             Path.Combine(sourceRoot, "QuickTeleport/Assets/1920x1080/GoTeleport.png"),
             OpenCvSharp.ImreadModes.Color);
@@ -2189,7 +2194,7 @@ try
                         if (targetOrientationForFrame is { } targetOrientation)
                         {
                             movementOrientationAlignedFrame = BuildOrientationAlignedFrame(
-                                movementStartFrame, MapAssets.Instance.MimiMapRect, targetOrientation);
+                                movementStartFrame, MapAssets.Get(1920, 1080).MimiMapRect, targetOrientation);
                         }
                         break;
                     case "input.query":
@@ -2249,7 +2254,7 @@ try
     }
     tpTaskPlatform.TpConfig.ShouldMove = false;
 
-    var nearestGoddess = MapLazyAssets.Instance.GoddessPositions["293"];
+    var nearestGoddess = MapLazyAssets.Get().GoddessPositions["293"];
     const double nearestCenterX = -4028.888;
     const double nearestCenterY = -4435.686;
     Require(Math.Abs(nearestGoddess.X - nearestCenterX) < 0.001 &&
@@ -2270,10 +2275,10 @@ try
     using (var nearestMainUiFrame = new OpenCvSharp.Mat(
                schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
     using (var nearestMovementStartFrame = BuildGroundTruthNavigationFrame(
-               layout.RootPath, MapAssets.Instance.MimiMapRect,
+               layout.RootPath, MapAssets.Get(1920, 1080).MimiMapRect,
                new OpenCvSharp.Point2f((float)nearestGoddess.TranX, (float)nearestGoddess.TranY)))
     using (var nearestMovementTargetFrame = BuildGroundTruthNavigationFrame(
-               layout.RootPath, MapAssets.Instance.MimiMapRect, nearestTargetGame))
+               layout.RootPath, MapAssets.Get(1920, 1080).MimiMapRect, nearestTargetGame))
     using (var nearestTeleportButton = OpenCvSharp.Cv2.ImRead(
                Path.Combine(sourceRoot, "QuickTeleport/Assets/1920x1080/GoTeleport.png"),
                OpenCvSharp.ImreadModes.Color))
@@ -2373,7 +2378,7 @@ try
                             RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
                         if (targetOrientationForFrame is { } targetOrientation)
                             nearestOrientationFrame = BuildOrientationAlignedFrame(
-                                nearestMovementStartFrame, MapAssets.Instance.MimiMapRect, targetOrientation);
+                                nearestMovementStartFrame, MapAssets.Get(1920, 1080).MimiMapRect, targetOrientation);
                         break;
                     }
                     case "input.query":
@@ -2463,7 +2468,7 @@ try
         using var partyRegion = new ImageRegion(partyBgra.Clone(), 0, 0);
         Require(BetterGenshinImpact.GameTask.Common.BgiVision.Bv.IsInPartyViewUi(partyRegion),
             "Synthetic party frame did not match the upstream party-view template.");
-        using var partyViewButton = partyRegion.Find(ElementAssets.Instance.PartyBtnChooseView);
+        using var partyViewButton = partyRegion.Find(ElementRecognition.Get("PartyBtnChooseView", partyRegion));
         var partyName = partyRegion.Find(new RecognitionObject
         {
             RecognitionType = RecognitionTypes.Ocr,
@@ -2551,9 +2556,8 @@ try
     using (var avatarOcrFallbackScenes = new ForcedAvatarOcrFallbackCombatScenes(
                imageRegionOcrService.CreateYoloPredictor(
                    BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiAvatarSide),
-               AutoFightAssets.Instance,
+               AutoFightAssets.Get(1920, 1080),
                loggerFactory.CreateLogger<CombatScenes>(),
-               ElementAssets.Instance,
                new HostVerificationSystemInfo())
                .InitializeTeam(avatarOcrFallbackRegion, new AutoFightConfig()))
     {
@@ -3149,9 +3153,8 @@ sealed class ForcedAvatarOcrFallbackCombatScenes(
     BetterGenshinImpact.Core.Recognition.ONNX.BgiYoloPredictor predictor,
     AutoFightAssets autoFightAssets,
     Microsoft.Extensions.Logging.ILogger logger,
-    ElementAssets elementAssets,
     ISystemInfo systemInfo)
-    : CombatScenes(predictor, autoFightAssets, logger, elementAssets, systemInfo)
+    : CombatScenes(predictor, autoFightAssets, logger, systemInfo)
 {
     public override (string, string) ClassifyAvatarCnName(
         SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgb24> image,

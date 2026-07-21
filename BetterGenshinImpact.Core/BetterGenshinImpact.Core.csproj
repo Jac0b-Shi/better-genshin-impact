@@ -17,7 +17,7 @@
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260627" ExcludeAssets="analyzers" />
     <PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260627" ExcludeAssets="analyzers" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Localization" Version="9.0.4" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" />
@@ -27,13 +27,15 @@
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
     <PackageReference Include="Microsoft.ClearScript.V8" Version="7.4.5" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.9" />
-    <PackageReference Include="System.Collections.Immutable" Version="9.0.4" />
+    <PackageReference Include="System.Collections.Immutable" Version="10.0.7" />
     <PackageReference Include="System.IO.Packaging" Version="9.0.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="Semver" Version="3.0.0" />
     <PackageReference Include="YoloSharp" Version="6.0.3" />
     <PackageReference Include="BehaviourTree" Version="1.0.73" />
     <PackageReference Include="TorchSharp" Version="0.105.0" />
+    <PackageReference Include="NCalc" Version="6.2.0" />
+    <PackageReference Include="HungarianAlgorithm" Version="2.3.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -68,6 +70,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTaskParam.cs" Link="GameTask/AutoTrackPath/TpTaskParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTaskRuntimePlatform.cs" Link="GameTask/AutoTrackPath/TpTaskRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/PathExecutor.cs" Link="GameTask/AutoPathing/PathExecutor.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoPathing/SkillBoostHelper.cs" Link="GameTask/AutoPathing/SkillBoostHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/CombatScenes.cs" Link="GameTask/AutoFight/Model/CombatScenes.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightParam.cs" Link="GameTask/AutoFight/AutoFightParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightEndDetector.cs" Link="GameTask/AutoFight/AutoFightEndDetector.cs" />
@@ -102,6 +105,9 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ExitAndReloginJob.cs" Link="GameTask/Common/Job/ExitAndReloginJob.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ScanPickTask.cs" Link="GameTask/Common/Job/ScanPickTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SwitchPartyTask.cs" Link="GameTask/Common/Job/SwitchPartyTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SwitchCharacterStateMachineTask.cs" Link="GameTask/Common/Job/SwitchCharacterStateMachineTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/AvatarGridIconRecognizer.cs" Link="GameTask/Common/Job/AvatarGridIconRecognizer.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/StateMachine/StateMachineBase.cs" Link="GameTask/Common/StateMachine/StateMachineBase.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/LinneaMiningTask.cs" Link="GameTask/Common/Job/LinneaMiningTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/GoToAdventurersGuildTask.cs" Link="GameTask/Common/Job/GoToAdventurersGuildTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ChooseTalkOptionTask.cs" Link="GameTask/Common/Job/ChooseTalkOptionTask.cs" />
@@ -112,8 +118,6 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Audio/DialogueOptionAudioWaiter.cs" Link="GameTask/AutoSkip/Audio/DialogueOptionAudioWaiter.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Audio/DialogueOptionVoiceDetector.cs" Link="GameTask/AutoSkip/Audio/DialogueOptionVoiceDetector.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Audio/SileroVadDetector.cs" Link="GameTask/AutoSkip/Audio/SileroVadDetector.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/Assets/AutoWoodAssets.cs" Link="GameTask/AutoWood/Assets/AutoWoodAssets.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/Assets/GameLoadingAssets.cs" Link="GameTask/GameLoading/Assets/GameLoadingAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/GameLoadingRuntimePlatform.cs" Link="GameTask/GameLoading/GameLoadingRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GameLoading/GameLoading.cs" Link="GameTask/GameLoading/GameLoading.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/MapMask/MapMaskConfig.cs" Link="GameTask/MapMask/MapMaskConfig.cs" />
@@ -138,7 +142,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/MiniMap/MiniMapPreprocessorUtils.cs" Link="GameTask/Common/Map/MiniMap/MiniMapPreprocessorUtils.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Map/Maps/**/*.cs" Link="GameTask/Common/Map/Maps/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/MapAssets.cs" Link="GameTask/Common/Element/Assets/MapAssets.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/ElementAssets.cs" Link="GameTask/Common/Element/Assets/ElementAssets.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/ElementRecognition.cs" Link="GameTask/Common/Element/Assets/ElementRecognition.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Element/Assets/MapLazyAssets.cs" Link="GameTask/Common/Element/Assets/MapLazyAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/Model/*.cs" Link="GameTask/AutoTrackPath/Model/%(Filename)%(Extension)" />
   </ItemGroup>
@@ -155,12 +159,12 @@
   <!-- GameTask/Model/Area (linked upstream files) -->
   <ItemGroup>
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/ImageRegion.cs" Link="GameTask/Model/Area/ImageRegion.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/ImageRegionReferenceSearchHelper.cs" Link="GameTask/Model/Area/ImageRegionReferenceSearchHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/Region.cs" Link="GameTask/Model/Area/Region.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/DesktopRegion.cs" Link="GameTask/Model/Area/DesktopRegion.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/DesktopRegionInputPlatform.cs" Link="GameTask/Model/Area/DesktopRegionInputPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/Area/GameCaptureRegion.cs" Link="GameTask/Model/Area/GameCaptureRegion.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvImageIO.cs" Link="GameTask/Common/BgiVision/BvImageIO.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMainUi.cs" Link="GameTask/Common/BgiVision/BvMainUi.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.cs" Link="GameTask/Common/BgiVision/BvResxHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvMotionStatus.cs" Link="GameTask/Common/BgiVision/BvMotionStatus.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/GameUiCategory.cs" Link="GameTask/Common/BgiVision/GameUiCategory.cs" />
@@ -175,6 +179,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Model/ISystemInfo.cs" Link="GameTask/Model/ISystemInfo.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/RectArea.cs" Link="GameTask/Model/RectArea.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseAssets.cs" Link="GameTask/Model/BaseAssets.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Model/Assets/AssetsCache.cs" Link="GameTask/Model/Assets/AssetsCache.cs" />
   </ItemGroup>
 
   <!-- Core/Recognition -->
@@ -184,6 +189,10 @@
     <Compile Include="../BetterGenshinImpact/Core/BgiVision/BvPage.cs" Link="Core/BgiVision/BvPage.cs" />
     <Compile Include="../BetterGenshinImpact/Core/BgiVision/BvRuntimePlatform.cs" Link="Core/BgiVision/BvRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionObject.cs" Link="Core/Recognition/RecognitionObject.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionAssets.cs" Link="Core/Recognition/RecognitionAssets.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionObjectJsonConfig.cs" Link="Core/Recognition/RecognitionObjectJsonConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionObjectJsonLoader.cs" Link="Core/Recognition/RecognitionObjectJsonLoader.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/SearchOptions.cs" Link="Core/Recognition/SearchOptions.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/RecognitionTypes.cs" Link="Core/Recognition/RecognitionTypes.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OverlayDrawPlatform.cs" Link="Core/Recognition/OverlayDrawPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OcrEngineTypes.cs" Link="Core/Recognition/OcrEngineTypes.cs" />
@@ -297,6 +306,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatSceneProvider.cs" Link="GameTask/AutoFight/Script/CombatSceneProvider.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatCommand.cs" Link="GameTask/AutoFight/Script/CombatCommand.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatCommand.Execution.cs" Link="GameTask/AutoFight/Script/CombatCommand.Execution.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptExecutor.cs" Link="GameTask/AutoFight/Script/CombatScriptExecutor.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScript.cs" Link="GameTask/AutoFight/Script/CombatScript.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptBag.cs" Link="GameTask/AutoFight/Script/CombatScriptBag.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/CombatScriptBag.Execution.cs" Link="GameTask/AutoFight/Script/CombatScriptBag.Execution.cs" />
@@ -308,7 +318,6 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/JsonCombatStrategy.cs" Link="GameTask/AutoFight/Script/JsonCombatStrategy.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Script/JsonCombatStrategyParser.cs" Link="GameTask/AutoFight/Script/JsonCombatStrategyParser.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" Link="GameTask/AutoSkip/AutoSkipRuntimePlatform.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Assets/AutoSkipAssets.cs" Link="GameTask/AutoSkip/Assets/AutoSkipAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/Assets/HangoutConfig.cs" Link="GameTask/AutoSkip/Assets/HangoutConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ContoursHelper.cs" Link="Core/Recognition/OpenCv/ContoursHelper.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ExitAndReloginPlatform.cs" Link="GameTask/Common/Job/ExitAndReloginPlatform.cs" />
@@ -329,7 +338,6 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFishing/AutoFishingTrigger.cs" Link="GameTask/AutoFishing/AutoFishingTrigger.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatRuntimePlatform.cs" Link="GameTask/AutoEat/AutoEatRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTrigger.cs" Link="GameTask/AutoEat/AutoEatTrigger.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/Assets/AutoEatAssets.cs" Link="GameTask/AutoEat/Assets/AutoEatAssets.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseTaskParam.cs" Link="GameTask/Model/BaseTaskParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/TaskParameterPlatform.cs" Link="GameTask/Model/TaskParameterPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/GridScreenExtensions.cs" Link="GameTask/Model/GameUI/GridScreenExtensions.cs" />

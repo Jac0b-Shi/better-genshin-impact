@@ -30,7 +30,7 @@ public partial class AutoPickTrigger : ITaskTrigger
     public int Priority => 30;
     public bool IsExclusive => false;
 
-    private readonly AutoPickAssets _autoPickAssets;
+    private AutoPickAssets _autoPickAssets = null!;
 
     /// <summary>
     /// 拾取黑名单
@@ -80,7 +80,6 @@ public partial class AutoPickTrigger : ITaskTrigger
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(paddleRecognizer);
         ArgumentNullException.ThrowIfNull(yapRecognizer);
-        _autoPickAssets = AutoPickAssets.Instance;
         _externalConfig = config;
         _runtimeState = runtimeState;
         _configProvider = configProvider;
@@ -89,13 +88,10 @@ public partial class AutoPickTrigger : ITaskTrigger
         _logger = logger;
         _paddleRecognizer = paddleRecognizer;
         _yapRecognizer = yapRecognizer;
-        // _pickRo is set in Init() after AutoPickAssets.EnsureConfigured
     }
 
     public void Init()
     {
-        AutoPickAssets.EnsureConfigured();
-        _pickRo = _autoPickAssets.PickRo;
         var config = _configProvider.AutoPickConfig;
         IsEnabled = config.Enabled;
 
@@ -188,6 +184,8 @@ public partial class AutoPickTrigger : ITaskTrigger
 
     public void OnCapture(CaptureContent content)
     {
+        _autoPickAssets = AutoPickAssets.Get(content.CaptureRectArea, _configProvider.AutoPickConfig.PickKey);
+        _pickRo = _autoPickAssets.PickRo;
         while (StopCount > 0)
         {
             Thread.Sleep(1000);
@@ -215,7 +213,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         if (_externalConfig is { ForceInteraction: true })
         {
             LogPick(content, "直接拾取");
-            _inputBackend.KeyPress(AutoPickAssets.Instance.PickVk);
+            _inputBackend.KeyPress(_autoPickAssets.PickVk);
             return;
         }
 
@@ -223,7 +221,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         var config = _configProvider.AutoPickConfig;
 
         // 存在 L 键位是千星奇遇，无需拾取
-        using var lKeyRa = content.CaptureRectArea.Find(_autoPickAssets.LRo);
+        using var lKeyRa = content.CaptureRectArea.Find(RecognitionAssets.Get("AutoPick", "L", content.CaptureRectArea));
         if (lKeyRa.IsExist())
         {
             return;
@@ -231,10 +229,12 @@ public partial class AutoPickTrigger : ITaskTrigger
 
         // 识别到拾取键，开始识别物品图标
         var isExcludeIcon = false;
-        _autoPickAssets.ChatIconRo.RegionOfInterest = new Rect(
+        var iconRoi = new Rect(
             foundRectArea.X + (int)(config.ItemIconLeftOffset * scale), foundRectArea.Y,
             (int)((config.ItemTextLeftOffset - config.ItemIconLeftOffset) * scale), foundRectArea.Height);
-        using var chatIconRa = content.CaptureRectArea.Find(_autoPickAssets.ChatIconRo);
+        var chatIconRo = RecognitionAssets.Get("AutoSkip", "ChatIcon", content.CaptureRectArea).Clone();
+        chatIconRo.RegionOfInterest = iconRoi;
+        using var chatIconRa = content.CaptureRectArea.Find(chatIconRo);
         speedTimer.Record("识别聊天图标");
         if (!chatIconRa.IsEmpty())
         {
@@ -243,8 +243,9 @@ public partial class AutoPickTrigger : ITaskTrigger
         }
         else
         {
-            _autoPickAssets.SettingsIconRo.RegionOfInterest = _autoPickAssets.ChatIconRo.RegionOfInterest;
-            using var settingsIconRa = content.CaptureRectArea.Find(_autoPickAssets.SettingsIconRo);
+            var settingsIconRo = RecognitionAssets.Get("AutoPick", "SettingsIcon", content.CaptureRectArea).Clone();
+            settingsIconRo.RegionOfInterest = iconRoi;
+            using var settingsIconRa = content.CaptureRectArea.Find(settingsIconRo);
             speedTimer.Record("识别设置图标");
             if (!settingsIconRa.IsEmpty())
             {
@@ -262,7 +263,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         if (!config.WhiteListEnabled && !config.BlackListEnabled && !isExcludeIcon)
         {
             // 没有黑白名单直接拾取
-            _inputBackend.KeyPress(AutoPickAssets.Instance.PickVk);
+            _inputBackend.KeyPress(_autoPickAssets.PickVk);
             LogPick(content, "黑名单未启用，直接拾取");
         }
 
@@ -330,7 +331,7 @@ public partial class AutoPickTrigger : ITaskTrigger
             if (config.WhiteListEnabled && _whiteList.Contains(text))
             {
                 LogPick(content, text);
-                _inputBackend.KeyPress(AutoPickAssets.Instance.PickVk);
+                _inputBackend.KeyPress(_autoPickAssets.PickVk);
                 return;
             }
 
@@ -361,7 +362,7 @@ public partial class AutoPickTrigger : ITaskTrigger
             speedTimer.Record("黑名单判断");
 
             LogPick(content, text);
-            _inputBackend.KeyPress(AutoPickAssets.Instance.PickVk);
+            _inputBackend.KeyPress(_autoPickAssets.PickVk);
         }
 
         speedTimer.DebugPrint();

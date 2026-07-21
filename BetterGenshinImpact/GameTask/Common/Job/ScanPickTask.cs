@@ -23,11 +23,11 @@ public class ScanPickTask
     private readonly double _dpi = AutoFight.AutoFightRuntimePlatform.Current.DpiScale;
 
 
-    public async Task Start(CancellationToken ct)
+    public async Task Start(CancellationToken ct, int? seconds = null)
     {
         try
         {
-            await DoOnce(ct);
+            await DoOnce(ct, seconds);
         }
         catch (Exception e)
         {
@@ -40,9 +40,9 @@ public class ScanPickTask
         }
     }
 
-    public async Task DoOnce(CancellationToken ct)
+    public async Task DoOnce(CancellationToken ct, int? seconds = null)
     {
-        var sec = AutoFight.AutoFightRuntimePlatform.Current.AutoFightConfig.PickDropsAfterFightSeconds;
+        var sec = seconds ?? AutoFight.AutoFightRuntimePlatform.Current.AutoFightConfig.PickDropsAfterFightSeconds;
         Stopwatch timeoutStopwatch = Stopwatch.StartNew();
         TimeSpan finishTime = TimeSpan.FromSeconds(sec);
 

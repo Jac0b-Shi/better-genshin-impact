@@ -10,6 +10,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BetterGenshinImpact.GameTask.AutoFight;
+using BetterGenshinImpact.GameTask.AutoFight.Script;
+using BetterGenshinImpact.GameTask.Common;
 
 namespace BetterGenshinImpact.Core.Script.Dependence;
 
@@ -204,23 +206,23 @@ public class Dispatcher
     {
         return GetLinkedCancellationTokenSource().Token;
     }
-    
-    /// <summary>  
+
+    /// <summary>
     /// 运行自动秘境任务
-    /// </summary>  
-    /// <param name="param">秘境任务参数</param>  
-    /// <param name="customCt">自定义取消令牌</param>  
-    /// <returns></returns>  
+    /// </summary>
+    /// <param name="param">秘境任务参数</param>
+    /// <param name="customCt">自定义取消令牌</param>
+    /// <returns></returns>
     public async Task<object?> RunAutoDomainTask(object param, CancellationToken? customCt = null)
-    {  
-        if (param == null)  
-        {  
-            throw new ArgumentNullException(nameof(param), "秘境任务参数不能为空");  
-        }  
-  
+    {
+        if (param == null)
+        {
+            throw new ArgumentNullException(nameof(param), "秘境任务参数不能为空");
+        }
+
         CancellationToken cancellationToken = customCt ?? DispatcherRuntimePlatform.Current.GlobalCancellationToken;
         return await DispatcherRuntimePlatform.Current.RunParameterizedTask("AutoDomain", param, cancellationToken);
-    }  
+    }
 
     /// <summary>
     /// 运行自动首领讨伐任务
@@ -239,47 +241,72 @@ public class Dispatcher
         return await DispatcherRuntimePlatform.Current.RunParameterizedTask("AutoBoss", param, cancellationToken);
     }
 
-    /// <summary>  
+    /// <summary>
     /// 运行自动战斗任务
-    /// </summary>  
-    /// <param name="param">战斗任务参数</param>  
-    /// <param name="customCt">自定义取消令牌</param>  
-    /// <returns></returns>  
-    public async Task RunAutoFightTask(AutoFightParam param, CancellationToken? customCt = null)  
-    {  
-        if (param == null)  
-        {  
-            throw new ArgumentNullException(nameof(param), "战斗任务参数不能为空");  
-        }  
-  
+    /// </summary>
+    /// <param name="param">战斗任务参数</param>
+    /// <param name="customCt">自定义取消令牌</param>
+    /// <returns></returns>
+    public async Task RunAutoFightTask(AutoFightParam param, CancellationToken? customCt = null)
+    {
+        if (param == null)
+        {
+            throw new ArgumentNullException(nameof(param), "战斗任务参数不能为空");
+        }
+
         CancellationToken cancellationToken = customCt ?? DispatcherRuntimePlatform.Current.GlobalCancellationToken;
         await DispatcherRuntimePlatform.Current.RunParameterizedTask("AutoFight", param, cancellationToken);
     }
-    
-    /// <summary>  
+
+    /// <summary>
+    /// 运行简易战斗策略脚本。
+    /// 使用策略语言直接控制角色执行动作（如 e、q、attack 等），适合快速操作。
+    /// </summary>
+    /// <param name="script">策略字符串，支持逗号/换行/分号分隔指令，可选角色名前缀</param>
+    /// <param name="avatarName">指定操作的角色名（可选，不指定则操作当前角色）</param>
+    /// <param name="customCt">自定义取消令牌</param>
+    public async Task RunCombatScript(string script, string? avatarName = null, CancellationToken? customCt = null)
+    {
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            throw new ArgumentException("策略字符串不能为空", nameof(script));
+        }
+
+        CancellationToken cancellationToken = customCt ?? DispatcherRuntimePlatform.Current.GlobalCancellationToken;
+
+        // 1. 解析策略字符串（ParseContext 已处理全角符号、注释、分号/逗号分隔）
+        var combatScript = CombatScriptParser.ParseContext(script, validate: false, defaultAvatarName: avatarName);
+        if (combatScript.CombatCommands.Count == 0) return;
+
+        _logger.LogInformation("执行 {Text}", "简易策略脚本");
+
+        await CombatScriptExecutor.ExecuteAsync(combatScript, cancellationToken, _logger);
+    }
+
+    /// <summary>
     /// 运行自动地脉花任务
-    /// </summary>  
-    /// <param name="param">自动地脉花任务参数</param>  
-    /// <param name="customCt">自定义取消令牌</param>  
-    /// <returns></returns>  
+    /// </summary>
+    /// <param name="param">自动地脉花任务参数</param>
+    /// <param name="customCt">自定义取消令牌</param>
+    /// <returns></returns>
     public async Task RunAutoLeyLineOutcropTask(object param, CancellationToken? customCt = null)
-    {  
-        if (param == null)  
-        {  
-            throw new ArgumentNullException(nameof(param), "自动地脉花任务参数不能为空");  
-        }  
-  
+    {
+        if (param == null)
+        {
+            throw new ArgumentNullException(nameof(param), "自动地脉花任务参数不能为空");
+        }
+
         CancellationToken cancellationToken = customCt ?? DispatcherRuntimePlatform.Current.GlobalCancellationToken;
         await DispatcherRuntimePlatform.Current.RunParameterizedTask("AutoLeyLineOutcrop", param, cancellationToken);
     }
 
 
-    /// <summary>  
+    /// <summary>
     /// 运行自动幽境危战任务
-    /// </summary>  
-    /// <param name="param">自动幽境危战任务参数</param>  
-    /// <param name="customCt">自定义取消令牌</param>  
-    /// <returns></returns>  
+    /// </summary>
+    /// <param name="param">自动幽境危战任务参数</param>
+    /// <param name="customCt">自定义取消令牌</param>
+    /// <returns></returns>
     public async Task RunAutoStygianOnslaughtTask(object param, CancellationToken? customCt = null)
     {
         if (param == null)
@@ -290,7 +317,7 @@ public class Dispatcher
         CancellationToken cancellationToken = customCt ?? DispatcherRuntimePlatform.Current.GlobalCancellationToken;
         await DispatcherRuntimePlatform.Current.RunParameterizedTask("AutoStygianOnslaught", param, cancellationToken);
     }
-    
+
     /// <summary>
     /// 运行背包物品计数任务。
     /// </summary>

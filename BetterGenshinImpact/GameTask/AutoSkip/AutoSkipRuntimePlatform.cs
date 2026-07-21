@@ -28,6 +28,7 @@ public interface IAutoSkipAudioSampleCapture : IDisposable
 public interface IAutoSkipRuntimePlatform
 {
     ISystemInfo SystemInfo { get; }
+    string PickKey { get; }
     ILogger<T> GetLogger<T>();
     IOcrService OcrService { get; }
     bool IsGameActive();

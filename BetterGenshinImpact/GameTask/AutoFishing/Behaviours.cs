@@ -601,7 +601,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 return BehaviourStatus.Running;
             }
 
-            using Region btnRectArea = imageRegion.Find(blackboard.AutoFishingAssets.BaitButtonRo);
+            using Region btnRectArea = imageRegion.Find(RecognitionAssets.Get("AutoFishing", "BaitButton", imageRegion));
             if (btnRectArea.IsEmpty())
             {
                 hasChecked = true;
@@ -699,7 +699,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
                 return BehaviourStatus.Running;
             }
 
-            using Region btnRectArea = imageRegion.Find(blackboard.AutoFishingAssets.WaitBiteButtonRo);
+            using Region btnRectArea = imageRegion.Find(RecognitionAssets.Get("AutoFishing", "WaitBiteButton", imageRegion));
             if (btnRectArea.IsEmpty())
             {
                 hasChecked = true;
@@ -761,7 +761,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
             }
 
             // 图像提竿判断
-            using var liftRodButtonRa = imageRegion.Find(blackboard.AutoFishingAssets.LiftRodButtonRo);
+            using var liftRodButtonRa = imageRegion.Find(RecognitionAssets.Get("AutoFishing", "LiftRodButton", imageRegion));
             if (!liftRodButtonRa.IsEmpty())
             {
                 return RaiseRod("图像识别");
@@ -1103,7 +1103,7 @@ namespace BetterGenshinImpact.GameTask.AutoFishing
 
         protected override BehaviourStatus Update(ImageRegion imageRegion)
         {
-            using Region btnRectArea = imageRegion.Find(blackboard.AutoFishingAssets.BaitButtonRo);
+            using Region btnRectArea = imageRegion.Find(RecognitionAssets.Get("AutoFishing", "BaitButton", imageRegion));
             if (btnRectArea.IsEmpty())
             {
                 if (moveMouseInterval == null || timeProvider.GetLocalNow() > moveMouseInterval)

@@ -8,6 +8,7 @@ using BetterGenshinImpact.Core.Script;
 using BetterGenshinImpact.Core.Script.Dependence;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
+using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.Core.Config;
 using Newtonsoft.Json.Linq;
 using System.Text.Json;
@@ -71,7 +72,6 @@ public sealed class MacScriptServicePlatform(
         if (!waitForMainUi)
             return;
 
-        using var assets = new MacMainUiRecognitionAssets(gameTaskManagerPlatform.SystemInfo);
         var first = true;
         while (true)
         {
@@ -86,7 +86,7 @@ public sealed class MacScriptServicePlatform(
                 "capture.request", null, sessionToken, hostCancellationToken)
                 ?? throw new InvalidDataException("capture.request returned an empty response.");
             using var content = captureRing.Read(response);
-            if (Bv.IsInMainUi(content, assets.PaimonMenu, assets.ReviveConfirm, "复苏"))
+            if (Bv.IsInMainUi(content))
                 return;
             if (first)
             {
@@ -102,10 +102,9 @@ public sealed class MacScriptServicePlatform(
         if (now.Hour != 4 || now.Minute >= 10)
             return;
 
-        using var assets = new MacMainUiRecognitionAssets(gameTaskManagerPlatform.SystemInfo);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, hostCancellationToken);
         using var firstFrame = await Capture(linked.Token);
-        if (!IsBlessing(firstFrame, assets))
+        if (!IsBlessing(firstFrame))
             return;
 
         Logger.LogInformation("检测到空月祝福界面，自动点击");
@@ -120,7 +119,7 @@ public sealed class MacScriptServicePlatform(
             }
             await Task.Delay(500, linked.Token);
             using var frame = await Capture(linked.Token);
-            consecutiveAbsent = IsBlessing(frame, assets) ? 0 : consecutiveAbsent + 1;
+            consecutiveAbsent = IsBlessing(frame) ? 0 : consecutiveAbsent + 1;
         }
         Logger.LogInformation("空月祝福处理完毕");
     }
@@ -169,13 +168,11 @@ public sealed class MacScriptServicePlatform(
         return captureRing.Read(response);
     }
 
-    private static bool IsBlessing(
-        BetterGenshinImpact.GameTask.Model.Area.ImageRegion frame,
-        MacMainUiRecognitionAssets assets)
+    private static bool IsBlessing(BetterGenshinImpact.GameTask.Model.Area.ImageRegion frame)
     {
-        if (Bv.IsInBlessingOfTheWelkinMoon(frame, assets.GirlMoon, assets.WelkinMoon))
+        if (Bv.IsInBlessingOfTheWelkinMoon(frame))
             return true;
-        using var primogem = frame.Find(assets.Primogem);
+        using var primogem = frame.Find(ElementRecognition.Get("Primogem", frame));
         return primogem.IsExist();
     }
 

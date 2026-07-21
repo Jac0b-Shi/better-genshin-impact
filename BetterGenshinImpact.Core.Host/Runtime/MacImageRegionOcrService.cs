@@ -35,6 +35,7 @@ public sealed class MacImageRegionOcrService : IOcrService, IDisposable
     public OcrResult OcrResult(Mat mat) => _factory.Value.Service.OcrResult(mat);
     public BgiYoloPredictor CreateYoloPredictor(BgiOnnxModel model) =>
         _onnxFactory.CreateYoloPredictor(model);
+    public BgiOnnxFactory OnnxFactory => _onnxFactory;
 
     public IPaddleAutoPickTextRecognizer CreatePaddleAutoPickTextRecognizer() =>
         new PaddleAutoPickTextRecognizer(this);

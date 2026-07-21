@@ -2,27 +2,15 @@ using System.Collections.Generic;
 using BetterGenshinImpact.Core.Abstractions.Recognition;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
-using BetterGenshinImpact.GameTask.AutoBoss.Assets;
-using BetterGenshinImpact.GameTask.AutoDomain.Assets;
-using BetterGenshinImpact.GameTask.AutoFight.Assets;
-using BetterGenshinImpact.GameTask.AutoFishing.Assets;
-using BetterGenshinImpact.GameTask.AutoGeniusInvokation.Assets;
-using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.AutoSkip;
-using BetterGenshinImpact.GameTask.AutoSkip.Assets;
-using BetterGenshinImpact.GameTask.AutoWood.Assets;
-using BetterGenshinImpact.GameTask.AutoEat.Assets;
-using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.GameLoading;
-using BetterGenshinImpact.GameTask.GameLoading.Assets;
 using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.GameTask.Placeholder;
-using BetterGenshinImpact.GameTask.QuickSereniteaPot.Assets;
-using BetterGenshinImpact.GameTask.QuickTeleport.Assets;
 using BetterGenshinImpact.GameTask.SkillCd;
 using BetterGenshinImpact.Platform.Abstractions;
 using BetterGenshinImpact.View.Drawable;
+using BetterGenshinImpact.Core.Recognition;
 
 namespace BetterGenshinImpact.GameTask;
 
@@ -35,7 +23,6 @@ public sealed class WindowsGameTaskManagerPlatform : IGameTaskManagerPlatform
         IAutoPickConfigProvider autoPickConfigProvider,
         IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer)
     {
-        AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider, App.GetLogger<AutoPickAssets>());
         return
         [
             new("RecognitionTest", new TestTrigger()), new("GameLoading", new GameLoadingTrigger()),
@@ -65,10 +52,6 @@ public sealed class WindowsGameTaskManagerPlatform : IGameTaskManagerPlatform
     public void ClearOverlay() => VisionContext.Instance().DrawContent.ClearAll();
     public void ReloadAssets()
     {
-        AutoPickAssets.DestroyInstance(); AutoSkipAssets.DestroyInstance(); AutoFishingAssets.DestroyInstance();
-        QuickTeleportAssets.DestroyInstance(); AutoWoodAssets.DestroyInstance(); AutoGeniusInvokationAssets.DestroyInstance();
-        AutoFightAssets.DestroyInstance(); ElementAssets.DestroyInstance(); QuickSereniteaPotAssets.DestroyInstance();
-        GameLoadingAssets.DestroyInstance(); MapLazyAssets.DestroyInstance(); AutoEatAssets.DestroyInstance();
-        AutoDomainAssets.DestroyInstance(); AutoBossAssets.DestroyInstance();
+        RecognitionAssets.ClearAll();
     }
 }

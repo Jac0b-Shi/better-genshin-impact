@@ -6,6 +6,9 @@ using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.ViewModel.Pages;
+using BetterGenshinImpact.Core.Recognition.OCR;
+using BetterGenshinImpact.Core.Recognition.ONNX;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BetterGenshinImpact.Core.Script.Dependence;
 
@@ -28,4 +31,12 @@ public sealed class WindowsGenshinRuntimePlatform : IGenshinRuntimePlatform
         new ClaimBattlePassRewardsTask().Start(cancellationToken);
     public Task GoToCraftingBench(string country, CancellationToken cancellationToken) =>
         new GoToCraftingBenchTask().Start(country, cancellationToken);
+    public Task<bool> SwitchCharacter(string slot1, string slot2, string slot3, string slot4,
+        CancellationToken cancellationToken) =>
+        new SwitchCharacterStateMachineTask(
+            App.GetLogger<SwitchCharacterStateMachineTask>(),
+            SystemInfo,
+            App.ServiceProvider.GetRequiredService<BgiOnnxFactory>(),
+            App.ServiceProvider.GetRequiredService<OcrFactory>().Service)
+            .Start(slot1, slot2, slot3, slot4, cancellationToken);
 }

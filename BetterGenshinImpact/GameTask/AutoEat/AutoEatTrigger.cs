@@ -1,10 +1,10 @@
+using BetterGenshinImpact.Core.Recognition;
+using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.Model.Area;
-using BetterGenshinImpact.GameTask.AutoEat.Assets;
 using Microsoft.Extensions.Logging;
 using System;
-using BetterGenshinImpact.Core.Simulator.Extensions;
 
 namespace BetterGenshinImpact.GameTask.AutoEat;
 
@@ -112,7 +112,7 @@ public class AutoEatTrigger : ITaskTrigger
     {
         try
         {
-            var result = imageRegion.Find(AutoEatAssets.Instance.RecoveryIconRa);
+            var result = imageRegion.Find(RecognitionAssets.Get("AutoEat", "RecoveryIcon", imageRegion));
             return result.IsExist();
         }
         catch (Exception e)
@@ -129,7 +129,7 @@ public class AutoEatTrigger : ITaskTrigger
     {
         try
         {
-            var result = imageRegion.Find(AutoEatAssets.Instance.ResurrectionIconRa);
+            var result = imageRegion.Find(RecognitionAssets.Get("AutoEat", "ResurrectionIcon", imageRegion));
             return result.IsExist();
         }
         catch (Exception e)

@@ -1,8 +1,6 @@
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask.AutoFight.Assets;
-using BetterGenshinImpact.GameTask.AutoSkip.Assets;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
-using BetterGenshinImpact.GameTask.GameLoading.Assets;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.QuickTeleport.Assets;
 using BetterGenshinImpact.Helpers;
@@ -64,6 +62,17 @@ public static partial class Bv
 
 
     /// <summary>
+    /// 是否在主界面
+    /// </summary>
+    /// <param name="captureRa"></param>
+    /// <returns></returns>
+    public static bool IsInMainUi(ImageRegion captureRa)
+    {
+        using var ra = captureRa.Find(ElementRecognition.Get("PaimonMenu", captureRa));
+        return ra.IsExist() && !IsInRevivePrompt(captureRa);
+    }
+
+    /// <summary>
     /// 等待主界面加载完成
     /// </summary>
     /// <param name="ct"></param>
@@ -91,7 +100,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInDomain(ImageRegion captureRa)
     {
-        using var matchRegion = captureRa.Find(ElementAssets.Instance.InDomainRo);
+        using var matchRegion = captureRa.Find(ElementRecognition.Get("InDomain", captureRa));
         if (matchRegion.IsEmpty())
         {
             return false;
@@ -130,7 +139,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInAnyClosableUi(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(QuickTeleportAssets.Instance.MapCloseButtonRo);
+        using var ra = captureRa.Find(RecognitionAssets.Get("QuickTeleport", "MapCloseButton", captureRa));
         return ra.IsExist();
     }
 
@@ -141,7 +150,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInPartyViewUi(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(ElementAssets.Instance.PartyBtnChooseView);
+        using var ra = captureRa.Find(ElementRecognition.Get("PartyBtnChooseView", captureRa));
         return ra.IsExist();
     }
 
@@ -161,6 +170,23 @@ public static partial class Bv
     }
 
     /// <summary>
+    /// 是否在大地图界面
+    /// </summary>
+    /// <param name="captureRa"></param>
+    /// <returns></returns>
+    public static bool IsInBigMapUi(ImageRegion captureRa)
+    {
+        using var scaleRa = captureRa.Find(RecognitionAssets.Get("QuickTeleport", "MapScaleButton", captureRa));
+        if (scaleRa.IsExist())
+        {
+            return true;
+        }
+
+        using var settingsRa = captureRa.Find(RecognitionAssets.Get("QuickTeleport", "MapSettingsButton", captureRa));
+        return settingsRa.IsExist();
+    }
+
+    /// <summary>
     /// 大地图界面是否在地底
     /// 鼠标悬浮在地下图标或者处于切换动画的时候可能会误识别
     /// </summary>
@@ -168,13 +194,13 @@ public static partial class Bv
     /// <returns></returns>
     public static bool BigMapIsUnderground(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(QuickTeleportAssets.Instance.MapUndergroundSwitchButtonRo);
+        using var ra = captureRa.Find(RecognitionAssets.Get("QuickTeleport", "MapUndergroundSwitchButton", captureRa));
         return ra.IsExist();
     }
 
     public static double GetBigMapScale(ImageRegion region)
     {
-        using var scaleRa = region.Find(QuickTeleportAssets.Instance.MapScaleButtonRo);
+        using var scaleRa = region.Find(RecognitionAssets.Get("QuickTeleport", "MapScaleButton", region));
         if (scaleRa.IsEmpty())
         {
             throw new Exception("当前未处于大地图界面，不能使用GetBigMapScale方法");
@@ -188,6 +214,22 @@ public static partial class Bv
         return (end * 1.0 - cur) / (end - start);
     }
 
+    public static MotionStatus GetMotionStatus(ImageRegion captureRa)
+    {
+        using var spaceRa = captureRa.Find(ElementRecognition.Get("SpaceKey", captureRa));
+        var spaceExist = spaceRa.IsExist();
+        using var xRa = captureRa.Find(ElementRecognition.Get("XKey", captureRa));
+        var xExist = xRa.IsExist();
+        if (spaceExist)
+        {
+            return xExist ? MotionStatus.Climb : MotionStatus.Fly;
+        }
+        else
+        {
+            return MotionStatus.Normal;
+        }
+    }
+
     /// <summary>
     /// 是否出现复苏提示
     /// </summary>
@@ -195,10 +237,25 @@ public static partial class Bv
     /// <returns></returns>
     internal static bool IsInRevivePrompt(ImageRegion region)
     {
-        CultureInfo cultureInfo = new CultureInfo(BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GameCultureInfoName);
-        IStringLocalizer stringLocalizer = BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GetStringLocalizer<BvResxHelper>();
-        string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
-        return IsInRevivePrompt(region, AutoFightAssets.Instance.ConfirmRa, revival);
+        using var confirmRectArea = region.Find(RecognitionAssets.Get("AutoFight", "Confirm", region));
+        if (!confirmRectArea.IsEmpty())
+        {
+            var list = region.FindMulti(new RecognitionObject
+            {
+                RecognitionType = RecognitionTypes.Ocr,
+                RegionOfInterest = new Rect(0, 0, region.Width, region.Height / 2)
+            });
+
+            CultureInfo cultureInfo = new CultureInfo(BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GameCultureInfoName);
+            IStringLocalizer stringLocalizer = BetterGenshinImpact.GameTask.Model.TaskParameterPlatform.Current.GetStringLocalizer<BvResxHelper>();
+            string revival = stringLocalizer.WithCultureGet(cultureInfo, "复苏");
+            if (list.Any(r => r.Text.Contains(revival)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -246,8 +303,16 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInBlessingOfTheWelkinMoon(ImageRegion captureRa)
     {
-        return IsInBlessingOfTheWelkinMoon(
-            captureRa, GameLoadingAssets.Instance.GirlMoonRo, GameLoadingAssets.Instance.WelkinMoonRo);
+        var ra = captureRa;
+
+        using var girlRa = ra.Find(RecognitionAssets.Get("GameLoading", "GirlMoon", ra));
+        if (girlRa.IsExist())
+        {
+            return true;
+        }
+
+        using var moonRa = ra.Find(RecognitionAssets.Get("GameLoading", "WelkinMoon", ra));
+        return moonRa.IsExist();
     }
 
     /// <summary>
@@ -257,7 +322,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInTalkUi(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(AutoSkipAssets.Instance.DisabledUiButtonRo);
+        using var ra = captureRa.Find(RecognitionAssets.Get("AutoSkip", "DisabledUiButton", captureRa.Width, captureRa.Height));
         return ra.IsExist();
     }
 
@@ -284,7 +349,7 @@ public static partial class Bv
     /// <returns></returns>
     public static bool IsInPromptDialog(ImageRegion captureRa)
     {
-        using var ra = captureRa.Find(ElementAssets.Instance.PromptDialogLeftBottomStar);
+        using var ra = captureRa.Find(ElementRecognition.Get("PromptDialogLeftBottomStar", captureRa));
         return ra.IsExist();
     }
     

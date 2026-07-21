@@ -1,7 +1,6 @@
-﻿using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
-using BetterGenshinImpact.GameTask.AutoSkip.Assets;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using Microsoft.Extensions.Logging;
@@ -101,7 +100,7 @@ public class GoToAdventurersGuildTask
             ra1.Dispose();
             
             await _chooseTalkOptionTask.SelectLastOptionUntilEnd(ct, null, 3); // 点几下
-            await Bv.WaitUntilFound(ElementAssets.Instance.PaimonMenuRo, ct);
+            await Bv.WaitUntilFound(ElementRecognition.Get("PaimonMenu"), ct);
             await Delay(500, ct);
             PressEscape();
             await new ReturnMainUiTask().Start(ct);
@@ -128,7 +127,7 @@ public class GoToAdventurersGuildTask
         if (res == TalkOptionRes.FoundAndClick)
         {
             await Delay(500, ct);
-            new OneKeyExpeditionTask().Run(AutoSkipAssets.Instance);
+            new OneKeyExpeditionTask().Run();
         }
         else if (res == TalkOptionRes.FoundButNotOrange)
         {

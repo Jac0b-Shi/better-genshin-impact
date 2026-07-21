@@ -75,7 +75,6 @@ namespace BetterGenshinImpact.GameTask.Model.GameUI
             /// 单次滚动得到的页面
             /// </summary>
             /// <param name="ImageRegion">供枚举输出的队列</param>
-            /// <param name="AntiRecycling">为了防止Grid的页面元素自动回收复用技术导致item高亮干扰，每次滚动后记录靠近下方的一个item，在下次滚动前主动点击该item</param>
             private record Page(ImageRegion PageRegion, Queue<Rect> ItemRects, Rect? AntiRecycling);
             private Page? currentPage;
             private Tuple<ImageRegion, Rect>? current;
@@ -322,6 +321,7 @@ namespace BetterGenshinImpact.GameTask.Model.GameUI
                 }
                 // 根据聚簇结果补漏……
                 List<GridCell> cells = GridCell.ClusterToCells(rectList, threshold).ToList();
+                NormalizeOversizedRecognizedCells(mat, cells, threshold);
                 GridCell.FillMissingGridCells(ref cells);
                 FillExtraBottomRow(mat, ref cells);
 
@@ -346,6 +346,46 @@ namespace BetterGenshinImpact.GameTask.Model.GameUI
                 }
 
                 return result;
+            }
+
+            /// <summary>
+            /// 白色选中框有时会让直接识别到的格子边界偏大，先收缩到当前页的标准尺寸再补幻影格子。
+            /// </summary>
+            private static void NormalizeOversizedRecognizedCells(Mat mat, List<GridCell> cells, int threshold)
+            {
+                if (cells.Count < 3)
+                {
+                    return;
+                }
+
+                int standardWidth = Median(cells.Select(c => c.Rect.Width));
+                int standardHeight = Median(cells.Select(c => c.Rect.Height));
+                int tolerance = Math.Max(2, threshold / 4);
+                foreach (GridCell cell in cells.Where(c => !c.IsPhantom))
+                {
+                    if (cell.Rect.Width <= standardWidth + tolerance && cell.Rect.Height <= standardHeight + tolerance)
+                    {
+                        continue;
+                    }
+
+                    double centerX = cell.Rect.X + cell.Rect.Width / 2d;
+                    double centerY = cell.Rect.Y + cell.Rect.Height / 2d;
+                    int x = (int)Math.Round(centerX - standardWidth / 2d, MidpointRounding.AwayFromZero);
+                    int y = (int)Math.Round(centerY - standardHeight / 2d, MidpointRounding.AwayFromZero);
+                    cell.Rect = new Rect(x, y, standardWidth, standardHeight).ClampTo(mat);
+                }
+            }
+
+            private static int Median(IEnumerable<int> values)
+            {
+                int[] sorted = values.OrderBy(v => v).ToArray();
+                int middle = sorted.Length / 2;
+                if (sorted.Length % 2 == 1)
+                {
+                    return sorted[middle];
+                }
+
+                return (int)Math.Round((sorted[middle - 1] + sorted[middle]) / 2d, MidpointRounding.AwayFromZero);
             }
 
             /// <summary>
@@ -456,7 +496,6 @@ namespace BetterGenshinImpact.GameTask.Model.GameUI
                                 DesktopRegion.DesktopRegionClick(gcX + this.roi.X + x + (w / 2d), gcY + this.roi.Y + y + (h / 2d));
                                 await TaskControl.Delay(500, ct);
                             }
-
                             using var ra4 = TaskControl.CaptureToRectArea();
                             ra4.MoveTo(this.roi.X + this.roi.Width / 2, this.roi.Y + this.roi.Height / 2);
                             await TaskControl.Delay(300, ct);
@@ -508,8 +547,10 @@ namespace BetterGenshinImpact.GameTask.Model.GameUI
                         }
 
                         this.currentPage?.PageRegion?.Dispose();
-                        this.currentPage = new Page(imageRegion, new Queue<Rect>(cells.OrderBy(c => c.RowNum).ThenBy(c => c.ColNum).Select(c => c.Rect)),
-                            cells.GroupBy(c => c.RowNum).OrderByDescending(g => g.Key).Skip(1)?.FirstOrDefault()?.OrderBy(c => c.ColNum)?.FirstOrDefault()?.Rect);
+                        this.currentPage = new Page(
+                            imageRegion,
+                            new Queue<Rect>(cells.OrderBy(c => c.RowNum).ThenBy(c => c.ColNum).Select(c => c.Rect)),
+                            cells.GroupBy(c => c.RowNum).OrderByDescending(g => g.Key).Skip(1).FirstOrDefault()?.OrderBy(c => c.ColNum).FirstOrDefault()?.Rect);
 
                         owner.OnAfterTurnToNewPage?.Invoke(Tuple.Create(imageRegion, cells.Select(c => Tuple.Create(c.Rect, c.IsPhantom))));
                     }

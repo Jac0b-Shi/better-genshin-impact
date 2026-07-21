@@ -13,7 +13,7 @@ public interface ITaskControlPlatform
     bool IsHdrCapture { get; }
     void EnsureGameActive();
     void ReleasePressedInputs();
-    void SimulateAction(GIActions action, KeyType keyType);
+    void SimulateAction(GIActions action, KeyType keyType = KeyType.KeyPress);
     bool IsActionKeyDown(GIActions action);
     void MoveMouseBy(int x, int y);
     void LeftButtonDown();

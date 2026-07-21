@@ -10,23 +10,15 @@ using System.Diagnostics;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.AutoFishing;
-using BetterGenshinImpact.GameTask.AutoPick.Assets;
-using BetterGenshinImpact.GameTask.AutoSkip.Assets;
-using BetterGenshinImpact.GameTask.AutoFishing.Assets;
-using BetterGenshinImpact.GameTask.QuickTeleport.Assets;
-using BetterGenshinImpact.GameTask.AutoWood.Assets;
-using BetterGenshinImpact.GameTask.AutoFight.Assets;
-using BetterGenshinImpact.GameTask.Common.Element.Assets;
-using BetterGenshinImpact.GameTask.GameLoading.Assets;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using BetterGenshinImpact.GameTask.AutoEat;
-using BetterGenshinImpact.GameTask.AutoEat.Assets;
 using BetterGenshinImpact.GameTask.GameLoading;
 using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.SkillCd;
 using BetterGenshinImpact.Core.Script.Dependence.Model.TimerConfig;
 using Microsoft.Extensions.Logging;
 using BetterGenshinImpact.Core.Config;
+using BetterGenshinImpact.Core.Recognition;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -48,7 +40,6 @@ public sealed class MacGameTaskManagerPlatform(
         IAutoPickConfigProvider autoPickConfigProvider,
         IPaddleAutoPickTextRecognizer paddleRecognizer, IYapAutoPickTextRecognizer yapRecognizer)
     {
-        InitializeAssets(systemInfo, autoPickConfigProvider);
         return
         [
             new("GameLoading", new GameLoadingTrigger()),
@@ -97,17 +88,7 @@ public sealed class MacGameTaskManagerPlatform(
 
     public void ReloadAssets()
     {
-        MapAssets.DestroyInstance();
-        AutoPickAssets.DestroyInstance();
-        AutoSkipAssets.DestroyInstance();
-        AutoFishingAssets.DestroyInstance();
-        QuickTeleportAssets.DestroyInstance();
-        AutoWoodAssets.DestroyInstance();
-        AutoFightAssets.DestroyInstance();
-        ElementAssets.DestroyInstance();
-        GameLoadingAssets.DestroyInstance();
-        MapLazyAssets.DestroyInstance();
-        AutoEatAssets.DestroyInstance();
+        RecognitionAssets.ClearAll();
     }
     public void ClearOverlay() => BetterGenshinImpact.Core.Recognition.OverlayDrawPlatform.Current.ClearAll();
 
@@ -122,20 +103,6 @@ public sealed class MacGameTaskManagerPlatform(
         }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
         return root["autoSkipConfig"]?.Deserialize<AutoSkipConfig>(ConfigJson.Options)
             ?? new AutoSkipConfig();
-    }
-
-    private void InitializeAssets(ISystemInfo systemInfo, IAutoPickConfigProvider autoPickConfigProvider)
-    {
-        MapAssets.Initialize(systemInfo);
-        ElementAssets.Initialize(systemInfo);
-        AutoFightAssets.Initialize(systemInfo);
-        AutoFishingAssets.Initialize(systemInfo);
-        GameLoadingAssets.Initialize(systemInfo);
-        AutoWoodAssets.Initialize(systemInfo);
-        AutoSkipAssets.Initialize(systemInfo);
-        AutoEatAssets.Initialize(systemInfo);
-        QuickTeleportAssets.Initialize(systemInfo);
-        AutoPickAssets.Initialize(systemInfo, autoPickConfigProvider, loggerFactory.CreateLogger<AutoPickAssets>());
     }
 
     private JObject Metrics() => callbacks.InvokeAsync(

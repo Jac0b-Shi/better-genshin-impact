@@ -64,9 +64,13 @@ public class ClaimBattlePassRewardsTask
         // 最后再回到奖励页领取，若存在手动选择奖励则仅记录日志提醒
         await Delay(2500, ct); // 等待升级动画
         // 还可能存在领取到原石的情况
-        if (CaptureToRectArea().Find(ElementAssets.Instance.PrimogemRo).IsExist())
+        using (var ra = CaptureToRectArea())
         {
-            TaskControlPlatform.Current.PressEscape();
+            using var primogem = ra.Find(ElementRecognition.Get("Primogem", ra));
+            if (primogem.IsExist())
+            {
+                TaskControlPlatform.Current.PressEscape();
+            }
         }
         GameCaptureRegion.GameRegion1080PPosClick(858, 45);
         await Delay(1500, ct);
@@ -97,7 +101,7 @@ public class ClaimBattlePassRewardsTask
                 return true;
             }
 
-            if (ra2.Find(ElementAssets.Instance.PrimogemRo).IsExist())
+            if (ra2.Find(ElementRecognition.Get("Primogem", ra2)).IsExist())
             {
                 TaskControlPlatform.Current.PressEscape();
             }
@@ -118,15 +122,15 @@ public class ClaimBattlePassRewardsTask
             return true;
         }
 
-        var hasCancelButton = HasDialogButton(region, ElementAssets.Instance.BtnBlackCancel)
-                              || HasDialogButton(region, ElementAssets.Instance.BtnWhiteCancel);
+        var hasCancelButton = HasDialogButton(region, ElementRecognition.Get("BtnBlackCancel", region))
+                              || HasDialogButton(region, ElementRecognition.Get("BtnWhiteCancel", region));
         if (!hasCancelButton)
         {
             return false;
         }
 
-        return HasDialogButton(region, ElementAssets.Instance.BtnBlackConfirm)
-               || HasDialogButton(region, ElementAssets.Instance.BtnWhiteConfirm);
+        return HasDialogButton(region, ElementRecognition.Get("BtnBlackConfirm", region))
+               || HasDialogButton(region, ElementRecognition.Get("BtnWhiteConfirm", region));
     }
 
     private static bool HasDialogButton(ImageRegion region, RecognitionObject recognitionObject)

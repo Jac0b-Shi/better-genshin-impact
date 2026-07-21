@@ -1,4 +1,5 @@
 using BetterGenshinImpact.Core.Simulator.Extensions;
+using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Common;
 using Microsoft.Extensions.Logging;
@@ -19,9 +20,11 @@ public sealed class MacAutoSkipRuntimePlatform(
     PlatformCallbackChannel callbacks,
     string sessionToken,
     CancellationToken cancellationToken,
-    ForegroundInputCoordinator inputCoordinator) : IAutoSkipRuntimePlatform
+    ForegroundInputCoordinator inputCoordinator,
+    IAutoPickConfigProvider autoPickConfigProvider) : IAutoSkipRuntimePlatform
 {
     public ISystemInfo SystemInfo => getSystemInfo();
+    public string PickKey => autoPickConfigProvider.AutoPickConfig.PickKey;
     public ILogger<T> GetLogger<T>() => loggerFactory.CreateLogger<T>();
     public IOcrService OcrService { get; } = ocrService;
     public bool IsGameActive() => Invoke("window.metrics", null).Value<bool?>("isActive")
