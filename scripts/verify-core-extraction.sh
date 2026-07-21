@@ -108,6 +108,12 @@ rg -q 'PathExecutor Pathing executes the upstream AutoFightHandler task chain' \
 rg -q 'fullPathExecutor\.SuccessFight == 1' \
   Test/BetterGenshinImpact.Core.Verification/Program.cs \
   || fail "Core verification does not require the fight waypoint to complete"
+rg -q 'ActionFactory selects the upstream UpDownGrabLeafHandler' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core verification does not execute the shared four-leaf-sigil handler"
+rg -q 'UpDownGrabLeafHandler recognizes the real SpaceKey template as flying' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core verification does not use upstream motion recognition after four-leaf interaction"
 if rg -n 'AutoFightEndDetector|CheckFightFinish|BattleEndProgressBarColor' \
   MacGI/Sources; then
   fail "Swift owns a duplicate combat-end decision"

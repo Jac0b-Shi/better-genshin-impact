@@ -1754,6 +1754,55 @@ Assert("StopFlyingHandler exits after one real normal-motion frame",
     stopFlyingCaptureCount == 1, $"captures={stopFlyingCaptureCount}");
 Console.WriteLine();
 
+Console.WriteLine("Pathing four-leaf sigil: upstream debounce, interaction and flight recognition");
+using var leafDetectionFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+foreach (var point in new[] { new Point(1500, 1000), new Point(1508, 1041), new Point(1500, 987), new Point(1500, 1010) })
+{
+    leafDetectionFrame.Set(point.Y, point.X, new Vec3b(255, 255, 255));
+}
+using var flyingFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+var sourceSpaceTemplate = ElementAssets.Instance.SpaceKey.TemplateImageMat
+    ?? throw new InvalidOperationException("SpaceKey template is not initialized.");
+using var spaceTemplate = sourceSpaceTemplate.Channels() == 4
+    ? sourceSpaceTemplate.CvtColor(ColorConversionCodes.BGRA2BGR)
+    : sourceSpaceTemplate.Clone();
+var spaceRoi = ElementAssets.Instance.SpaceKey.RegionOfInterest;
+using (var target = new Mat(flyingFrame, new Rect(spaceRoi.X + 10, spaceRoi.Y + 10, spaceTemplate.Width, spaceTemplate.Height)))
+{
+    spaceTemplate.CopyTo(target);
+}
+var leafFrames = new Queue<Mat>([leafDetectionFrame, leafDetectionFrame, flyingFrame]);
+var leafCaptureCount = 0;
+recordingTaskControl.Calls.Clear();
+recordingTaskControl.RecordMiddleClicks = true;
+recordingTaskControl.CaptureFrameProvider = () =>
+{
+    leafCaptureCount++;
+    return leafFrames.Count > 0 ? leafFrames.Dequeue().Clone() : flyingFrame.Clone();
+};
+try
+{
+    var leafHandler = ActionFactory.GetBeforeHandler(ActionEnum.UpDownGrabLeaf.Code);
+    Assert("ActionFactory selects the upstream UpDownGrabLeafHandler",
+        leafHandler is UpDownGrabLeafHandler, leafHandler.GetType().FullName ?? "null");
+    await leafHandler.RunAsync(CancellationToken.None);
+}
+finally
+{
+    recordingTaskControl.CaptureFrameProvider = null;
+    recordingTaskControl.RecordMiddleClicks = false;
+}
+Assert("UpDownGrabLeafHandler requires two consecutive upstream point detections",
+    leafCaptureCount == 3, $"captures={leafCaptureCount}");
+Assert("UpDownGrabLeafHandler preserves interaction and camera-reset order",
+    recordingTaskControl.Calls.SequenceEqual([
+        "action:InteractionInSomeMode:KeyPress", "middleClick"
+    ]), string.Join(" | ", recordingTaskControl.Calls));
+Assert("UpDownGrabLeafHandler recognizes the real SpaceKey template as flying",
+    !recordingTaskControl.Calls.Contains("action:Jump:KeyPress"),
+    string.Join(" | ", recordingTaskControl.Calls));
+Console.WriteLine();
+
 Console.WriteLine("Pathing pick-around: upstream circular movement and camera resets");
 recordingTaskControl.Calls.Clear();
 recordingTaskControl.RecordMiddleClicks = true;
