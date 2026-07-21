@@ -123,6 +123,9 @@ struct AppStateSchedulerCatalogTests {
         #expect(appState.schedulerRunReadiness == "Core 尚未就绪")
 
         appState.coreStatus = .ok
+        #expect(appState.schedulerRunReadiness == "请先启动 BetterGI 运行时")
+
+        appState.runtimeLifecycle = .running
         #expect(appState.schedulerRunReadiness == "尚未选择配置组")
 
         appState.selectedSchedulerGroupName = "狗粮+锄地"

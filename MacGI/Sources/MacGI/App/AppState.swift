@@ -665,6 +665,11 @@ final class AppState: ObservableObject {
             addLog(.error, "Cannot run scheduler: BetterGI Core is not ready.")
             return
         }
+        guard runtimeLifecycle == .running else {
+            schedulerExecutionStatus = "Runtime stopped"
+            addLog(.error, "Cannot run scheduler: start the BetterGI runtime first.")
+            return
+        }
         guard selectedSchedulerGroup != nil else {
             schedulerExecutionStatus = "Group unavailable"
             addLog(.error, "Cannot run scheduler: no script group is selected.")
@@ -773,6 +778,7 @@ final class AppState: ObservableObject {
 
     var canRunScheduler: Bool {
         coreStatus == .ok
+            && runtimeLifecycle == .running
             && selectedSchedulerGroup != nil
             && isWindowValid
             && !selectedWindow.isSynthetic
@@ -781,6 +787,7 @@ final class AppState: ObservableObject {
 
     var schedulerRunReadiness: String {
         guard coreStatus == .ok else { return "Core 尚未就绪" }
+        guard runtimeLifecycle == .running else { return "请先启动 BetterGI 运行时" }
         guard selectedSchedulerGroup != nil else { return "尚未选择配置组" }
         guard isWindowValid, !selectedWindow.isSynthetic else { return "尚未选择真实游戏窗口" }
         guard !safetyGate.emergencyStop else { return "紧急停止已启用" }
