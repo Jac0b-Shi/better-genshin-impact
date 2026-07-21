@@ -165,6 +165,8 @@ public partial class App : Application
                 services.AddSingleton<Core.Abstractions.Runtime.IAutoPickConfigProvider, Core.Runtime.Windows.WindowsAutoPickConfigProvider>();
                 services.AddSingleton<Core.Abstractions.Runtime.IOcrRuntimeConfigProvider, Core.Runtime.Windows.WindowsOcrRuntimeConfigProvider>();
                 services.AddSingleton<Core.Abstractions.Runtime.IAutoPickRuntimeState, Core.Runtime.Windows.WindowsAutoPickRuntimeState>();
+                services.AddSingleton<GameTask.AutoWood.IAutoWoodRuntimePlatform,
+                    Core.Runtime.Windows.WindowsAutoWoodRuntimePlatform>();
                 // Platform abstractions (Windows backend)
                 services.AddSingleton<Platform.Abstractions.IInputBackend, Core.Runtime.Windows.Win32InputBackend>();
                 // B9 Text recognition adapters
@@ -250,7 +252,8 @@ public partial class App : Application
         Core.Script.Dependence.GenshinRuntimePlatform.Configure(
             new Core.Script.Dependence.WindowsGenshinRuntimePlatform());
         Core.Script.Dependence.DispatcherRuntimePlatform.Configure(
-            new Core.Script.Dependence.WindowsDispatcherRuntimePlatform());
+            new Core.Script.Dependence.WindowsDispatcherRuntimePlatform(
+                GetService<GameTask.AutoWood.IAutoWoodRuntimePlatform>()!));
         GameTask.AutoFight.Script.CombatCommandPlatform.Configure(
             new Core.Runtime.Windows.WindowsCombatCommandPlatform());
         GameTask.AutoFight.Script.CombatSceneProvider.Configure(

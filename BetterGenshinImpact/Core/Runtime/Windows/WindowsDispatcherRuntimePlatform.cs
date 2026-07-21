@@ -20,7 +20,8 @@ using BetterGenshinImpact.GameTask;
 
 namespace BetterGenshinImpact.Core.Script.Dependence;
 
-public sealed class WindowsDispatcherRuntimePlatform : IDispatcherRuntimePlatform
+public sealed class WindowsDispatcherRuntimePlatform(IAutoWoodRuntimePlatform autoWoodRuntimePlatform)
+    : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken => CancellationContext.Instance.Cts.Token;
     private static TaskSettingsPageViewModel Settings => App.GetService<TaskSettingsPageViewModel>()
@@ -60,7 +61,10 @@ public sealed class WindowsDispatcherRuntimePlatform : IDispatcherRuntimePlatfor
                     .Start(cancellationToken);
                 return null;
             case DispatcherWoodTaskRequest wood:
-                await new AutoWoodTask(new WoodTaskParam(wood.RoundNum, wood.DailyMaxCount))
+                await new AutoWoodTask(
+                        new WoodTaskParam(wood.RoundNum, wood.DailyMaxCount),
+                        TaskContext.Instance().Config.AutoWoodConfig,
+                        autoWoodRuntimePlatform)
                     .Start(cancellationToken);
                 return null;
             case DispatcherFightTaskRequest fight:

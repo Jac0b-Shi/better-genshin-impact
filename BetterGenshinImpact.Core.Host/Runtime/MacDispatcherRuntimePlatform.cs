@@ -8,6 +8,7 @@ using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoCook;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
+using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.Core.Config;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -23,12 +24,13 @@ public sealed class MacDispatcherRuntimePlatform(
     IAutoPickConfigProvider autoPickConfigProvider,
     IPaddleAutoPickTextRecognizer paddleRecognizer,
     IYapAutoPickTextRecognizer yapRecognizer,
+    IAutoWoodRuntimePlatform autoWoodRuntimePlatform,
     RuntimeLayout layout,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken { get; } = globalCancellationToken;
-    public int AutoWoodRoundNum => throw Unavailable("AutoWood");
-    public int AutoWoodDailyMaxCount => throw Unavailable("AutoWood");
+    public int AutoWoodRoundNum => 0;
+    public int AutoWoodDailyMaxCount => 2000;
     public string AutoBossStrategyName => throw Unavailable("AutoBoss");
     public DispatcherAutoEatSettings AutoEatSettings => throw Unavailable("AutoEat");
 
@@ -76,6 +78,15 @@ public sealed class MacDispatcherRuntimePlatform(
             await new AutoFightHandler().RunAsyncByScript(cancellationToken, null, fight.Config);
             return null;
         }
+        if (request is DispatcherWoodTaskRequest wood)
+        {
+            await new AutoWoodTask(
+                    new WoodTaskParam(wood.RoundNum, wood.DailyMaxCount),
+                    LoadAutoWoodConfig(layout),
+                    autoWoodRuntimePlatform)
+                .Start(cancellationToken);
+            return null;
+        }
         throw Unavailable(request.Name);
     }
 
@@ -106,5 +117,18 @@ public sealed class MacDispatcherRuntimePlatform(
         }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
         return root["autoCookConfig"]?.Deserialize<AutoCookConfig>(ConfigJson.Options)
                ?? new AutoCookConfig();
+    }
+
+    private static AutoWoodConfig LoadAutoWoodConfig(RuntimeLayout layout)
+    {
+        var path = Path.Combine(layout.UserPath, "config.json");
+        if (!File.Exists(path)) return new AutoWoodConfig();
+        var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
+        return root["autoWoodConfig"]?.Deserialize<AutoWoodConfig>(ConfigJson.Options)
+               ?? new AutoWoodConfig();
     }
 }

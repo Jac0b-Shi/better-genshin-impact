@@ -27,6 +27,7 @@ using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoCook;
+using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.AutoPathing;
@@ -1782,6 +1783,44 @@ Assert("AutoCook emits exactly one semantic Space press after a stable peak",
     string.Join(" | ", recordingTaskControl.Calls));
 Console.WriteLine();
 
+Console.WriteLine("AutoWood: upstream gadget recognition and runtime lifecycle");
+using var woodFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+var woodRecognition = RecognitionAssets.Get("AutoWood", "TheBoonOfTheElderTree", 1920, 1080);
+var sourceWoodTemplate = woodRecognition.TemplateImageMat
+    ?? throw new InvalidOperationException("TheBoonOfTheElderTree template is not initialized.");
+using var woodTemplate = sourceWoodTemplate.Channels() == 4
+    ? sourceWoodTemplate.CvtColor(ColorConversionCodes.BGRA2BGR)
+    : sourceWoodTemplate.Clone();
+var woodRoi = woodRecognition.RegionOfInterest;
+using (var target = new Mat(woodFrame, new Rect(
+           woodRoi.X + 5, woodRoi.Y + 5, woodTemplate.Width, woodTemplate.Height)))
+{
+    woodTemplate.CopyTo(target);
+}
+var woodRuntime = new RecordingAutoWoodRuntimePlatform();
+recordingTaskControl.Calls.Clear();
+recordingTaskControl.RecordCaptures = true;
+recordingTaskControl.CaptureFrameProvider = () => woodFrame.Clone();
+overlayRecorder.Commands.Clear();
+await new AutoWoodTask(new WoodTaskParam(1, 2000), woodRuntime.Config, woodRuntime)
+    .Start(CancellationToken.None);
+recordingTaskControl.CaptureFrameProvider = null;
+recordingTaskControl.RecordCaptures = false;
+Assert("AutoWood acquires and releases sleep prevention exactly once",
+    woodRuntime.SleepAcquireCount == 1 && woodRuntime.SleepReleaseCount == 1,
+    $"acquire={woodRuntime.SleepAcquireCount} release={woodRuntime.SleepReleaseCount}");
+Assert("AutoWood refreshes third-party login availability exactly once",
+    woodRuntime.LoginSession.RefreshCount == 1,
+    $"refresh={woodRuntime.LoginSession.RefreshCount}");
+Assert("AutoWood recognizes the real gadget template before one semantic action",
+    recordingTaskControl.Calls.Count(call => call == "capture") == 1 &&
+    recordingTaskControl.Calls.Count(call => call == "action:QuickUseGadget:KeyPress") == 1,
+    string.Join(" | ", recordingTaskControl.Calls));
+Assert("AutoWood clears overlay state after the completed round",
+    overlayRecorder.Commands.Count(command => command == "clearAll") == 1,
+    string.Join(" | ", overlayRecorder.Commands));
+Console.WriteLine();
+
 Console.WriteLine("Pathing pyro collect: upstream elemental handler and real Avatar attack");
 using var pyroCollectFrame = new Mat(1080, 1920, MatType.CV_8UC4, Scalar.Black);
 var paimonTemplate = ElementRecognition.Get("PaimonMenu", 1920, 1080).TemplateImageMat
@@ -3137,6 +3176,43 @@ sealed class RecordingOverlayDrawPlatform : IOverlayDrawPlatform
         }));
     public void RemoveRectangles(string name) => Commands.Add($"remove:{name}");
     public void ClearAll() => Commands.Add("clearAll");
+}
+
+sealed class RecordingAutoWoodRuntimePlatform : IAutoWoodRuntimePlatform
+{
+    public AutoWoodConfig Config { get; } = new()
+    {
+        AfterZSleepDelay = 0,
+        WoodCountOcrEnabled = false,
+        UseWonderlandRefresh = true,
+    };
+    public RecordingAutoWoodLoginSession LoginSession { get; } = new();
+    public int SleepAcquireCount { get; private set; }
+    public int SleepReleaseCount { get; private set; }
+
+    public IDisposable AcquireSleepPrevention()
+    {
+        SleepAcquireCount++;
+        return new CallbackDisposable(() => SleepReleaseCount++);
+    }
+
+    public IAutoWoodLoginSession CreateLoginSession() => LoginSession;
+}
+
+sealed class RecordingAutoWoodLoginSession : IAutoWoodLoginSession
+{
+    public bool IsAvailable => false;
+    public bool IsBilibili => false;
+    public int RefreshCount { get; private set; }
+    public void RefreshAvailability() => RefreshCount++;
+    public void Login(CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Unavailable login session must not be used.");
+}
+
+sealed class CallbackDisposable(Action dispose) : IDisposable
+{
+    private Action? _dispose = dispose;
+    public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
 }
 
 sealed class VerificationSystemInfo : BetterGenshinImpact.GameTask.Model.ISystemInfo

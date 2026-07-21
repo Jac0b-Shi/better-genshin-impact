@@ -2776,9 +2776,9 @@ try
 
     var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
     Require(soloList.Error is null && soloList.Result is JArray soloItems &&
-            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoFight" or "AutoCook")
+            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook")
                 .All(item => item.Value<bool>("available")) &&
-            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoFight" or "AutoCook"))
+            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
@@ -2809,6 +2809,21 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.CookCancelled,
         "solo.stop did not cancel the active Core AutoCook task");
+    var woodStart = await ExchangeAsync(connection, "wood-start", "solo.start", sessionToken,
+        JObject.FromObject(new { name = "AutoWood" }), cancellation.Token);
+    var woodTaskId = (woodStart.Result as JObject)?.Value<string>("taskId");
+    Require(woodStart.Error is null && !string.IsNullOrEmpty(woodTaskId) &&
+            dispatcherRuntime.WoodStartCount == 1 &&
+            dispatcherRuntime.LastWoodRoundNum == 0 &&
+            dispatcherRuntime.LastWoodDailyMaxCount == 2000,
+        "solo.start did not execute the shared AutoWood dispatcher request with upstream defaults");
+    var woodStop = await ExchangeAsync(connection, "wood-stop", "solo.stop", sessionToken,
+        JObject.FromObject(new { taskId = woodTaskId }), cancellation.Token);
+    Require(woodStop.Error is null, woodStop.Error?.Message ?? "solo.stop AutoWood failed");
+    for (var attempt = 0; attempt < 20 && !dispatcherRuntime.WoodCancelled; attempt++)
+        await Task.Delay(25, cancellation.Token);
+    Require(dispatcherRuntime.WoodCancelled,
+        "solo.stop did not cancel the active Core AutoWood task");
     var fightStart = await ExchangeAsync(connection, "fight-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);
     var fightTaskId = (fightStart.Result as JObject)?.Value<string>("taskId");
@@ -3177,8 +3192,8 @@ sealed class VerificationTrigger(string name = "Verification Trigger", Action<Ca
 sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellationToken) : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken { get; } = cancellationToken;
-    public int AutoWoodRoundNum => throw new CapabilityUnavailableException("AutoWood");
-    public int AutoWoodDailyMaxCount => throw new CapabilityUnavailableException("AutoWood");
+    public int AutoWoodRoundNum => 0;
+    public int AutoWoodDailyMaxCount => 2000;
     public string AutoBossStrategyName => throw new CapabilityUnavailableException("AutoBoss");
     public DispatcherAutoEatSettings AutoEatSettings => throw new CapabilityUnavailableException("AutoEat");
     public int ClearCount { get; private set; }
@@ -3189,6 +3204,10 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public bool CookCancelled { get; private set; }
     public int FightStartCount { get; private set; }
     public bool FightCancelled { get; private set; }
+    public int WoodStartCount { get; private set; }
+    public bool WoodCancelled { get; private set; }
+    public int? LastWoodRoundNum { get; private set; }
+    public int? LastWoodDailyMaxCount { get; private set; }
     public void ClearTriggers() => ClearCount++;
     public bool AddTrigger(string name, object? config)
     {
@@ -3202,9 +3221,15 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
-        if (request is not (DispatcherFishingTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest))
+        if (request is not (DispatcherFishingTaskRequest or DispatcherWoodTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest))
             throw new CapabilityUnavailableException(request.Name);
         if (request is DispatcherFishingTaskRequest) FishingStartCount++;
+        else if (request is DispatcherWoodTaskRequest wood)
+        {
+            WoodStartCount++;
+            LastWoodRoundNum = wood.RoundNum;
+            LastWoodDailyMaxCount = wood.DailyMaxCount;
+        }
         else if (request is DispatcherFightTaskRequest fight)
         {
             if (fight.Config is not null)
@@ -3219,6 +3244,7 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             if (request is DispatcherFishingTaskRequest) FishingCancelled = true;
+            else if (request is DispatcherWoodTaskRequest) WoodCancelled = true;
             else if (request is DispatcherFightTaskRequest) FightCancelled = true;
             else CookCancelled = true;
             throw;

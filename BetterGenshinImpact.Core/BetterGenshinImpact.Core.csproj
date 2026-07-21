@@ -79,6 +79,10 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/ExperienceDetector.cs" Link="GameTask/AutoFight/ExperienceDetector.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/AutoFightJsonTask.cs" Link="GameTask/AutoFight/AutoFightJsonTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Factory/*.cs" Link="GameTask/AutoFight/Factory/%(Filename)%(Extension)" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/AutoWoodConfig.cs" Link="GameTask/AutoWood/AutoWoodConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/AutoWoodRuntimePlatform.cs" Link="GameTask/AutoWood/AutoWoodRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/AutoWoodTask.cs" Link="GameTask/AutoWood/AutoWoodTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoWood/WoodTaskParam.cs" Link="GameTask/AutoWood/WoodTaskParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/Avatar.cs" Link="GameTask/AutoFight/Model/Avatar.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/AvatarActiveCheckContext.cs" Link="GameTask/AutoFight/Model/AvatarActiveCheckContext.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoFight/Model/AvatarMacro.cs" Link="GameTask/AutoFight/Model/AvatarMacro.cs" />
