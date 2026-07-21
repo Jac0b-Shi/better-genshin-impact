@@ -264,6 +264,11 @@ rg -q 'startupPollLimit = 4_800' MacGI/Sources/MacGI/Runtime/BetterGICoreProcess
 rg -q '#if DEBUG' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
   && rg -q 'resolveDevelopmentExecutableURL' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
   || fail "SwiftPM Debug builds cannot locate the staged BetterGI Core Helper"
+rg -q '"--parent-pid", String\(ProcessInfo\.processInfo\.processIdentifier\)' \
+  MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  && rg -q 'OptionalPositiveIntArgument\(args, "--parent-pid"\)' BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -q 'new ParentProcessLifetime\(processId\)\.MonitorAsync' BetterGenshinImpact.Core.Host/Program.cs \
+  || fail "Core Host is not bound to the Swift parent-process lifetime"
 rg -q 'appState\.startRuntime\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage.swift \
   || fail "The global runtime button does not start the Core runtime"
 if rg -n 'runSchedulerGroups\(\)|toggleStartPause\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage.swift; then

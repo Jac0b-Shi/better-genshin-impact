@@ -47,9 +47,20 @@ static string RequiredArgument(string[] arguments, string name)
     return arguments[index + 1];
 }
 
+static int? OptionalPositiveIntArgument(string[] arguments, string name)
+{
+    var index = Array.IndexOf(arguments, name);
+    if (index < 0)
+        return null;
+    if (index + 1 >= arguments.Length || !int.TryParse(arguments[index + 1], out var value) || value <= 0)
+        throw new ArgumentException($"Invalid positive integer argument: {name}");
+    return value;
+}
+
 var runtimeRoot = RequiredArgument(args, "--runtime-root");
 var socketPath = RequiredArgument(args, "--socket");
 var sessionToken = RequiredArgument(args, "--session-token");
+var parentProcessId = OptionalPositiveIntArgument(args, "--parent-pid");
 var layout = new RuntimeLayout(runtimeRoot);
 Global.StartUpPath = layout.RootPath;
 var socketDirectory = Path.GetDirectoryName(Path.GetFullPath(socketPath));
@@ -60,6 +71,9 @@ if (System.Text.Encoding.UTF8.GetByteCount(socketPath) > 103)
 
 using var shutdown = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; shutdown.Cancel(); };
+var parentLifetimeTask = parentProcessId is { } processId
+    ? new ParentProcessLifetime(processId).MonitorAsync(shutdown.Cancel, shutdown.Token)
+    : null;
 var nativeDependencies = NativeDependencySmoke.Run();
 var server = new CoreRpcServer(socketPath, sessionToken, layout, nativeDependencies);
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddSimpleConsole(options =>
@@ -187,5 +201,16 @@ OverlayDrawPlatform.Configure(new MacOverlayDrawPlatform(
 GlobalMethod.Configure(globalMethodRuntime);
 ScriptProjectHost.Configure(new MacScriptProjectHostInitializer());
 await server.RunAsync(shutdown.Token);
+shutdown.Cancel();
+if (parentLifetimeTask is not null)
+{
+    try
+    {
+        await parentLifetimeTask;
+    }
+    catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
+    {
+    }
+}
 imageRegionOcrService.Dispose();
 Microsoft.ML.OnnxRuntime.OrtEnv.Instance().Dispose();

@@ -52,6 +52,18 @@ using System.Runtime.InteropServices;
 if (!OperatingSystem.IsMacOS())
     throw new PlatformNotSupportedException("Core Host verification currently requires macOS.");
 
+Require(ParentProcessLifetime.IsProcessAlive(Environment.ProcessId),
+    "parent lifetime monitor did not recognize the current process");
+var parentExitObserved = false;
+using (var parentMonitorTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(1)))
+{
+    await new ParentProcessLifetime(int.MaxValue, TimeSpan.FromMilliseconds(1)).MonitorAsync(
+        () => parentExitObserved = true,
+        parentMonitorTimeout.Token);
+}
+Require(parentExitObserved,
+    "parent lifetime monitor did not report a missing parent process");
+
 var root = Path.Combine("/tmp", "bgi-" + Guid.NewGuid().ToString("N"));
 var layout = new RuntimeLayout(root);
 OverlayDrawPlatform.Configure(new VerificationOverlayDrawPlatform());

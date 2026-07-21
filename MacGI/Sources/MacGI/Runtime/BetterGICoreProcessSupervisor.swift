@@ -74,7 +74,8 @@ actor BetterGICoreProcessSupervisor {
         process.arguments = [
             "--runtime-root", store.rootURL.path,
             "--socket", socketURL.path,
-            "--session-token", token
+            "--session-token", token,
+            "--parent-pid", String(ProcessInfo.processInfo.processIdentifier)
         ]
         let outputPipe = Pipe()
         let outputForwarder = CoreOutputForwarder(handler: logHandler)
