@@ -26,6 +26,7 @@ using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoPick.Assets;
 using BetterGenshinImpact.GameTask.AutoFishing;
+using BetterGenshinImpact.GameTask.AutoCook;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
 using BetterGenshinImpact.GameTask.AutoPathing;
@@ -1732,6 +1733,53 @@ Assert("MiningHandler leaves movement actions released",
     string.Join(" | ", recordingTaskControl.Calls));
 Console.WriteLine();
 
+Console.WriteLine("AutoCook: upstream UI recognition, peak tracking and semantic Space input");
+using var cookFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+var cookIconRecognition = ElementRecognition.Get("UiLeftTopCookIcon", 1920, 1080);
+var sourceCookIconTemplate = cookIconRecognition.TemplateImageMat
+    ?? throw new InvalidOperationException("UiLeftTopCookIcon template is not initialized.");
+using var cookIconTemplate = sourceCookIconTemplate.Channels() == 4
+    ? sourceCookIconTemplate.CvtColor(ColorConversionCodes.BGRA2BGR)
+    : sourceCookIconTemplate.Clone();
+var cookIconRoi = cookIconRecognition.RegionOfInterest;
+using (var target = new Mat(cookFrame, new Rect(
+           cookIconRoi.X + 5, cookIconRoi.Y + 5, cookIconTemplate.Width, cookIconTemplate.Height)))
+{
+    cookIconTemplate.CopyTo(target);
+}
+var cookFrames = new Queue<Mat>();
+foreach (var colorCount in new[] { 700, 710, 705, 350 })
+{
+    var frame = cookFrame.Clone();
+    using var colorTarget = new Mat(frame, new Rect(600, 660, colorCount, 1));
+    colorTarget.SetTo(new Scalar(64, 192, 255));
+    cookFrames.Enqueue(frame);
+}
+recordingTaskControl.Calls.Clear();
+recordingTaskControl.CaptureFrameProvider = () =>
+    (cookFrames.Count > 0 ? cookFrames.Dequeue() : cookFrame).Clone();
+using (var cookCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
+{
+    var cookTask = new AutoCookTask(
+        new AutoCookConfig { CheckIntervalMs = 1, StopTaskWhenRecoverButtonDetected = false },
+        1,
+        NullLogger<AutoCookTask>.Instance);
+    var execution = cookTask.Start(cookCancellation.Token);
+    for (var attempt = 0;
+         attempt < 200 && !recordingTaskControl.Calls.Contains("press:32");
+         attempt++)
+        await Task.Delay(5);
+    cookCancellation.Cancel();
+    try { await execution; }
+    catch (OperationCanceledException) { }
+}
+recordingTaskControl.CaptureFrameProvider = null;
+while (cookFrames.Count > 0) cookFrames.Dequeue().Dispose();
+Assert("AutoCook emits exactly one semantic Space press after a stable peak",
+    recordingTaskControl.Calls.Count(call => call == "press:32") == 1,
+    string.Join(" | ", recordingTaskControl.Calls));
+Console.WriteLine();
+
 Console.WriteLine("Pathing pyro collect: upstream elemental handler and real Avatar attack");
 using var pyroCollectFrame = new Mat(1080, 1920, MatType.CV_8UC4, Scalar.Black);
 var paimonTemplate = ElementRecognition.Get("PaimonMenu", 1920, 1080).TemplateImageMat
@@ -3320,7 +3368,7 @@ sealed class RecordingTaskControlPlatform : ITaskControlPlatform
     public void VerticalScroll(int scrollAmountInClicks) { }
     public void KeyDown(int windowsVirtualKey) { }
     public void KeyUp(int windowsVirtualKey) { }
-    public void PressKey(int windowsVirtualKey) { }
+    public void PressKey(int windowsVirtualKey) => Calls.Add($"press:{windowsVirtualKey}");
     public void InputText(string text) { }
     public void PressEscape() { }
     public ImageRegion CaptureToRectArea(bool forceNew)

@@ -25,13 +25,13 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", false),
         Descriptor("AutoMusicGame", "自动千音雅集", false),
-        Descriptor("AutoCook", "自动烹饪", false),
+        Descriptor("AutoCook", "自动烹饪", true),
         Descriptor("AutoArtifactSalvage", "自动分解圣遗物", false),
     };
 
     public object Start(string name)
     {
-        if (name != "AutoFishing")
+        if (name is not ("AutoFishing" or "AutoCook"))
             throw new CapabilityUnavailableException(
                 $"solo task '{name}' is not composed in the macOS Core yet; no task was executed.");
 
@@ -47,7 +47,7 @@ public sealed class SoloTaskCoordinator(
             _state = "running";
             _error = null;
             var taskId = _activeTaskId;
-            _activeTask = RunAsync(taskId, _activeCancellation.Token);
+            _activeTask = RunAsync(taskId, name, _activeCancellation.Token);
             return new { taskId, name, state = _state };
         }
     }
@@ -74,11 +74,17 @@ public sealed class SoloTaskCoordinator(
         }
     }
 
-    private async Task RunAsync(string taskId, CancellationToken cancellationToken)
+    private async Task RunAsync(string taskId, string name, CancellationToken cancellationToken)
     {
         try
         {
-            await platform.ExecuteSoloTask(new DispatcherFishingTaskRequest(null), cancellationToken);
+            var request = name switch
+            {
+                "AutoFishing" => (DispatcherSoloTaskRequest)new DispatcherFishingTaskRequest(null),
+                "AutoCook" => new DispatcherCookTaskRequest(),
+                _ => throw new CapabilityUnavailableException($"Unknown composed solo task '{name}'.")
+            };
+            await platform.ExecuteSoloTask(request, cancellationToken);
             Complete(taskId, "completed", null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

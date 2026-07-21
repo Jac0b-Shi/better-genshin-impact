@@ -6,6 +6,11 @@ using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Platform.Abstractions;
 using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
+using BetterGenshinImpact.GameTask.AutoCook;
+using BetterGenshinImpact.Core.Config;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
@@ -16,7 +21,9 @@ public sealed class MacDispatcherRuntimePlatform(
     Func<ISystemInfo> systemInfo,
     IAutoPickConfigProvider autoPickConfigProvider,
     IPaddleAutoPickTextRecognizer paddleRecognizer,
-    IYapAutoPickTextRecognizer yapRecognizer) : IDispatcherRuntimePlatform
+    IYapAutoPickTextRecognizer yapRecognizer,
+    RuntimeLayout layout,
+    ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken { get; } = globalCancellationToken;
     public int AutoWoodRoundNum => throw Unavailable("AutoWood");
@@ -54,6 +61,15 @@ public sealed class MacDispatcherRuntimePlatform(
                 .Start(cancellationToken);
             return null;
         }
+        if (request is DispatcherCookTaskRequest)
+        {
+            await new AutoCookTask(
+                    LoadAutoCookConfig(layout),
+                    systemInfo().AssetScale,
+                    loggerFactory.CreateLogger<AutoCookTask>())
+                .Start(cancellationToken);
+            return null;
+        }
         throw Unavailable(request.Name);
     }
 
@@ -72,4 +88,17 @@ public sealed class MacDispatcherRuntimePlatform(
 
     private static CapabilityUnavailableException Unavailable(string name) => new(
         $"dispatcher task '{name}' is not composed in the macOS Core yet; no task was executed.");
+
+    private static AutoCookConfig LoadAutoCookConfig(RuntimeLayout layout)
+    {
+        var path = Path.Combine(layout.UserPath, "config.json");
+        if (!File.Exists(path)) return new AutoCookConfig();
+        var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
+        return root["autoCookConfig"]?.Deserialize<AutoCookConfig>(ConfigJson.Options)
+               ?? new AutoCookConfig();
+    }
 }

@@ -137,7 +137,7 @@ GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
 var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     shutdown.Token, autoPickRuntimeState, semanticInputBackend,
     () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
-    paddleAutoPickRecognizer, yapAutoPickRecognizer);
+    paddleAutoPickRecognizer, yapAutoPickRecognizer, layout, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
     dispatcherRuntimePlatform, shutdown.Token));

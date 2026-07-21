@@ -2776,8 +2776,9 @@ try
 
     var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
     Require(soloList.Error is null && soloList.Result is JArray soloItems &&
-            soloItems.Single(item => item.Value<string>("name") == "AutoFishing").Value<bool>("available") &&
-            soloItems.Where(item => item.Value<string>("name") != "AutoFishing")
+            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoCook")
+                .All(item => item.Value<bool>("available")) &&
+            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoCook"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
@@ -2795,6 +2796,19 @@ try
     Require(dispatcherRuntime.FishingCancelled &&
             (soloStatus.Result as JObject)?.Value<string>("state") == "cancelled",
         "solo.stop did not cancel the active Core AutoFishing task");
+    var cookStart = await ExchangeAsync(connection, "cook-start", "solo.start", sessionToken,
+        JObject.FromObject(new { name = "AutoCook" }), cancellation.Token);
+    var cookTaskId = (cookStart.Result as JObject)?.Value<string>("taskId");
+    Require(cookStart.Error is null && !string.IsNullOrEmpty(cookTaskId) &&
+            dispatcherRuntime.CookStartCount == 1,
+        "solo.start did not execute the shared AutoCook dispatcher request");
+    var cookStop = await ExchangeAsync(connection, "cook-stop", "solo.stop", sessionToken,
+        JObject.FromObject(new { taskId = cookTaskId }), cancellation.Token);
+    Require(cookStop.Error is null, cookStop.Error?.Message ?? "solo.stop AutoCook failed");
+    for (var attempt = 0; attempt < 20 && !dispatcherRuntime.CookCancelled; attempt++)
+        await Task.Delay(25, cancellation.Token);
+    Require(dispatcherRuntime.CookCancelled,
+        "solo.stop did not cancel the active Core AutoCook task");
     await connection.DisposeAsync();
 
     await using var rejectedConnection = await ConnectAsync(socketPath, cancellation.Token);
@@ -3158,6 +3172,8 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public List<string> AddedNames { get; } = [];
     public int FishingStartCount { get; private set; }
     public bool FishingCancelled { get; private set; }
+    public int CookStartCount { get; private set; }
+    public bool CookCancelled { get; private set; }
     public void ClearTriggers() => ClearCount++;
     public bool AddTrigger(string name, object? config)
     {
@@ -3171,16 +3187,18 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
-        if (request is not DispatcherFishingTaskRequest)
+        if (request is not (DispatcherFishingTaskRequest or DispatcherCookTaskRequest))
             throw new CapabilityUnavailableException(request.Name);
-        FishingStartCount++;
+        if (request is DispatcherFishingTaskRequest) FishingStartCount++;
+        else CookStartCount++;
         try
         {
             await Task.Delay(Timeout.Infinite, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            FishingCancelled = true;
+            if (request is DispatcherFishingTaskRequest) FishingCancelled = true;
+            else CookCancelled = true;
             throw;
         }
         return null;
