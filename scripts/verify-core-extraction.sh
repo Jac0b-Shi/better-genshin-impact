@@ -38,6 +38,8 @@ rg -q 'AddHostObject\("dispatcher", new Dispatcher' \
   BetterGenshinImpact.Core.Host/Runtime/MacScriptProjectHostInitializer.cs \
   || fail "ClearScript dispatcher host is not registered"
 real_user_verifier=Test/BetterGenshinImpact.RealUser.Verification/Program.cs
+rg -q 'Test/BetterGenshinImpact.RealUser.Verification/\*\*' .github/workflows/mac-core.yml \
+  || fail "macOS Core workflow does not run when the real User verifier changes"
 rg -q 'VerifyProductionHostSurface\(javascriptProjects\)' "$real_user_verifier" \
   || fail "real User verification does not audit the production ClearScript host surface"
 rg -q 'new MacScriptProjectHostInitializer\(\)\.Initialize' "$real_user_verifier" \

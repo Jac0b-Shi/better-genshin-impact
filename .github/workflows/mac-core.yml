@@ -14,6 +14,7 @@ on:
       - "BetterGenshinImpact/GameTask/**"
       - "Test/BetterGenshinImpact.Core.Verification/**"
       - "Test/BetterGenshinImpact.Core.Host.Verification/**"
+      - "Test/BetterGenshinImpact.RealUser.Verification/**"
       - "MacGI/**"
       - "scripts/verify-core-extraction.sh"
       - ".github/workflows/mac-core.yml"
