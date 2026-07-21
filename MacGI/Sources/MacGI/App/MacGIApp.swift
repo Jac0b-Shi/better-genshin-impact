@@ -50,8 +50,8 @@ struct MacGICommands: Commands {
 
             Divider()
 
-            Button(appState.appStatus == .running ? "Pause" : "Start") {
-                appState.toggleStartPause()
+            Button("Start Runtime") {
+                appState.startRuntime()
                 coordinator.showHUDIfNeeded()
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
@@ -79,8 +79,8 @@ struct MenuBarControls: View {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button(appState.appStatus == .running ? "Pause" : "Start") {
-            appState.toggleStartPause()
+        Button("Start Runtime") {
+            appState.startRuntime()
             coordinator.showHUDIfNeeded()
         }
         Button(appState.isHUDVisible ? "Hide HUD" : "Show HUD") {

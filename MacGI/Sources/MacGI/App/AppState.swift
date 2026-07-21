@@ -34,6 +34,8 @@ enum AppStatus: String, CaseIterable, Identifiable {
 }
 
 enum RuntimeStatus: String, CaseIterable, Identifiable {
+    case starting
+    case provisioning
     case lost
     case detected
     case ready
@@ -45,6 +47,8 @@ enum RuntimeStatus: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .starting: "Starting"
+        case .provisioning: "Provisioning"
         case .lost: "Lost"
         case .detected: "Detected"
         case .ready: "Ready"
@@ -57,6 +61,7 @@ enum RuntimeStatus: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .lost, .missing, .error: BGIColors.danger
+        case .starting, .provisioning: BGIColors.warning
         case .detected, .ready, .ok: BGIColors.success
         }
     }
@@ -228,9 +233,9 @@ final class AppState: ObservableObject {
     @Published var selectedPage: NavigationPage = .launch
     @Published var appStatus: AppStatus = .idle
     @Published var gameWindowStatus: RuntimeStatus = .missing
-    @Published var captureStatus: RuntimeStatus = .ok
+    @Published var captureStatus: RuntimeStatus = .missing
     @Published var inputStatus: RuntimeStatus = .missing
-    @Published var coreStatus: RuntimeStatus = .error
+    @Published var coreStatus: RuntimeStatus = .starting
     @Published var isHUDVisible = true {
         didSet { onHUDVisibilityChanged?(isHUDVisible) }
     }
@@ -292,12 +297,13 @@ final class AppState: ObservableObject {
     private var betterGICoreSupervisor: BetterGICoreProcessSupervisor?
     private var coreStartupTask: Task<Void, Never>?
     private var coreStartupInFlight = false
+    private var captureTimestamps: [Date] = []
+    @Published private(set) var measuredCaptureFPS = 0
 
     // MARK: Derived capture metrics (from lastCapturedFrame)
 
     var captureFPS: Int {
-        guard lastCapturedFrame != nil else { return max(1, 1000 / dispatcherIntervalMs) }
-        return max(1, 1000 / dispatcherIntervalMs)
+        measuredCaptureFPS
     }
 
     var frameSize: String {
@@ -341,13 +347,22 @@ final class AppState: ObservableObject {
     private func startBetterGICore() async {
         guard !coreStartupInFlight else { return }
         coreStartupInFlight = true
+        coreStatus = .starting
         defer { coreStartupInFlight = false }
         do {
             let supervisor = try BetterGICoreProcessSupervisor(store: runtimeResourceStore)
             let adapter = BetterGICorePlatformAdapter(appState: self)
-            let handshake = try await supervisor.start { method, parameters in
-                try adapter.handle(method: method, parameters: parameters)
-            }
+            let handshake = try await supervisor.start(
+                progressHandler: { [weak self] phase in
+                    Task { @MainActor in self?.handleCoreStartupPhase(phase) }
+                },
+                logHandler: { [weak self] line in
+                    Task { @MainActor in self?.addLog(.info, "Core: \(line)") }
+                },
+                platformHandler: { method, parameters in
+                    try adapter.handle(method: method, parameters: parameters)
+                }
+            )
             betterGICoreSupervisor = supervisor
             coreStatus = .ok
             addLog(.info, "BetterGI Core \(handshake.runtimeVersion) connected (\(handshake.architecture))")
@@ -359,6 +374,52 @@ final class AppState: ObservableObject {
             coreStatus = .error
             setCoreCatalogUnavailable(error)
             addLog(.error, "BetterGI Core startup failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleCoreStartupPhase(_ phase: BetterGICoreProcessSupervisor.StartupPhase) {
+        switch phase {
+        case .starting, .waitingForSocket:
+            coreStatus = .starting
+        case .provisioning:
+            coreStatus = .provisioning
+        case .ready:
+            coreStatus = .ok
+        case .failed(let message):
+            coreStatus = .error
+            addLog(.error, message)
+        }
+    }
+
+    func startRuntime() {
+        guard isWindowValid, !selectedWindow.isSynthetic else {
+            appStatus = .error
+            addLog(.error, "Cannot start runtime: no real on-screen game window is selected.")
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            if self.betterGICoreSupervisor == nil {
+                if self.coreStartupInFlight, let startupTask = self.coreStartupTask {
+                    await startupTask.value
+                } else {
+                    await self.startBetterGICore()
+                }
+            }
+            guard self.betterGICoreSupervisor != nil, self.coreStatus == .ok else {
+                self.appStatus = .error
+                self.addLog(.error, "Cannot start runtime: BetterGI Core is not ready.")
+                return
+            }
+            do {
+                _ = try await self.captureFrameForBetterGICore()
+                self.appStatus = .idle
+                self.addLog(.info, "BetterGI runtime ready with a verified ScreenCaptureKit frame.")
+            } catch {
+                self.captureStatus = .error
+                self.appStatus = .error
+                self.addLog(.error, "ScreenCaptureKit capture failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -491,28 +552,6 @@ final class AppState: ObservableObject {
         """
     }
 
-    func startOrResume() {
-        safetyGate.emergencyStop = false
-        safetyGate.resetCounters()
-        if let supervisor = betterGICoreSupervisor, let taskID = currentSchedulerProjectID, appStatus == .paused {
-            Task { [weak self] in
-                do {
-                    try await supervisor.resumeScheduler(taskID: taskID)
-                    self?.handleCoreSchedulerControlAccepted(taskID: taskID, state: "running")
-                } catch {
-                    self?.handleCoreSchedulerControlFailed(taskID: taskID, operation: "resume", error: error)
-                }
-            }
-            return
-        }
-        guard betterGICoreSupervisor != nil, !selectedSchedulerGroupName.isEmpty else {
-            appStatus = .error
-            addLog(.error, "Cannot start: BetterGI Core or selected script group is unavailable.")
-            return
-        }
-        runSchedulerGroups()
-    }
-
     func pause() {
         guard let supervisor = betterGICoreSupervisor, let taskID = currentSchedulerProjectID else {
             appStatus = .error
@@ -526,15 +565,6 @@ final class AppState: ObservableObject {
             } catch {
                 self?.handleCoreSchedulerControlFailed(taskID: taskID, operation: "pause", error: error)
             }
-        }
-    }
-
-    func toggleStartPause() {
-        switch appStatus {
-        case .running:
-            pause()
-        case .idle, .paused, .error:
-            startOrResume()
         }
     }
 
@@ -777,6 +807,21 @@ final class AppState: ObservableObject {
         addLog(.info, "Selected game window: \(selectedWindow.displayName)")
     }
 
+    @discardableResult
+    func refreshSelectedWindowGeometry() -> WindowInfo? {
+        guard selectedWindow.id != 0, !selectedWindow.isSynthetic else { return nil }
+        guard let refreshed = QuartzWindowEnumerator.enumerateApplicationWindows()
+            .first(where: { $0.id == selectedWindow.id }) else {
+            gameWindowStatus = .missing
+            return nil
+        }
+        if refreshed != selectedWindow {
+            selectedWindow = refreshed
+        }
+        gameWindowStatus = refreshed.isLikelyGameWindow ? .detected : .missing
+        return refreshed
+    }
+
     func setSelectedWindow(_ window: WindowInfo) {
         selectedWindow = window
         addLog(.info, "Window selected: \(window.displayName)")
@@ -811,10 +856,7 @@ final class AppState: ObservableObject {
         Task {
             do {
                 let imageFrame = try await frameProvider.captureWindow(targetWindow)
-                latestFrameStore.update(imageFrame)
-                lastCaptureImageFrame = imageFrame
-                lastCapturedFrame = imageFrame.metadata
-                captureStatus = .ok
+                recordCapturedFrame(imageFrame)
                 addLog(.info, "\(imageFrame.backendName) frame captured: \(imageFrame.metadata.sizeDescription) \(imageFrame.metadata.pixelFormatName)")
             } catch {
                 captureStatus = .error
@@ -896,11 +938,26 @@ final class AppState: ObservableObject {
             throw BetterGICoreRPCError.protocolViolation("No real on-screen game window is selected for Core capture.")
         }
         let imageFrame = try await frameProvider.captureWindow(targetWindow)
+        recordCapturedFrame(imageFrame)
+        return imageFrame
+    }
+
+    private func recordCapturedFrame(_ imageFrame: CaptureImageFrame) {
         latestFrameStore.update(imageFrame)
         lastCaptureImageFrame = imageFrame
         lastCapturedFrame = imageFrame.metadata
+        let now = Date()
+        captureTimestamps.append(now)
+        captureTimestamps.removeAll { now.timeIntervalSince($0) > 2 }
+        if let first = captureTimestamps.first, captureTimestamps.count > 1 {
+            let duration = now.timeIntervalSince(first)
+            measuredCaptureFPS = duration > 0
+                ? Int(((Double(captureTimestamps.count - 1) / duration).rounded()))
+                : 0
+        } else {
+            measuredCaptureFPS = 0
+        }
         captureStatus = .ok
-        return imageFrame
     }
 
     var betterGICoreRunURL: URL {
@@ -912,7 +969,7 @@ final class AppState: ObservableObject {
         schedulerExecutionTask = nil
         appStatus = .idle
         gameWindowStatus = .missing
-        captureStatus = .ok
+        captureStatus = .missing
         inputStatus = .missing
         coreStatus = .error
         debugConfidence = 0.86
@@ -920,6 +977,8 @@ final class AppState: ObservableObject {
         availableWindows = []
         lastCapturedFrame = nil
         lastCaptureImageFrame = nil
+        captureTimestamps = []
+        measuredCaptureFPS = 0
         schedulerExecutionStatus = "Idle"
         currentSchedulerProjectID = nil
         safetyGate.resetCounters()

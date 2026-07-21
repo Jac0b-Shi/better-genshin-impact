@@ -5,6 +5,18 @@ import Testing
 @Suite("AppState scheduler catalog")
 struct AppStateSchedulerCatalogTests {
     @MainActor
+    @Test("AppState does not report capture throughput before a real frame")
+    func appStateStartsWithoutSyntheticCaptureMetrics() {
+        let appState = AppState(resourceStore: BGIRuntimeResourceStore(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("bettergi-mac-capture-state-test-\(UUID().uuidString)", isDirectory: true)
+        ))
+
+        #expect(appState.captureStatus == .missing)
+        #expect(appState.captureFPS == 0)
+    }
+
+    @MainActor
     @Test("AppState does not bypass Core by parsing User ScriptGroup locally")
     func appStateDoesNotFallbackToLocalScriptGroupParsing() async throws {
         let tempRoot = FileManager.default.temporaryDirectory

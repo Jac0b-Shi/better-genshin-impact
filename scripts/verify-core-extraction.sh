@@ -257,8 +257,17 @@ if rg -n 'PathExecutorPlatform\.Current|PathExecutorAutoSkipPlatform\.Current|Sc
 fi
 rg -q 'mac-core-extraction' .github/workflows/wpf-build.yml \
   || fail "Windows WPF build does not gate mac-core-extraction pushes"
-rg -q 'for _ in 0\.\.<400' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
-  || fail "Swift does not allow the Core Host a bounded native cold-start window"
+rg -q 'startupPollLimit = 4_800' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  && test "$(rg -c '0\.\.<Self\.startupPollLimit' MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift)" -eq 2 \
+  || fail "Swift does not allow the Core Host a bounded 120-second native cold-start window"
+rg -q 'appState\.startRuntime\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage.swift \
+  || fail "The global runtime button does not start the Core runtime"
+if rg -n 'runSchedulerGroups\(\)|toggleStartPause\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage.swift; then
+  fail "The global runtime button still starts the scheduler"
+fi
+if rg -n 'guard lastCapturedFrame != nil else \{ return max\(' MacGI/Sources/MacGI/App/AppState.swift; then
+  fail "Swift reports a synthetic capture FPS before receiving a real frame"
+fi
 if rg -n 'continue-on-error:[[:space:]]*true' .github/workflows/wpf-build.yml; then
   fail "Windows WPF build is configured as a soft failure"
 fi

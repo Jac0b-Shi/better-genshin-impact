@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Security
 
@@ -10,6 +11,15 @@ struct BetterGICoreTriggerState: Sendable, Equatable {
 }
 
 actor BetterGICoreProcessSupervisor {
+    private static let startupPollLimit = 4_800
+    enum StartupPhase: Sendable {
+        case starting
+        case waitingForSocket
+        case provisioning
+        case ready
+        case failed(String)
+    }
+
     enum State: Equatable, Sendable {
         case stopped
         case running(BetterGICoreHandshake)
@@ -24,18 +34,28 @@ actor BetterGICoreProcessSupervisor {
     private var callbackClient: BetterGICorePlatformCallbackClient?
     private var callbackTask: Task<Void, Never>?
     private var platformHandler: BetterGICorePlatformCallbackClient.Handler?
+    private var progressHandler: (@Sendable (StartupPhase) -> Void)?
+    private var logHandler: (@Sendable (String) -> Void)?
     private var processGeneration = 0
     private var controlledRestartCount = 0
     private var intentionalStop = false
+    private var outputPipe: Pipe?
 
     init(store: BGIRuntimeResourceStore = .defaultStore(), executableURL: URL? = nil) throws {
         self.store = store
         self.executableURL = try executableURL ?? Self.resolveExecutableURL()
     }
 
-    func start(platformHandler: @escaping BetterGICorePlatformCallbackClient.Handler) async throws -> BetterGICoreHandshake {
+    func start(
+        progressHandler: @escaping @Sendable (StartupPhase) -> Void,
+        logHandler: @escaping @Sendable (String) -> Void,
+        platformHandler: @escaping BetterGICorePlatformCallbackClient.Handler
+    ) async throws -> BetterGICoreHandshake {
         if case .running(let handshake) = state { return handshake }
+        progressHandler(.starting)
         self.platformHandler = platformHandler
+        self.progressHandler = progressHandler
+        self.logHandler = logHandler
         intentionalStop = false
         try store.createDirectorySkeleton()
         try store.synchronizeBundledGameTaskResources()
@@ -56,13 +76,20 @@ actor BetterGICoreProcessSupervisor {
             "--socket", socketURL.path,
             "--session-token", token
         ]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.standardError
+        let outputPipe = Pipe()
+        let outputForwarder = CoreOutputForwarder(handler: logHandler)
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            outputForwarder.consume(handle.availableData)
+        }
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+        self.outputPipe = outputPipe
         do {
             try process.run()
             self.process = process
             let client = BetterGICoreRPCClient(socketPath: socketURL.path, sessionToken: token)
             self.client = client
+            progressHandler(.waitingForSocket)
             try await waitForSocket(socketURL, process: process)
             let callbackClient = BetterGICorePlatformCallbackClient(
                 socketPath: socketURL.path,
@@ -78,8 +105,9 @@ actor BetterGICoreProcessSupervisor {
             }
             try client.connect()
             let handshake = try client.handshake()
+            progressHandler(.provisioning)
             var callbackAttached = false
-            for _ in 0..<40 {
+            for _ in 0..<Self.startupPollLimit {
                 let initialized = try client.initialize(
                     runtimeRoot: store.rootURL,
                     serverTimeZoneOffsetHours: 8,
@@ -105,18 +133,23 @@ actor BetterGICoreProcessSupervisor {
                 throw BetterGICoreRPCError.socket("Swift platform callback channel did not attach to Core.")
             }
             state = .running(handshake)
+            progressHandler(.ready)
             return handshake
         } catch {
             intentionalStop = true
-            process.terminate()
-            self.process = nil
+            _ = try? client?.request(method: "core.shutdown")
             client?.disconnect()
-            client = nil
             callbackClient?.stop()
-            callbackClient = nil
             callbackTask?.cancel()
+            await Self.stopProcess(process)
+            self.process = nil
+            client = nil
+            callbackClient = nil
             callbackTask = nil
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            self.outputPipe = nil
             state = .failed(error.localizedDescription)
+            progressHandler(.failed(error.localizedDescription))
             intentionalStop = false
             throw error
         }
@@ -216,6 +249,8 @@ actor BetterGICoreProcessSupervisor {
         client = nil
         callbackClient = nil
         callbackTask = nil
+        outputPipe?.fileHandleForReading.readabilityHandler = nil
+        outputPipe = nil
         state = .stopped
     }
 
@@ -231,11 +266,17 @@ actor BetterGICoreProcessSupervisor {
         callbackClient = nil
         callbackTask = nil
         state = .failed("BetterGI Core exited unexpectedly.")
+        progressHandler?(.failed("BetterGI Core exited unexpectedly."))
 
-        guard controlledRestartCount == 0, let platformHandler else { return }
+        guard controlledRestartCount == 0,
+              let platformHandler, let progressHandler, let logHandler else { return }
         controlledRestartCount = 1
         do {
-            _ = try await start(platformHandler: platformHandler)
+            _ = try await start(
+                progressHandler: progressHandler,
+                logHandler: logHandler,
+                platformHandler: platformHandler
+            )
         } catch {
             state = .failed("BetterGI Core controlled restart failed: \(error.localizedDescription)")
         }
@@ -244,10 +285,11 @@ actor BetterGICoreProcessSupervisor {
     private func callbackFailed(_ error: Error) {
         guard case .running = state else { return }
         state = .failed("Core platform callback failed: \(error.localizedDescription)")
+        progressHandler?(.failed("Core platform callback failed: \(error.localizedDescription)"))
     }
 
     private func waitForSocket(_ socketURL: URL, process: Process) async throws {
-        for _ in 0..<400 {
+        for _ in 0..<Self.startupPollLimit {
             guard process.isRunning else {
                 throw BetterGICoreRPCError.socket("BetterGI Core exited before creating its RPC socket.")
             }
@@ -255,6 +297,18 @@ actor BetterGICoreProcessSupervisor {
             try await Task.sleep(for: .milliseconds(25))
         }
         throw BetterGICoreRPCError.socket("Timed out waiting for BetterGI Core RPC socket.")
+    }
+
+    private static func stopProcess(_ process: Process) async {
+        guard process.isRunning else { return }
+        process.terminate()
+        for _ in 0..<80 {
+            if !process.isRunning { return }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+        if process.isRunning {
+            Darwin.kill(process.processIdentifier, SIGKILL)
+        }
     }
 
     private static func resolveExecutableURL() throws -> URL {
@@ -277,5 +331,28 @@ actor BetterGICoreProcessSupervisor {
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+private final class CoreOutputForwarder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending = ""
+    private let handler: @Sendable (String) -> Void
+
+    init(handler: @escaping @Sendable (String) -> Void) {
+        self.handler = handler
+    }
+
+    func consume(_ data: Data) {
+        guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
+        let lines = lock.withLock { () -> [String] in
+            pending += chunk
+            var parts = pending.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            pending = parts.removeLast()
+            return parts
+        }
+        for line in lines where !line.isEmpty {
+            handler(line)
+        }
     }
 }

@@ -356,9 +356,9 @@ struct BGIHeaderBar: View {
             .foregroundStyle(BGIColors.accent)
             BGIStatusBadge(text: appState.appStatus.label, tint: appState.appStatus.tint)
             Button {
-                appState.toggleStartPause()
+                appState.startRuntime()
             } label: {
-                Image(systemName: appState.appStatus == .running ? "pause.fill" : "play.fill")
+                Image(systemName: "play.fill")
             }
             .buttonStyle(.plain)
             .foregroundStyle(BGIColors.secondaryText)

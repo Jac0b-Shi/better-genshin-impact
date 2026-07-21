@@ -9,9 +9,9 @@ struct OverviewPage: View {
 
             BGISettingGroup(icon: "play", title: "BetterGI 截图器，启动！", subtitle: "截图器启动后才能使用各项功能，点击展开启动相关配置。") {
                 Button {
-                    appState.toggleStartPause()
+                    appState.startRuntime()
                 } label: {
-                    Label(appState.appStatus == .running ? "停止" : "启动", systemImage: appState.appStatus == .running ? "stop.fill" : "play.fill")
+                    Label("启动运行时", systemImage: "play.fill")
                 }
                 .buttonStyle(.borderedProminent)
             } content: {
