@@ -1042,6 +1042,88 @@ try
     await genshinCaptureResponder;
     Console.WriteLine("Real BetterGI genshin.returnMainUi passed: ClearScript, upstream task, capture ring and Paimon recognition.");
 
+    var battlePassFixturePath = Path.Combine(layout.UserPath, "JsScript", "GenshinClaimBattlePassRewards");
+    Directory.CreateDirectory(battlePassFixturePath);
+    await File.WriteAllTextAsync(Path.Combine(battlePassFixturePath, "manifest.json"), """
+        {"name":"Genshin ClaimBattlePassRewards","version":"1.0.0","description":"verification","authors":[{"name":"BetterGI"}],"main":"main.js","settings":[],"library":[]}
+        """);
+    await File.WriteAllTextAsync(Path.Combine(battlePassFixturePath, "main.js"),
+        "export {}; await genshin.claimBattlePassRewards();");
+    var battlePassCaptureCount = 0;
+    var battlePassMetricsCount = 0;
+    var battlePassActivationCount = 0;
+    var battlePassInputs = new List<string>();
+    var battlePassResponder = Task.Run(async () =>
+    {
+        while (battlePassCaptureCount < 5 || battlePassInputs.Count < 7)
+        {
+            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                ?? throw new EndOfStreamException("genshin.claimBattlePassRewards callback channel ended unexpectedly.");
+            switch (callback.Method)
+            {
+                case "window.activate":
+                    battlePassActivationCount++;
+                    await callbackConnection.WriteResponseAsync(
+                        RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+                    break;
+                case "window.metrics":
+                    battlePassMetricsCount++;
+                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                    {
+                        captureX = 0, captureY = 0, captureWidth = schedulerWidth,
+                        captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
+                        workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
+                    }), cancellation.Token);
+                    break;
+                case "capture.request":
+                    battlePassCaptureCount++;
+                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                    {
+                        ringPath = captureRingPath, frameId = 8UL, sequence = 2UL, slot = 0,
+                        width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
+                        pixelFormat = "BGRA8"
+                    }), cancellation.Token);
+                    break;
+                case "input.dispatch":
+                {
+                    var action = callback.Params?.Value<string>("action") ?? "";
+                    var detail = action switch
+                    {
+                        "gameAction" => callback.Params?.Value<string>("gameAction") + ":" +
+                                        callback.Params?.Value<string>("keyType"),
+                        "moveMouseToScreen" => callback.Params?.Value<int>("x") + "," +
+                                               callback.Params?.Value<int>("y"),
+                        "mouseDown" or "mouseUp" => callback.Params?.Value<string>("button") ?? "",
+                        _ => ""
+                    };
+                    battlePassInputs.Add($"{action}:{detail}");
+                    await callbackConnection.WriteResponseAsync(
+                        RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+                    break;
+                }
+                default:
+                    throw new InvalidDataException(
+                        $"genshin.claimBattlePassRewards emitted unexpected callback {callback.Method}.");
+            }
+        }
+    }, cancellation.Token);
+    await new ScriptProject("GenshinClaimBattlePassRewards").ExecuteAsync();
+    await battlePassResponder;
+    Require(battlePassCaptureCount == 5,
+        $"genshin.claimBattlePassRewards capture sequence changed: {battlePassCaptureCount}.");
+    Require(battlePassMetricsCount == 4,
+        $"genshin.claimBattlePassRewards metrics sequence changed: {battlePassMetricsCount}.");
+    Require(battlePassActivationCount >= 1 && battlePassActivationCount <= battlePassCaptureCount,
+        $"genshin.claimBattlePassRewards activation sequence changed: {battlePassActivationCount}.");
+    Require(battlePassInputs.SequenceEqual([
+            "gameAction:openBattlePassScreen:keyPress",
+            "moveMouseToScreen:960,45", "mouseDown:left", "mouseUp:left",
+            "moveMouseToScreen:858,45", "mouseDown:left", "mouseUp:left"
+        ]),
+        "genshin.claimBattlePassRewards input sequence changed: " + string.Join(",", battlePassInputs));
+    Console.WriteLine(
+        "Real BetterGI genshin.claimBattlePassRewards passed: ClearScript, upstream OCR flow and acknowledged semantic input.");
+
     var bvExpectedInputs = new Queue<string>([
         "keyDown", "keyUp", "keyPress", "inputText", "moveMouseBy",
         "mouseClick:left", "mouseClick:right", "mouseClick:middle", "verticalScroll"

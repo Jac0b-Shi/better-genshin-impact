@@ -53,6 +53,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/TaskControlPlatform.cs" Link="GameTask/Common/TaskControlPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/NewRetry.cs" Link="GameTask/Common/NewRetry.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ReturnMainUiTask.cs" Link="GameTask/Common/Job/ReturnMainUiTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.cs" Link="GameTask/Common/Job/ClaimBattlePassRewardsTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SetTimeTask.cs" Link="GameTask/Common/Job/SetTimeTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTask.cs" Link="GameTask/AutoTrackPath/TpTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpConfig.cs" Link="GameTask/AutoTrackPath/TpConfig.cs" />
@@ -475,6 +476,14 @@
                       LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.en.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.fr.resx"
                       LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.fr.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.zh-Hans.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.zh-Hans.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.zh-Hant.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.zh-Hant.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.en.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.en.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.fr.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.fr.resources" />
   </ItemGroup>
 
 </Project>

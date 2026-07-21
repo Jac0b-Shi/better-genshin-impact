@@ -32,6 +32,7 @@ using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoPathing.Suspend;
 using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using BetterGenshinImpact.GameTask.Common.Map;
 using BetterGenshinImpact.Core.Simulator.Extensions;
@@ -1710,6 +1711,35 @@ Assert("PickAroundHandler leaves movement released",
     !recordingTaskControl.IsPressed(GIActions.MoveForward) &&
     !recordingTaskControl.IsPressed(GIActions.MoveLeft),
     string.Join(" | ", recordingTaskControl.Calls));
+Console.WriteLine();
+
+Console.WriteLine("Genshin battle pass: upstream no-reward claim flow");
+recorder.Clear();
+recordingTaskControl.Calls.Clear();
+var battlePassCaptureCount = 0;
+recordingTaskControl.CaptureFrameProvider = () =>
+{
+    battlePassCaptureCount++;
+    return Cv2.ImRead(miningFixturePath, ImreadModes.Color);
+};
+try
+{
+    await new ClaimBattlePassRewardsTask().DoOnce(CancellationToken.None);
+}
+finally
+{
+    recordingTaskControl.CaptureFrameProvider = null;
+}
+Assert("ClaimBattlePassRewardsTask opens battle pass through semantic input",
+    recordingTaskControl.Calls.SequenceEqual(["action:OpenBattlePassScreen:KeyPress"]),
+    string.Join(" | ", recordingTaskControl.Calls));
+Assert("ClaimBattlePassRewardsTask preserves both upstream tab clicks",
+    recorder.Calls.SequenceEqual([
+        "MoveMouseTo(X=960, Y=45)", "LeftButtonDown()", "LeftButtonUp()",
+        "MoveMouseTo(X=858, Y=45)", "LeftButtonDown()", "LeftButtonUp()"
+    ]), string.Join(" | ", recorder.Calls));
+Assert("ClaimBattlePassRewardsTask captures both reward pages and main UI",
+    battlePassCaptureCount >= 5, $"captures={battlePassCaptureCount}");
 Console.WriteLine();
 
 AutoSkipAssets.DestroyInstance();
