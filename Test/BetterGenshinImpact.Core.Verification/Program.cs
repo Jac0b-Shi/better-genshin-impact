@@ -2821,6 +2821,8 @@ try
         var frame = BuildGroundTruthNavigationFrame(coarseMap, minimapRect, point);
         using var paimonTarget = new Mat(frame, new Rect(24, 20, pathingPaimon.Width, pathingPaimon.Height));
         pathingPaimon.CopyTo(paimonTarget);
+        frame.Set(50, 790, new Vec3b(0, 235, 255));
+        frame.Set(50, 768, new Vec3b(255, 255, 255));
         return frame;
     }).ToList();
     var pathingCaptureIndex = 0;
@@ -2837,6 +2839,27 @@ try
     PathExecutorPlatform.Configure(pathingPlatform);
     RunnerContext.Instance.Reset();
     Navigation.Reset();
+    var pathingFightStrategyName = "core-verification-fight-" + Guid.NewGuid().ToString("N");
+    var pathingFightStrategyPath = Global.Absolute($@"User\AutoFight\{pathingFightStrategyName}.txt");
+    Directory.CreateDirectory(Path.GetDirectoryName(pathingFightStrategyPath)!);
+    File.WriteAllText(pathingFightStrategyPath, "钟离 keypress(VK_F)");
+    var pathingFightConfig = new AutoFightConfig
+    {
+        StrategyName = pathingFightStrategyName,
+        TeamNames = verificationAutoFightConfig.TeamNames,
+        FightFinishDetectEnabled = true,
+        KazuhaPickupEnabled = false,
+        PickDropsAfterFightEnabled = false,
+        SwimmingEnabled = false,
+        FinishDetectConfig = new AutoFightConfig.FightFinishDetectConfig
+        {
+            CheckEndDelay = "0",
+            BeforeDetectDelay = "0",
+            RotateFindEnemyEnabled = false
+        }
+    };
+    var verificationCombatCommandPlatform = (VerificationCombatCommandPlatform)CombatCommandPlatform.Current;
+    verificationCombatCommandPlatform.Calls.Clear();
     var fullPathExecutor = new PathExecutor(CancellationToken.None)
     {
         PartyConfig = new PathingPartyConfig
@@ -2847,7 +2870,9 @@ try
             GuardianAvatarIndex = string.Empty,
             AutoRunEnabled = false,
             AutoSkipEnabled = false,
-            UseGadgetIntervalMs = 0
+            UseGadgetIntervalMs = 0,
+            AutoFightEnabled = true,
+            AutoFightConfig = pathingFightConfig
         }
     };
     var fullPathingTask = new PathingTask
@@ -2875,6 +2900,19 @@ try
                 MoveMode = MoveModeEnum.Walk.Code,
                 Action = ActionEnum.UseGadget.Code,
                 ActionParams = "not_wait"
+            },
+            new Waypoint
+            {
+                X = localizedTargetGame.X,
+                Y = localizedTargetGame.Y,
+                Type = WaypointType.Path.Code,
+                MoveMode = MoveModeEnum.Walk.Code,
+                Action = ActionEnum.Fight.Code,
+                PointExtParams = new Waypoint.ExtParams
+                {
+                    MonsterTag = "normal",
+                    EnableMonsterLootSplit = true
+                }
             }
         ]
     };
@@ -2887,6 +2925,7 @@ try
         recordingTaskControl.CaptureFrameProvider = null;
         foreach (var pathingFrame in pathingFrames) pathingFrame.Dispose();
         RunnerContext.Instance.Reset();
+        File.Delete(pathingFightStrategyPath);
     }
     Assert("PathExecutor Pathing initializes the configured upstream CombatScenes team",
         verificationAutoFightConfig.TeamNames == "钟离,夜兰,纳西妲,久岐忍",
@@ -2895,15 +2934,22 @@ try
         ReferenceEquals(pathingPlatform.CurrentPathing, fullPathingTask),
         pathingPlatform.CurrentPathing?.Info.Name ?? "null");
     Assert("PathExecutor Pathing completes the shared waypoint orchestration",
-        fullPathExecutor.SuccessEnd && fullPathExecutor.SuccessFight == 0,
+        fullPathExecutor.SuccessEnd && fullPathExecutor.SuccessFight == 1,
         $"successEnd={fullPathExecutor.SuccessEnd} successFight={fullPathExecutor.SuccessFight}");
     Assert("PathExecutor Pathing executes the upstream use-gadget action handler",
         recordingTaskControl.Calls.Count(call => call == "action:QuickUseGadget:KeyPress") == 2,
         string.Join(" | ", recordingTaskControl.Calls));
+    Assert("PathExecutor Pathing executes the upstream AutoFightHandler task chain",
+        verificationCombatCommandPlatform.Calls.SequenceEqual(["KeyPress(VK_F)"]),
+        string.Join(" | ", verificationCombatCommandPlatform.Calls));
+    Assert("PathExecutor Pathing exits fight through the shared combat-end detector",
+        recordingTaskControl.Calls.Count(call => call == "action:OpenPartySetupScreen:KeyPress") == 2 &&
+        recordingTaskControl.Calls.Count(call => call == "action:Drop:KeyPress") == 1,
+        string.Join(" | ", recordingTaskControl.Calls));
     Assert("PathExecutor Pathing drives and releases movement through TaskControl",
         pathingCaptureIndex >= pathingFrames.Count &&
-        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyDown") == 2 &&
-        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyUp") == 3 &&
+        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyDown") == 3 &&
+        recordingTaskControl.Calls.Count(call => call == "action:MoveForward:KeyUp") == 4 &&
         !recordingTaskControl.IsPressed(GIActions.MoveForward),
         $"captures={pathingCaptureIndex} calls={string.Join(" | ", recordingTaskControl.Calls)}");
 
@@ -3106,6 +3152,8 @@ sealed class RecordingScriptHostServices : IScriptHostServices
 
 sealed class VerificationCombatCommandPlatform : ICombatCommandPlatform
 {
+    public List<string> Calls { get; } = [];
+
     public void ValidateKeyName(string keyName)
     {
         var normalized = keyName.Trim().ToUpperInvariant();
@@ -3114,9 +3162,23 @@ sealed class VerificationCombatCommandPlatform : ICombatCommandPlatform
         if (normalized is "LBUTTON" or "RBUTTON" or "MBUTTON" or "SPACE" or "ESCAPE") return;
         throw new ArgumentException($"Unsupported verification key: {keyName}", nameof(keyName));
     }
-    public void KeyDown(string keyName) => ValidateKeyName(keyName);
-    public void KeyUp(string keyName) => ValidateKeyName(keyName);
-    public void KeyPress(string keyName) => ValidateKeyName(keyName);
+    public void KeyDown(string keyName)
+    {
+        ValidateKeyName(keyName);
+        Calls.Add($"KeyDown({keyName})");
+    }
+
+    public void KeyUp(string keyName)
+    {
+        ValidateKeyName(keyName);
+        Calls.Add($"KeyUp({keyName})");
+    }
+
+    public void KeyPress(string keyName)
+    {
+        ValidateKeyName(keyName);
+        Calls.Add($"KeyPress({keyName})");
+    }
 }
 
 sealed class RecordingCombatCommandScene(ICombatCommandAvatar avatar) : ICombatScriptScene

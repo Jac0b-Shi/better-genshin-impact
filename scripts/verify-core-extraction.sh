@@ -99,6 +99,15 @@ rg -q '\("TXT", \(\) => txtFightTask\.CheckFightFinish\(0, 0\)\)' \
 rg -q '\("JSON", \(\) => jsonFightTask\.CheckFightFinish\(0, 0\)\)' \
   Test/BetterGenshinImpact.Core.Verification/Program.cs \
   || fail "Core verification does not execute the upstream JSON combat-end flow"
+rg -q 'Action = ActionEnum\.Fight\.Code' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core PathExecutor verification does not contain a real fight waypoint"
+rg -q 'PathExecutor Pathing executes the upstream AutoFightHandler task chain' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core verification does not execute fight through PathExecutor and AutoFightHandler"
+rg -q 'fullPathExecutor\.SuccessFight == 1' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core verification does not require the fight waypoint to complete"
 if rg -n 'AutoFightEndDetector|CheckFightFinish|BattleEndProgressBarColor' \
   MacGI/Sources; then
   fail "Swift owns a duplicate combat-end decision"
