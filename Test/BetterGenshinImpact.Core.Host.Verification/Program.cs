@@ -1081,6 +1081,15 @@ try
     schedulerGroup.AddProject(ScriptGroupProject.BuildShellProject($"sleep 1; printf scheduler-real > '{schedulerMarker}'"));
     await File.WriteAllTextAsync(
         Path.Combine(layout.ScriptGroupPath, schedulerGroup.Name + ".json"), schedulerGroup.ToJson());
+    var cancelledSchedulerMarker = Path.Combine(root, "scheduler-cancelled.marker");
+    var cancelledSchedulerGroup = new ScriptGroup { Name = "SchedulerShellCancelled" };
+    cancelledSchedulerGroup.Config.EnableShellConfig = true;
+    cancelledSchedulerGroup.Config.ShellConfig.Output = false;
+    cancelledSchedulerGroup.AddProject(ScriptGroupProject.BuildShellProject(
+        $"printf scheduler-cancelled > '{cancelledSchedulerMarker}'; sleep 30"));
+    await File.WriteAllTextAsync(
+        Path.Combine(layout.ScriptGroupPath, cancelledSchedulerGroup.Name + ".json"),
+        cancelledSchedulerGroup.ToJson());
     var rejectedSchedulerGroup = new ScriptGroup { Name = "SchedulerShellRejected" };
     rejectedSchedulerGroup.Config.EnableShellConfig = true;
     rejectedSchedulerGroup.Config.ShellConfig.Output = false;
@@ -2463,6 +2472,62 @@ try
             schedulerStates.LastOrDefault() == "completed",
         "scheduler events did not preserve running/paused/resumed/completed lifecycle");
 
+    var cancelledSchedulerStates = new List<string>();
+    var cancelledSchedulerReleaseAllCount = 0;
+    var cancelledSchedulerResponder = Task.Run(async () =>
+    {
+        while (!cancelledSchedulerStates.Contains("cancelled"))
+        {
+            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                ?? throw new EndOfStreamException("Cancelled scheduler callback channel ended unexpectedly.");
+            object result = callback.Method switch
+            {
+                "window.metrics" => new
+                {
+                    captureX = 0, captureY = 0, captureWidth = schedulerWidth,
+                    captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
+                    workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
+                },
+                "capture.request" => new
+                {
+                    ringPath = captureRingPath, frameId = 10UL, sequence = 2UL, slot = 0,
+                    width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
+                    pixelFormat = "BGRA8"
+                },
+                "scheduler.event" => RecordSchedulerState(callback.Params, cancelledSchedulerStates),
+                "input.dispatch" => RecordReleaseAll(callback.Params, ref cancelledSchedulerReleaseAllCount),
+                "window.activate" or "notification.emit" => new { acknowledged = true },
+                _ => throw new InvalidDataException(
+                    $"Unexpected cancelled scheduler callback: {callback.Method}")
+            };
+            await callbackConnection.WriteResponseAsync(
+                RpcResponse.Success(callback.Id, result), cancellation.Token);
+        }
+    }, cancellation.Token);
+    var cancelledSchedulerRun = await ExchangeAsync(
+        connection, "scheduler-cancelled", "scheduler.run", sessionToken,
+        JObject.FromObject(new { groupName = cancelledSchedulerGroup.Name }), cancellation.Token);
+    Require(cancelledSchedulerRun.Error is null,
+        cancelledSchedulerRun.Error?.Message ?? "cancelled scheduler.run failed");
+    var cancelledSchedulerTaskId = JObject.FromObject(cancelledSchedulerRun.Result!).Value<string>("taskId")
+        ?? throw new InvalidDataException("cancelled scheduler.run omitted taskId");
+    Require(await WaitForFileAsync(cancelledSchedulerMarker, TimeSpan.FromSeconds(5), cancellation.Token),
+        "scheduler.stop verification did not enter the real Shell project before cancellation");
+    var schedulerStop = await ExchangeAsync(
+        connection, "scheduler-stop", "scheduler.stop", sessionToken,
+        JObject.FromObject(new { taskId = cancelledSchedulerTaskId }), cancellation.Token);
+    Require(schedulerStop.Error is null &&
+            JObject.FromObject(schedulerStop.Result!).Value<string>("state") == "stopping",
+        schedulerStop.Error?.Message ?? "scheduler.stop failed");
+    await cancelledSchedulerResponder;
+    Require(await File.ReadAllTextAsync(cancelledSchedulerMarker) == "scheduler-cancelled",
+        "scheduler.stop verification did not preserve the Shell entry marker");
+    Require(cancelledSchedulerReleaseAllCount == 1,
+        $"scheduler.stop dispatched releaseAll {cancelledSchedulerReleaseAllCount} times instead of once");
+    Require(cancelledSchedulerStates.FirstOrDefault() == "running" &&
+            cancelledSchedulerStates.LastOrDefault() == "cancelled",
+        "scheduler.stop did not preserve running/cancelled lifecycle");
+
     var rejectedSchedulerStates = new List<string>();
     var rejectedSchedulerActivationCount = 0;
     var rejectedSchedulerResponder = Task.Run(async () =>
@@ -2616,6 +2681,27 @@ static object RecordAcknowledgement(ref int count)
 {
     count++;
     return new { acknowledged = true };
+}
+
+static object RecordReleaseAll(JObject? parameters, ref int count)
+{
+    Require(parameters?.Value<string>("action") == "releaseAll",
+        "scheduler.stop emitted an unexpected input action");
+    count++;
+    return new { acknowledged = true };
+}
+
+static async Task<bool> WaitForFileAsync(
+    string path, TimeSpan timeout, CancellationToken cancellationToken)
+{
+    var deadline = DateTime.UtcNow + timeout;
+    while (DateTime.UtcNow < deadline)
+    {
+        if (File.Exists(path))
+            return true;
+        await Task.Delay(25, cancellationToken);
+    }
+    return File.Exists(path);
 }
 
 static async Task<FramedJsonConnection> ConnectAsync(string socketPath, CancellationToken cancellationToken)
