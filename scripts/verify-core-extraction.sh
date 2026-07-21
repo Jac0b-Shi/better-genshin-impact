@@ -82,6 +82,12 @@ if rg -n 'TaskContext|Simulation\.SendInput|VisionContext' \
   BetterGenshinImpact/GameTask/Common/Job/CraftMaterialTask.cs; then
   fail "shared CraftMaterialTask still owns Windows runtime dependencies"
 fi
+rg -q 'ForcedAvatarOcrFallbackCombatScenes' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not force the upstream Avatar OCR fallback"
+rg -q 'Real Avatar OCR fallback passed' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not assert real Avatar OCR fallback completion"
 rg -q 'JsonConvert\.DeserializeObject<GiTpPosition>' \
   BetterGenshinImpact.Core.Host/Runtime/MacTpTaskRuntimePlatform.cs \
   || fail "macOS TpTask composition does not restore the upstream runtime-only statue object"

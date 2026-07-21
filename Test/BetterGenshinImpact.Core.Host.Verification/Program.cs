@@ -24,6 +24,8 @@ using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoFight;
+using BetterGenshinImpact.GameTask.AutoFight.Assets;
+using BetterGenshinImpact.GameTask.AutoFight.Model;
 using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.AutoTrackPath.Model;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
@@ -2108,6 +2110,49 @@ try
         $"captures={switchPartyCaptureCount}, activations={switchPartyActivationCount}.");
     Console.WriteLine("Real BetterGI genshin.switchParty passed: ClearScript, party-view template and locked Paddle OCR.");
 
+    var avatarOcrFallbackFixture = Path.Combine(
+        AppContext.BaseDirectory, "Fixtures", "AutoFight", "别人进我世界_2人.png");
+    Require(File.Exists(avatarOcrFallbackFixture),
+        "Avatar OCR fallback fixture is missing: " + avatarOcrFallbackFixture);
+    var avatarOcrFallbackHash = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(avatarOcrFallbackFixture)))
+        .ToLowerInvariant();
+    Require(avatarOcrFallbackHash == "9f11e9762332f7dddcd3e926dbc7c4d7330e43d083d060ca929b2382e7c04b2f",
+        "Avatar OCR fallback fixture hash changed: " + avatarOcrFallbackHash);
+    var avatarOcrMetricsResponder = Task.Run(async () =>
+    {
+        var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+            ?? throw new EndOfStreamException("Avatar OCR fallback did not request window metrics.");
+        Require(callback.Method == "window.metrics",
+            "Avatar OCR fallback emitted unexpected callback: " + callback.Method);
+        await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+        {
+            captureX = 0, captureY = 0, captureWidth = 1920, captureHeight = 1080,
+            workingAreaWidth = 1920, workingAreaHeight = 1080, dpiScale = 1.0, processId = 1
+        }), cancellation.Token);
+    }, cancellation.Token);
+    using (var avatarOcrFallbackFrame = OpenCvSharp.Cv2.ImRead(
+               avatarOcrFallbackFixture, OpenCvSharp.ImreadModes.Color))
+    using (var avatarOcrFallbackRegion = new ImageRegion(avatarOcrFallbackFrame, 0, 0))
+    using (var avatarOcrFallbackScenes = new ForcedAvatarOcrFallbackCombatScenes(
+               imageRegionOcrService.CreateYoloPredictor(
+                   BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxModel.BgiAvatarSide),
+               AutoFightAssets.Instance,
+               loggerFactory.CreateLogger<CombatScenes>(),
+               ElementAssets.Instance,
+               new HostVerificationSystemInfo())
+               .InitializeTeam(avatarOcrFallbackRegion, new AutoFightConfig()))
+    {
+        var fallbackNames = avatarOcrFallbackScenes.GetAvatars()
+            .Select(avatar => avatar.Name).ToArray();
+        Require(fallbackNames.SequenceEqual(["阿蕾奇诺", "钟离"]),
+            "Avatar OCR fallback did not recognize the real sidebar names: " +
+            string.Join(",", fallbackNames));
+    }
+    await avatarOcrMetricsResponder;
+    Console.WriteLine(
+        "Real Avatar OCR fallback passed: forced YOLO failure, pinned game screenshot and locked Paddle OCR.");
+
     var schedulerStates = new List<string>();
     var schedulerResponder = Task.Run(async () =>
     {
@@ -2510,4 +2555,32 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
         CancellationToken cancellationToken) => throw new CapabilityUnavailableException(request.Name);
     public Task<object?> RunParameterizedTask(string name, object parameter,
         CancellationToken cancellationToken) => throw new CapabilityUnavailableException(name);
+}
+
+sealed class ForcedAvatarOcrFallbackCombatScenes(
+    BetterGenshinImpact.Core.Recognition.ONNX.BgiYoloPredictor predictor,
+    AutoFightAssets autoFightAssets,
+    Microsoft.Extensions.Logging.ILogger logger,
+    ElementAssets elementAssets,
+    ISystemInfo systemInfo)
+    : CombatScenes(predictor, autoFightAssets, logger, elementAssets, systemInfo)
+{
+    public override (string, string) ClassifyAvatarCnName(
+        SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgb24> image,
+        int index) => throw new InvalidOperationException($"forced classifier failure for avatar {index}");
+}
+
+sealed class HostVerificationSystemInfo : ISystemInfo
+{
+    public System.Drawing.Size DisplaySize { get; } = new(1920, 1080);
+    public BetterGenshinImpact.Platform.Abstractions.BgiRect GameScreenSize { get; } = new(0, 0, 1920, 1080);
+    public double AssetScale => 1;
+    public double ZoomOutMax1080PRatio => 1;
+    public double ScaleTo1080PRatio => 1;
+    public BetterGenshinImpact.Platform.Abstractions.BgiRect CaptureAreaRect { get; set; } = new(0, 0, 1920, 1080);
+    public BetterGenshinImpact.Platform.Abstractions.BgiRect ScaleMax1080PCaptureRect { get; set; } = new(0, 0, 1920, 1080);
+    public System.Diagnostics.Process? GameProcess => null;
+    public string GameProcessName => "Verification";
+    public int GameProcessId => 1;
+    public DesktopRegion DesktopRectArea { get; } = new(1920, 1080);
 }

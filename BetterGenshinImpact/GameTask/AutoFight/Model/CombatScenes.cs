@@ -298,7 +298,7 @@ public class CombatScenes : IDisposable, ICombatScriptScene
     // }
 
 
-    public (string, string) ClassifyAvatarCnName(Image<Rgb24> img, int index)
+    public virtual (string, string) ClassifyAvatarCnName(Image<Rgb24> img, int index)
     {
         var className = ClassifyAvatarName(img, index);
 
