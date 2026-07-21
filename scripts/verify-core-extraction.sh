@@ -275,6 +275,9 @@ rg -q 'appState\.toggleRuntime\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage
   && rg -q 'runtime\.start' BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
   && rg -q 'runtime\.stop' BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
   || fail "The global runtime control is not backed by Core start/stop RPC"
+rg -q '@Published var isHUDVisible = false' MacGI/Sources/MacGI/App/AppState.swift \
+  && rg -q 'if self\.showHUDOnStart' MacGI/Sources/MacGI/App/AppState.swift \
+  || fail "HUD visibility is not bound to successful runtime start/stop"
 if rg -n 'runSchedulerGroups\(\)|toggleStartPause\(\)' MacGI/Sources/MacGI/Views/Pages/OverviewPage.swift; then
   fail "The global runtime button still starts the scheduler"
 fi

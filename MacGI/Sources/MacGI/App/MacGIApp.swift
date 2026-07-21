@@ -52,9 +52,6 @@ struct MacGICommands: Commands {
 
             Button(appState.runtimeLifecycle == .running ? "Stop Runtime" : "Start Runtime") {
                 appState.toggleRuntime()
-                if appState.runtimeLifecycle != .running {
-                    coordinator.showHUDIfNeeded()
-                }
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(appState.runtimeLifecycle.isTransitioning)
@@ -84,9 +81,6 @@ struct MenuBarControls: View {
         }
         Button(appState.runtimeLifecycle == .running ? "Stop Runtime" : "Start Runtime") {
             appState.toggleRuntime()
-            if appState.runtimeLifecycle != .running {
-                coordinator.showHUDIfNeeded()
-            }
         }
         .disabled(appState.runtimeLifecycle.isTransitioning)
         Button(appState.isHUDVisible ? "Hide HUD" : "Show HUD") {

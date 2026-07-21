@@ -249,7 +249,7 @@ final class AppState: ObservableObject {
     @Published var inputStatus: RuntimeStatus = .missing
     @Published var coreStatus: RuntimeStatus = .starting
     @Published var runtimeLifecycle: RuntimeLifecycle = .stopped
-    @Published var isHUDVisible = true {
+    @Published var isHUDVisible = false {
         didSet { onHUDVisibilityChanged?(isHUDVisible) }
     }
     @Published var hudOpacity = 0.82
@@ -429,6 +429,9 @@ final class AppState: ObservableObject {
             do {
                 try await supervisor.startRuntime()
                 _ = try await self.captureFrameForBetterGICore()
+                if self.showHUDOnStart {
+                    self.isHUDVisible = true
+                }
                 self.runtimeLifecycle = .running
                 self.addLog(.info, "BetterGI runtime started with a verified ScreenCaptureKit frame.")
             } catch {
