@@ -35,6 +35,8 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Require Apple Silicon
         run: test "$(uname -m)" = arm64
+      - name: Install static gate tools
+        run: brew install ripgrep
       - name: Static anti-fake gate
         run: scripts/verify-core-extraction.sh
       - name: Restore Core
