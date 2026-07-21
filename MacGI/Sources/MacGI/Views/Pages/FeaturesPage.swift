@@ -15,6 +15,7 @@ struct FeaturesPage: View {
                             set: { appState.setFeature(feature.id, enabled: $0) }
                         )
                     )
+                    .toggleStyle(.switch)
                     .labelsHidden()
                     .disabled(!appState.canControlFeature(feature.id))
                 }
