@@ -20,6 +20,7 @@ public interface IScriptServicePlatform
     string MapMatchingMethod { get; }
     IReadOnlyList<ScriptGroup> ScriptGroups { get; }
     bool FarmingPlanEnabled { get; }
+    bool PropagateProjectExceptions => false;
     bool IsDailyFarmingLimitReached(FarmingSession farmingSession, out string message);
     void ClearTriggers();
     SchedulerRestartPolicy RestartPolicy { get; }

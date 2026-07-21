@@ -16,6 +16,7 @@ public sealed class MacTaskRunnerPlatform(
     public ILogger Logger { get; } = logger;
     public ILogger RunnerLogger { get; } = runnerLogger;
     public SemaphoreSlim TaskSemaphore { get; } = new(1, 1);
+    public bool RethrowUnexpectedExceptions => true;
 
     public void InitializeTask()
     {

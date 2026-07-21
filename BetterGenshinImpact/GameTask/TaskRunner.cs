@@ -89,6 +89,10 @@ public class TaskRunner
             TaskRunnerPlatform.Current.NotifyError("任务执行异常", e);
             _logger.LogError(e.Message);
             _logger.LogDebug(e.StackTrace);
+            if (TaskRunnerPlatform.Current.RethrowUnexpectedExceptions)
+            {
+                throw;
+            }
         }
         finally
         {

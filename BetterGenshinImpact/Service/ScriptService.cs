@@ -363,6 +363,10 @@ public partial class ScriptService : IScriptService
                                 {
                                     taskProgress.CurrentScriptGroupProjectInfo.Status = 2;
                                 }
+                                if (ScriptServicePlatform.Current.PropagateProjectExceptions)
+                                {
+                                    throw;
+                                }
                             }
                             finally
                             {

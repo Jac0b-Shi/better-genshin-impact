@@ -211,6 +211,15 @@ rg -q 'catch \(PlatformCallbackException\)' \
 rg -q 'A platform business rejection detached the reusable callback channel' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "Core Host verification does not prove callback recovery after input rejection"
+rg -q 'scheduler did not publish failed after a platform input rejection' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not propagate platform rejection to scheduler failed"
+rg -q 'RethrowUnexpectedExceptions => true' \
+  BetterGenshinImpact.Core.Host/Runtime/MacTaskRunnerPlatform.cs \
+  || fail "macOS TaskRunner can swallow an exception and report scheduler completion"
+rg -q 'PropagateProjectExceptions => true' \
+  BetterGenshinImpact.Core.Host/Runtime/MacScriptServicePlatform.cs \
+  || fail "macOS ScriptService can swallow a project exception and report scheduler completion"
 
 if rg -n '由 Rust/OpenCV 提供|Rust.*(脚本|调度|路径|识别)' MacGI/Sources/MacGI; then
   fail "Swift UI assigns BetterGI business authority to Rust"

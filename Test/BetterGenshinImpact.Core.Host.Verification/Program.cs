@@ -1046,6 +1046,12 @@ try
     schedulerGroup.AddProject(ScriptGroupProject.BuildShellProject($"sleep 1; printf scheduler-real > '{schedulerMarker}'"));
     await File.WriteAllTextAsync(
         Path.Combine(layout.ScriptGroupPath, schedulerGroup.Name + ".json"), schedulerGroup.ToJson());
+    var rejectedSchedulerGroup = new ScriptGroup { Name = "SchedulerShellRejected" };
+    rejectedSchedulerGroup.Config.EnableShellConfig = true;
+    rejectedSchedulerGroup.Config.ShellConfig.Output = false;
+    rejectedSchedulerGroup.AddProject(ScriptGroupProject.BuildShellProject("printf scheduler-rejected"));
+    await File.WriteAllTextAsync(
+        Path.Combine(layout.ScriptGroupPath, rejectedSchedulerGroup.Name + ".json"), rejectedSchedulerGroup.ToJson());
 
     var sourceRoot = Path.Combine(Directory.GetCurrentDirectory(), "BetterGenshinImpact", "GameTask");
     foreach (var relativeAsset in new[]
@@ -2413,6 +2419,54 @@ try
     Require(schedulerStates.FirstOrDefault() == "running" && schedulerStates.Contains("paused") &&
             schedulerStates.LastOrDefault() == "completed",
         "scheduler events did not preserve running/paused/resumed/completed lifecycle");
+
+    var rejectedSchedulerStates = new List<string>();
+    var rejectedSchedulerActivationCount = 0;
+    var rejectedSchedulerResponder = Task.Run(async () =>
+    {
+        while (!rejectedSchedulerStates.Contains("failed"))
+        {
+            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                ?? throw new EndOfStreamException("Rejected scheduler callback channel ended unexpectedly.");
+            if (callback.Method == "window.activate")
+            {
+                rejectedSchedulerActivationCount++;
+                var response = rejectedSchedulerActivationCount == 3
+                    ? RpcResponse.Failure(callback.Id, "InputRejected", "verification activation failure")
+                    : RpcResponse.Success(callback.Id, new { acknowledged = true });
+                await callbackConnection.WriteResponseAsync(response, cancellation.Token);
+                continue;
+            }
+
+            object result = callback.Method switch
+            {
+                "window.metrics" => new
+                {
+                    captureX = 0, captureY = 0, captureWidth = schedulerWidth, captureHeight = schedulerHeight,
+                    workingAreaWidth = schedulerWidth, workingAreaHeight = schedulerHeight,
+                    dpiScale = 1.0, processId = 1
+                },
+                "capture.request" => new
+                {
+                    ringPath = captureRingPath, frameId = 10UL, sequence = 2UL, slot = 0,
+                    width = schedulerWidth, height = schedulerHeight, stride = schedulerStride, pixelFormat = "BGRA8"
+                },
+                "scheduler.event" => RecordSchedulerState(callback.Params, rejectedSchedulerStates),
+                "input.dispatch" or "notification.emit" => new { acknowledged = true },
+                _ => throw new InvalidDataException($"Unexpected rejected scheduler callback: {callback.Method}")
+            };
+            await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, result), cancellation.Token);
+        }
+    }, cancellation.Token);
+    var rejectedSchedulerRun = await ExchangeAsync(
+        connection, "scheduler-rejected", "scheduler.run", sessionToken,
+        JObject.FromObject(new { groupName = rejectedSchedulerGroup.Name }), cancellation.Token);
+    Require(rejectedSchedulerRun.Error is null, rejectedSchedulerRun.Error?.Message ?? "rejected scheduler.run failed");
+    await rejectedSchedulerResponder;
+    Require(rejectedSchedulerActivationCount == 3 &&
+            rejectedSchedulerStates.FirstOrDefault() == "running" &&
+            rejectedSchedulerStates.LastOrDefault() == "failed",
+        "scheduler did not publish failed after a platform input rejection");
 
     var missingGroup = await ExchangeAsync(connection, "3", "scheduler.run", sessionToken,
         JObject.FromObject(new { groupName = "missing-group" }), cancellation.Token);

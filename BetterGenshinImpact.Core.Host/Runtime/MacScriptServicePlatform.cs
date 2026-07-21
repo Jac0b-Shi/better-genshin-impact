@@ -40,6 +40,7 @@ public sealed class MacScriptServicePlatform(
         .Select(path => ScriptGroup.FromJson(File.ReadAllText(path)))
         .ToArray();
     public bool FarmingPlanEnabled => LoadOtherConfig().FarmingPlanConfig.Enabled;
+    public bool PropagateProjectExceptions => true;
     public bool IsDailyFarmingLimitReached(FarmingSession farmingSession, out string message) =>
         FarmingStatsRecorder.IsDailyFarmingLimitReached(farmingSession, out message);
     public void ClearTriggers() => GameTaskManager.ClearTriggers();

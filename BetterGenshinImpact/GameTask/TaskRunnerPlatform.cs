@@ -9,6 +9,7 @@ public interface ITaskRunnerPlatform
     ILogger Logger { get; }
     ILogger RunnerLogger { get; }
     SemaphoreSlim TaskSemaphore { get; }
+    bool RethrowUnexpectedExceptions => false;
     void InitializeTask();
     void EndTask();
     void NotifyCancellation(string message);
