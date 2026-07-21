@@ -11,6 +11,8 @@ using BetterGenshinImpact.GameTask.AutoPathing.Handler;
 using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
+using BetterGenshinImpact.GameTask.AutoDomain;
+using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Config;
 using Microsoft.Extensions.Logging;
@@ -29,6 +31,7 @@ public sealed class MacDispatcherRuntimePlatform(
     IYapAutoPickTextRecognizer yapRecognizer,
     IAutoWoodRuntimePlatform autoWoodRuntimePlatform,
     IAutoMusicGameRuntimePlatform autoMusicGameRuntimePlatform,
+    IAutoDomainRuntimePlatform autoDomainRuntimePlatform,
     IOcrService ocrService,
     RuntimeLayout layout,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
@@ -57,8 +60,20 @@ public sealed class MacDispatcherRuntimePlatform(
     public bool GetTcgStrategy(out string content) =>
         throw Unavailable("AutoGeniusInvokation");
 
-    public bool GetFightStrategy(string? strategyName, out string path) =>
-        throw Unavailable(string.IsNullOrEmpty(strategyName) ? "AutoDomain" : "AutoBoss");
+    public bool GetFightStrategy(string? strategyName, out string path)
+    {
+        strategyName ??= LoadConfig<AutoFightConfig>(
+            layout, "autoFightConfig").StrategyName;
+        if (string.IsNullOrWhiteSpace(strategyName))
+        {
+            path = string.Empty;
+            return true;
+        }
+        path = strategyName == "根据队伍自动选择"
+            ? Global.Absolute("User/AutoFight/")
+            : AutoFightParam.ResolveStrategyPath(strategyName).path;
+        return !File.Exists(path) && !Directory.Exists(path);
+    }
 
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
@@ -112,6 +127,18 @@ public sealed class MacDispatcherRuntimePlatform(
                 .Start(cancellationToken);
             return null;
         }
+        if (request is DispatcherDomainTaskRequest domain)
+        {
+            var config = LoadConfig<AutoDomainConfig>(layout, "autoDomainConfig");
+            var artifactConfig = LoadConfig<AutoArtifactSalvageConfig>(
+                layout, "autoArtifactSalvageConfig");
+            var pickConfig = LoadConfig<AutoPickConfig>(layout, "autoPickConfig");
+            var parameter = new AutoDomainParam(
+                0, domain.StrategyPath, config, artifactConfig.MaxArtifactStar);
+            return await new AutoDomainTask(
+                    parameter, config, pickConfig.PickKey, autoDomainRuntimePlatform)
+                .Start(cancellationToken);
+        }
         throw Unavailable(request.Name);
     }
 
@@ -142,6 +169,19 @@ public sealed class MacDispatcherRuntimePlatform(
         }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
         return root["autoCookConfig"]?.Deserialize<AutoCookConfig>(ConfigJson.Options)
                ?? new AutoCookConfig();
+    }
+
+    private static T LoadConfig<T>(RuntimeLayout layout, string propertyName) where T : class, new()
+    {
+        var path = Path.Combine(layout.UserPath, "config.json");
+        if (!File.Exists(path)) return new T();
+        var root = JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip,
+        }) as JsonObject ?? throw new InvalidDataException("User/config.json root must be an object.");
+        var node = root[propertyName];
+        return node is null ? new T() : node.Deserialize<T>(ConfigJson.Options) ?? new T();
     }
 
     private static AutoWoodConfig LoadAutoWoodConfig(RuntimeLayout layout)

@@ -346,6 +346,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoCook/AutoCookConfig.cs" Link="GameTask/AutoCook/AutoCookConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoCook/AutoCookTask.cs" Link="GameTask/AutoCook/AutoCookTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoArtifactSalvage/*.cs" Link="GameTask/AutoArtifactSalvage/%(Filename)%(Extension)" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/*.cs" Link="GameTask/AutoDomain/%(Filename)%(Extension)" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/Model/*.cs" Link="GameTask/AutoDomain/Model/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatRuntimePlatform.cs" Link="GameTask/AutoEat/AutoEatRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTrigger.cs" Link="GameTask/AutoEat/AutoEatTrigger.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseTaskParam.cs" Link="GameTask/Model/BaseTaskParam.cs" />
@@ -513,6 +515,14 @@
                       LogicalName="BetterGenshinImpact.GameTask.AutoArtifactSalvage.AutoArtifactSalvageTask.en.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoArtifactSalvage/AutoArtifactSalvageTask.fr.resx"
                       LogicalName="BetterGenshinImpact.GameTask.AutoArtifactSalvage.AutoArtifactSalvageTask.fr.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoDomain/AutoDomainTask.zh-Hans.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoDomain.AutoDomainTask.zh-Hans.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoDomain/AutoDomainTask.zh-Hant.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoDomain.AutoDomainTask.zh-Hant.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoDomain/AutoDomainTask.en.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoDomain.AutoDomainTask.en.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/AutoDomain/AutoDomainTask.fr.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.AutoDomain.AutoDomainTask.fr.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.zh-Hans.resx"
                       LogicalName="BetterGenshinImpact.GameTask.Common.BgiVision.BvResxHelper.zh-Hans.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvResxHelper.zh-Hant.resx"

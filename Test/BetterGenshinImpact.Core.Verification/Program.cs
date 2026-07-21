@@ -30,6 +30,7 @@ using BetterGenshinImpact.GameTask.AutoCook;
 using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
+using BetterGenshinImpact.GameTask.AutoDomain;
 using BetterGenshinImpact.GameTask.GetGridIcons;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
@@ -1800,6 +1801,24 @@ Assert("MiningHandler leaves movement actions released",
     !recordingTaskControl.IsPressed(GIActions.MoveRight),
     string.Join(" | ", recordingTaskControl.Calls));
 Console.WriteLine();
+
+Console.WriteLine("AutoDomain: shared capture geometry validation");
+AutoDomainTask.ValidateScreenResolution(
+    new BetterGenshinImpact.Platform.Abstractions.BgiRect(0, 0, 2560, 1440),
+    NullLogger.Instance);
+var rejectedNonWideDomainResolution = false;
+try
+{
+    AutoDomainTask.ValidateScreenResolution(
+        new BetterGenshinImpact.Platform.Abstractions.BgiRect(0, 0, 1920, 1200),
+        NullLogger.Instance);
+}
+catch (Exception exception) when (exception.Message == "游戏窗口分辨率不是 16:9")
+{
+    rejectedNonWideDomainResolution = true;
+}
+Assert("AutoDomain preserves upstream 16:9 resolution gate",
+    rejectedNonWideDomainResolution, "1920x1200 was accepted");
 
 Console.WriteLine("AutoCook: upstream UI recognition, peak tracking and semantic Space input");
 using var cookFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);

@@ -1046,7 +1046,7 @@ try
     var sharedDispatcher = new Dispatcher(new object());
     try
     {
-        await sharedDispatcher.RunTask(new SoloTask("AutoDomain"));
+        await sharedDispatcher.RunTask(new SoloTask("AutoBoss"));
         throw new InvalidOperationException("Dispatcher accepted an unavailable task as successful.");
     }
     catch (CapabilityUnavailableException)
@@ -2794,9 +2794,9 @@ try
 
     var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
     Require(soloList.Error is null && soloList.Result is JArray soloItems &&
-            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage")
+            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain")
                 .All(item => item.Value<bool>("available")) &&
-            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage"))
+            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
@@ -2869,6 +2869,20 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.ArtifactSalvageCancelled,
         "solo.stop did not cancel the active Core AutoArtifactSalvage task");
+    var domainStart = await ExchangeAsync(connection, "domain-start", "solo.start", sessionToken,
+        JObject.FromObject(new { name = "AutoDomain" }), cancellation.Token);
+    var domainTaskId = (domainStart.Result as JObject)?.Value<string>("taskId");
+    Require(domainStart.Error is null && !string.IsNullOrEmpty(domainTaskId) &&
+            dispatcherRuntime.DomainStartCount == 1 &&
+            dispatcherRuntime.LastDomainStrategyPath == "/verification/User/AutoFight/strategy.txt",
+        "solo.start did not execute the shared AutoDomain dispatcher request");
+    var domainStop = await ExchangeAsync(connection, "domain-stop", "solo.stop", sessionToken,
+        JObject.FromObject(new { taskId = domainTaskId }), cancellation.Token);
+    Require(domainStop.Error is null, domainStop.Error?.Message ?? "solo.stop AutoDomain failed");
+    for (var attempt = 0; attempt < 20 && !dispatcherRuntime.DomainCancelled; attempt++)
+        await Task.Delay(25, cancellation.Token);
+    Require(dispatcherRuntime.DomainCancelled,
+        "solo.stop did not cancel the active Core AutoDomain task");
     var fightStart = await ExchangeAsync(connection, "fight-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);
     var fightTaskId = (fightStart.Result as JObject)?.Value<string>("taskId");
@@ -3257,6 +3271,9 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public bool MusicCancelled { get; private set; }
     public int ArtifactSalvageStartCount { get; private set; }
     public bool ArtifactSalvageCancelled { get; private set; }
+    public int DomainStartCount { get; private set; }
+    public bool DomainCancelled { get; private set; }
+    public string? LastDomainStrategyPath { get; private set; }
     public void ClearTriggers() => ClearCount++;
     public bool AddTrigger(string name, object? config)
     {
@@ -3265,12 +3282,15 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     }
     public bool GetTcgStrategy(out string content) =>
         throw new CapabilityUnavailableException("AutoGeniusInvokation");
-    public bool GetFightStrategy(string? strategyName, out string path) =>
-        throw new CapabilityUnavailableException("AutoDomain");
+    public bool GetFightStrategy(string? strategyName, out string path)
+    {
+        path = "/verification/User/AutoFight/strategy.txt";
+        return false;
+    }
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
-        if (request is not (DispatcherFishingTaskRequest or DispatcherWoodTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest or DispatcherMusicGameTaskRequest or DispatcherArtifactSalvageTaskRequest))
+        if (request is not (DispatcherFishingTaskRequest or DispatcherWoodTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest or DispatcherMusicGameTaskRequest or DispatcherArtifactSalvageTaskRequest or DispatcherDomainTaskRequest))
             throw new CapabilityUnavailableException(request.Name);
         if (request is DispatcherFishingTaskRequest) FishingStartCount++;
         else if (request is DispatcherWoodTaskRequest wood)
@@ -3287,6 +3307,11 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
         }
         else if (request is DispatcherMusicGameTaskRequest) MusicStartCount++;
         else if (request is DispatcherArtifactSalvageTaskRequest) ArtifactSalvageStartCount++;
+        else if (request is DispatcherDomainTaskRequest domain)
+        {
+            DomainStartCount++;
+            LastDomainStrategyPath = domain.StrategyPath;
+        }
         else CookStartCount++;
         try
         {
@@ -3299,6 +3324,7 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
             else if (request is DispatcherFightTaskRequest) FightCancelled = true;
             else if (request is DispatcherMusicGameTaskRequest) MusicCancelled = true;
             else if (request is DispatcherArtifactSalvageTaskRequest) ArtifactSalvageCancelled = true;
+            else if (request is DispatcherDomainTaskRequest) DomainCancelled = true;
             else CookCancelled = true;
             throw;
         }

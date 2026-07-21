@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+#if !BGI_PLATFORM_MAC
 using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
+#endif
 
 namespace BetterGenshinImpact.GameTask.AutoDomain.Model;
 
@@ -62,6 +64,7 @@ public class ResinUseRecord
         return list;
     }
     
+#if !BGI_PLATFORM_MAC
     public static List<ResinUseRecord> BuildFromDomainParam(AutoStygianOnslaughtParam taskParam)
     {
         List<ResinUseRecord> list = [];
@@ -92,4 +95,5 @@ public class ResinUseRecord
 
         return list;
     }
+#endif
 }
