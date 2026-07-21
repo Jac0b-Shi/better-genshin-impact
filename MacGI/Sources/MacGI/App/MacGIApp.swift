@@ -1,9 +1,25 @@
 import AppKit
+import ApplicationServices
+import CoreGraphics
 import SwiftUI
 
 final class MacGIApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        requestInputPermissionsIfNeeded()
+    }
+
+    private func requestInputPermissionsIfNeeded() {
+        guard !AXIsProcessTrusted() else { return }
+
+        let options = [
+            "AXTrustedCheckOptionPrompt": true
+        ] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+
+        if !CGPreflightPostEventAccess() {
+            _ = CGRequestPostEventAccess()
+        }
     }
 }
 
