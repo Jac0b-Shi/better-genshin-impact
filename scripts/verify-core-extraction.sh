@@ -205,6 +205,12 @@ rg -q 'Core input callback rejects a platform dispatch failure' \
   || fail "Swift tests do not prove failed CGEvent dispatch is rejected back to Core"
 rg -q 'return \.blocked\(reason: reason\)' MacGI/Sources/MacGI/App/AppState.swift \
   || fail "Swift input dispatch failures can still be acknowledged to Core"
+rg -q 'catch \(PlatformCallbackException\)' \
+  BetterGenshinImpact.Core.Host/Transport/PlatformCallbackChannel.cs \
+  || fail "Core detaches the callback channel after a platform business rejection"
+rg -q 'A platform business rejection detached the reusable callback channel' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not prove callback recovery after input rejection"
 
 if rg -n '由 Rust/OpenCV 提供|Rust.*(脚本|调度|路径|识别)' MacGI/Sources/MacGI; then
   fail "Swift UI assigns BetterGI business authority to Rust"

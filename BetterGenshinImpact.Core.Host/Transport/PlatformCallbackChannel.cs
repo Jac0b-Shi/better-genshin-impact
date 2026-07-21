@@ -55,6 +55,10 @@ public sealed class PlatformCallbackChannel
                     throw new PlatformCallbackException(response.Error.Code, response.Error.Message);
                 return response.Result is null ? null : JToken.FromObject(response.Result);
             }
+            catch (PlatformCallbackException)
+            {
+                throw;
+            }
             catch
             {
                 Detach(connection);

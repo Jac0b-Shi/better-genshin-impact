@@ -500,6 +500,39 @@ try
             JObject.FromObject(initializedWithPlatform.Result!).Value<bool>("platformAssetsInitialized") &&
             initializationMetricsCount > 0 && initializationOverlayCount > 0,
         initializedWithPlatform.Error?.Message ?? "core.initialize did not initialize production trigger assets");
+    var callbackRejectionResponder = Task.Run(async () =>
+    {
+        var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+            ?? throw new EndOfStreamException("Platform rejection callback channel ended unexpectedly.");
+        Require(callback.Method == "verification.reject", "Core sent the wrong rejection verification callback.");
+        await callbackConnection.WriteResponseAsync(
+            RpcResponse.Failure(callback.Id, "InputRejected", "verification dispatch failure"), cancellation.Token);
+    }, cancellation.Token);
+    try
+    {
+        await server.PlatformCallbacks.InvokeAsync(
+            "verification.reject", null, sessionToken, cancellation.Token);
+        throw new InvalidDataException("Platform callback rejection was accepted as success.");
+    }
+    catch (PlatformCallbackException exception)
+    {
+        Require(exception.Code == "InputRejected" && exception.Message == "verification dispatch failure",
+            "Platform callback rejection lost its code or message.");
+    }
+    await callbackRejectionResponder;
+    var callbackRecoveryResponder = Task.Run(async () =>
+    {
+        var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+            ?? throw new EndOfStreamException("Platform recovery callback channel ended unexpectedly.");
+        Require(callback.Method == "verification.recover", "Core sent the wrong recovery verification callback.");
+        await callbackConnection.WriteResponseAsync(
+            RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
+    }, cancellation.Token);
+    var recoveredCallback = await server.PlatformCallbacks.InvokeAsync(
+        "verification.recover", null, sessionToken, cancellation.Token);
+    await callbackRecoveryResponder;
+    Require(recoveredCallback?.Value<bool>("acknowledged") == true,
+        "A platform business rejection detached the reusable callback channel.");
     var productionTriggerList = await ExchangeAsync(
         connection, "production-trigger-list", "trigger.list", sessionToken, null, cancellation.Token);
     var productionTriggerNames = JArray.FromObject(productionTriggerList.Result!)
