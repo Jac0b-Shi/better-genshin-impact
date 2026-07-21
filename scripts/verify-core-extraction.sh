@@ -27,6 +27,14 @@ rg -q 'synchronizeBundledGameTaskResources\(\)' \
   exit 1
 }
 
+for recognition_config in \
+  Common/Element/Assets/Recognition.json \
+  AutoSkip/Assets/Recognition.json \
+  AutoFishing/Assets/Recognition.json; do
+  [[ -f "MacGI/Sources/MacGI/Resources/GameTask/${recognition_config}" ]] \
+    || fail "bundled GameTask is missing ${recognition_config}"
+done
+
 if rg -n 'layout, gameTaskManagerPlatform\.SystemInfo' BetterGenshinImpact.Core.Host/Program.cs; then
   echo "Core Host must not query Swift window metrics before the callback channel attaches." >&2
   exit 1

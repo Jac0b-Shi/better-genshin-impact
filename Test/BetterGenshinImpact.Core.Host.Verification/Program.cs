@@ -1006,6 +1006,7 @@ try
     GlobalMethod.Configure(globalRuntime);
     var dispatcherRuntime = new VerificationDispatcherRuntimePlatform(cancellation.Token);
     DispatcherRuntimePlatform.Configure(dispatcherRuntime);
+    server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(dispatcherRuntime, cancellation.Token));
     ScriptProjectHost.Configure(new MacScriptProjectHostInitializer(scriptGroupExecutionServices));
     using (var hostSurfaceEngine = new V8ScriptEngine(
                V8ScriptEngineFlags.UseCaseInsensitiveMemberBinding |
@@ -1762,7 +1763,7 @@ try
         Require(teleportInputActions.SequenceEqual([
                 "releaseAll",
                 "moveMouseToScreen", "mouseDown", "mouseUp",
-                "moveMouseToScreen", "mouseDown", "mouseUp"
+                "keyPress"
             ]),
             $"genshin.tp input sequence changed: {string.Join(",", teleportInputActions)}.");
 
@@ -1922,7 +1923,7 @@ try
         Require(forceTeleportInputDetails.SequenceEqual([
                 "releaseAll", "gameAction:openMap:keyPress",
                 "moveMouseToScreen", "mouseDown", "mouseUp",
-                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "keyPress",
                 "gameAction:moveForward:keyUp", "mouseUp"
             ]),
             $"force_tp input sequence changed: {string.Join(",", forceTeleportInputDetails)}.");
@@ -2027,7 +2028,7 @@ try
         Require(statueInputActions.SequenceEqual([
                 "releaseAll",
                 "moveMouseToScreen", "mouseDown", "mouseUp",
-                "moveMouseToScreen", "mouseDown", "mouseUp"
+                "keyPress"
             ]),
             "genshin.tpToStatueOfTheSeven input sequence changed: " +
             string.Join(",", statueInputActions));
@@ -2429,10 +2430,10 @@ try
         Require(nearestPositionCount >= 2 && nearestStateQueryCount >= 1,
             $"nearest-statue movement did not publish/query state: positions={nearestPositionCount}, " +
             $"queries={nearestStateQueryCount}.");
-        Require(nearestClicks.Count == 2 &&
+        Require(nearestClicks.Count == 1 &&
                 Math.Abs(nearestClicks[0].X - 960) <= 10 && Math.Abs(nearestClicks[0].Y - 540) <= 10 &&
-                Math.Abs(nearestClicks[1].X - 1519) <= 10 && Math.Abs(nearestClicks[1].Y - 1029) <= 10,
-            "nearest-statue selected unexpected target/button coordinates: " +
+                nearestInputs.Contains("keyPress"),
+            "nearest-statue selected unexpected target/confirmation input: " +
             string.Join(",", nearestClicks.Select(point => $"({point.X},{point.Y})")));
         Require(nearestInputs.Contains("gameAction:moveForward:keyDown") &&
                 nearestInputs.Contains("gameAction:moveForward:keyUp") &&
@@ -2772,6 +2773,28 @@ try
     var missingGroup = await ExchangeAsync(connection, "3", "scheduler.run", sessionToken,
         JObject.FromObject(new { groupName = "missing-group" }), cancellation.Token);
     Require(missingGroup.Error?.Code == "FileNotFoundException", "scheduler.run did not validate the authoritative Core catalog");
+
+    var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
+    Require(soloList.Error is null && soloList.Result is JArray soloItems &&
+            soloItems.Single(item => item.Value<string>("name") == "AutoFishing").Value<bool>("available") &&
+            soloItems.Where(item => item.Value<string>("name") != "AutoFishing")
+                .All(item => !item.Value<bool>("available")),
+        "solo.list did not expose the truthful Core capability catalog");
+    var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
+        JObject.FromObject(new { name = "AutoFishing" }), cancellation.Token);
+    var soloTaskId = (soloStart.Result as JObject)?.Value<string>("taskId");
+    Require(soloStart.Error is null && !string.IsNullOrEmpty(soloTaskId) &&
+            dispatcherRuntime.FishingStartCount == 1,
+        "solo.start did not execute the shared AutoFishing dispatcher request");
+    var soloStop = await ExchangeAsync(connection, "solo-stop", "solo.stop", sessionToken,
+        JObject.FromObject(new { taskId = soloTaskId }), cancellation.Token);
+    Require(soloStop.Error is null, soloStop.Error?.Message ?? "solo.stop failed");
+    for (var attempt = 0; attempt < 20 && !dispatcherRuntime.FishingCancelled; attempt++)
+        await Task.Delay(25, cancellation.Token);
+    var soloStatus = await ExchangeAsync(connection, "solo-status", "solo.status", sessionToken, null, cancellation.Token);
+    Require(dispatcherRuntime.FishingCancelled &&
+            (soloStatus.Result as JObject)?.Value<string>("state") == "cancelled",
+        "solo.stop did not cancel the active Core AutoFishing task");
     await connection.DisposeAsync();
 
     await using var rejectedConnection = await ConnectAsync(socketPath, cancellation.Token);
@@ -3109,7 +3132,7 @@ static async Task WriteCaptureRingFrameAsync(string captureRingPath, OpenCvSharp
 
 sealed class VerificationOverlayDrawPlatform : IOverlayDrawPlatform
 {
-    public void SetRectangles(string name, ImageRegion source, IReadOnlyList<OpenCvSharp.Rect> rectangles) { }
+    public void SetRectangles(string name, Region source, IReadOnlyList<OpenCvSharp.Rect> rectangles) { }
     public void RemoveRectangles(string name) { }
     public void ClearAll() { }
 }
@@ -3133,6 +3156,8 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public DispatcherAutoEatSettings AutoEatSettings => throw new CapabilityUnavailableException("AutoEat");
     public int ClearCount { get; private set; }
     public List<string> AddedNames { get; } = [];
+    public int FishingStartCount { get; private set; }
+    public bool FishingCancelled { get; private set; }
     public void ClearTriggers() => ClearCount++;
     public bool AddTrigger(string name, object? config)
     {
@@ -3143,8 +3168,23 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
         throw new CapabilityUnavailableException("AutoGeniusInvokation");
     public bool GetFightStrategy(string? strategyName, out string path) =>
         throw new CapabilityUnavailableException("AutoDomain");
-    public Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
-        CancellationToken cancellationToken) => throw new CapabilityUnavailableException(request.Name);
+    public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is not DispatcherFishingTaskRequest)
+            throw new CapabilityUnavailableException(request.Name);
+        FishingStartCount++;
+        try
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            FishingCancelled = true;
+            throw;
+        }
+        return null;
+    }
     public Task<object?> RunParameterizedTask(string name, object parameter,
         CancellationToken cancellationToken) => throw new CapabilityUnavailableException(name);
 }

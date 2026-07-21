@@ -57,7 +57,8 @@ using BetterGenshinImpact.GameTask.FarmingPlan;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var recorder = new RecordingInputBackend();
-OverlayDrawPlatform.Configure(new RecordingOverlayDrawPlatform());
+var overlayRecorder = new RecordingOverlayDrawPlatform();
+OverlayDrawPlatform.Configure(overlayRecorder);
 CombatCommandPlatform.Configure(new VerificationCombatCommandPlatform());
 var combatSceneProvider = new RecordingCombatSceneProvider();
 CombatSceneProvider.Configure(combatSceneProvider);
@@ -79,6 +80,15 @@ void Assert(string label, bool condition, string detail)
 {
     if (condition) { Console.WriteLine($"  PASS: {label}"); passed++; }
     else { Console.WriteLine($"  FAIL: {label} — {detail}"); failed++; }
+}
+
+using (var overlayFrame = new Mat(1080, 1920, MatType.CV_8UC4))
+{
+    var capture = new GameCaptureRegion(overlayFrame, 0, 0);
+    capture.Derive(100, 200, 40, 30).DrawRect(5, 6, 7, 8, "DerivedRegion");
+    Assert("Derived Region overlay preserves capture coordinate chain",
+        overlayRecorder.Commands is ["set:DerivedRegion:105,206,7,8"],
+        string.Join(";", overlayRecorder.Commands));
 }
 
 var farmingVerificationRoot = Path.Combine("/tmp", "bgi-farming-" + Guid.NewGuid().ToString("N"));
@@ -2548,6 +2558,18 @@ var mapVerificationRoot = Path.Combine(Path.GetTempPath(), "bgi-map-verify-" + G
 var startUpPathBeforeNavigation = Global.StartUpPath;
 try
 {
+    var gameTaskSource = Path.Combine(Directory.GetCurrentDirectory(), "BetterGenshinImpact", "GameTask");
+    foreach (var assetSource in Directory.GetDirectories(gameTaskSource, "Assets", SearchOption.AllDirectories))
+    {
+        foreach (var sourcePath in Directory.GetFiles(assetSource, "*", SearchOption.AllDirectories))
+        {
+            var targetPath = Path.Combine(
+                mapVerificationRoot, "GameTask", Path.GetRelativePath(gameTaskSource, sourcePath));
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            File.Copy(sourcePath, targetPath);
+        }
+    }
+
     // Stage the real MapBack_3 layer (covers the 雷音权现前往 route) from the verified
     // 0.62.0 release archive through the same hash-checked downloader pipeline as B12.2.
     var releaseSource = downloaderLock.Sources.Single();
@@ -2639,11 +2661,7 @@ try
 
     var stagedCombatAssetDirectory = Path.Combine(
         mapVerificationRoot, "GameTask", "AutoFight", "Assets");
-    Directory.CreateDirectory(stagedCombatAssetDirectory);
     var stagedCombatAvatarPath = Path.Combine(stagedCombatAssetDirectory, "combat_avatar.json");
-    File.Copy(
-        Path.Combine(startUpPathBeforeNavigation, "GameTask", "AutoFight", "Assets", "combat_avatar.json"),
-        stagedCombatAvatarPath);
     Assert("Navigation runtime stages the original configured-team combat metadata",
         new FileInfo(stagedCombatAvatarPath).Length > 0,
         stagedCombatAvatarPath);
@@ -3061,8 +3079,12 @@ class RecordingInputBackend : IInputBackend
 sealed class RecordingOverlayDrawPlatform : IOverlayDrawPlatform
 {
     public List<string> Commands { get; } = [];
-    public void SetRectangles(string name, ImageRegion source, IReadOnlyList<Rect> rectangles) =>
-        Commands.Add($"set:{name}:{rectangles.Count}");
+    public void SetRectangles(string name, Region source, IReadOnlyList<Rect> rectangles) =>
+        Commands.AddRange(rectangles.Select(rect =>
+        {
+            var mapped = source.ConvertPositionToGameCaptureRegion(rect.X, rect.Y, rect.Width, rect.Height);
+            return $"set:{name}:{mapped.X},{mapped.Y},{mapped.Width},{mapped.Height}";
+        }));
     public void RemoveRectangles(string name) => Commands.Add($"remove:{name}");
     public void ClearAll() => Commands.Add("clearAll");
 }

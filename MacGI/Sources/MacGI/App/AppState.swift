@@ -335,6 +335,9 @@ final class AppState: ObservableObject {
     @Published var logSearchText = ""
     @Published var inputActionLog: [String] = []
     @Published var features: [MacGIFeature] = []
+    @Published var soloTasks: [BetterGICoreSoloTask] = []
+    @Published private(set) var soloTaskStatus = BetterGICoreSoloTaskStatus(
+        taskID: nil, name: nil, state: "idle", error: nil)
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -408,6 +411,7 @@ final class AppState: ObservableObject {
             coreStatus = .ok
             addLog(.info, "BetterGI Core \(handshake.runtimeVersion) connected (\(handshake.architecture))")
             await loadTriggerStatesFromCore()
+            await loadSoloTasksFromCore()
             await loadSchedulerGroupsFromCore()
             await loadScriptProjectsFromCore()
             attemptAutoStartRuntime()
@@ -913,6 +917,61 @@ final class AppState: ObservableObject {
         } catch {
             features = []
             addLog(.error, "BetterGI Core trigger catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadSoloTasksFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            soloTasks = []
+            return
+        }
+        do {
+            soloTasks = try await supervisor.listSoloTasks()
+            soloTaskStatus = try await supervisor.soloTaskStatus()
+        } catch {
+            soloTasks = []
+            addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    func toggleSoloTask(_ name: String) {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                if self.soloTaskStatus.name == name,
+                   self.soloTaskStatus.state == "running",
+                   let taskID = self.soloTaskStatus.taskID {
+                    try await supervisor.stopSoloTask(taskID: taskID)
+                } else {
+                    self.soloTaskStatus = try await supervisor.startSoloTask(name: name)
+                }
+                await self.pollSoloTaskStatus(supervisor)
+            } catch {
+                self.addLog(.error, "Core solo task \(name) failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func pollSoloTaskStatus(_ supervisor: BetterGICoreProcessSupervisor) async {
+        while true {
+            do {
+                soloTaskStatus = try await supervisor.soloTaskStatus()
+            } catch {
+                addLog(.error, "Core solo task status failed: \(error.localizedDescription)")
+                return
+            }
+            guard soloTaskStatus.state == "running" || soloTaskStatus.state == "stopping" else {
+                if let error = soloTaskStatus.error {
+                    addLog(.error, "Core solo task failed: \(error)")
+                }
+                return
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(500))
+            } catch {
+                return
+            }
         }
     }
 

@@ -10,6 +10,21 @@ struct BetterGICoreTriggerState: Sendable, Equatable {
     let exclusive: Bool
 }
 
+struct BetterGICoreSoloTask: Sendable, Equatable, Identifiable {
+    let name: String
+    let displayName: String
+    let available: Bool
+    let unavailableReason: String?
+    var id: String { name }
+}
+
+struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
+    let taskID: String?
+    let name: String?
+    let state: String
+    let error: String?
+}
+
 actor BetterGICoreProcessSupervisor {
     private static let startupPollLimit = 4_800
     enum StartupPhase: Sendable {
@@ -258,6 +273,60 @@ actor BetterGICoreProcessSupervisor {
               result["enabled"] as? Bool == enabled else {
             throw BetterGICoreRPCError.protocolViolation("Invalid trigger.setEnabled result.")
         }
+    }
+
+    func listSoloTasks() throws -> [BetterGICoreSoloTask] {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        guard let items = try client.request(method: "solo.list") as? [[String: Any]] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid solo.list result.")
+        }
+        return try items.map { item in
+            guard let name = item["name"] as? String,
+                  let displayName = item["displayName"] as? String,
+                  let available = item["available"] as? Bool else {
+                throw BetterGICoreRPCError.protocolViolation("Invalid solo task descriptor.")
+            }
+            return BetterGICoreSoloTask(
+                name: name, displayName: displayName, available: available,
+                unavailableReason: item["unavailableReason"] as? String
+            )
+        }
+    }
+
+    func startSoloTask(name: String) throws -> BetterGICoreSoloTaskStatus {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        let result = try client.request(method: "solo.start", parameters: ["name": name])
+        return try Self.decodeSoloTaskStatus(result)
+    }
+
+    func stopSoloTask(taskID: String) throws {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        _ = try client.request(method: "solo.stop", parameters: ["taskId": taskID])
+    }
+
+    func soloTaskStatus() throws -> BetterGICoreSoloTaskStatus {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        return try Self.decodeSoloTaskStatus(try client.request(method: "solo.status"))
+    }
+
+    private static func decodeSoloTaskStatus(_ value: Any?) throws -> BetterGICoreSoloTaskStatus {
+        guard let result = value as? [String: Any], let state = result["state"] as? String else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid solo task status.")
+        }
+        return BetterGICoreSoloTaskStatus(
+            taskID: result["taskId"] as? String,
+            name: result["name"] as? String,
+            state: state,
+            error: result["error"] as? String
+        )
     }
 
     func stopScheduler(taskID: String) throws {

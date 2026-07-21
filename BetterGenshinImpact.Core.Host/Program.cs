@@ -134,10 +134,13 @@ AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
 GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform,
     imageRegionOcrService, loggerFactory, "TemplateMatch"));
-DispatcherRuntimePlatform.Configure(new MacDispatcherRuntimePlatform(
+var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     shutdown.Token, autoPickRuntimeState, semanticInputBackend,
     () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
-    paddleAutoPickRecognizer, yapAutoPickRecognizer));
+    paddleAutoPickRecognizer, yapAutoPickRecognizer);
+DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
+server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
+    dispatcherRuntimePlatform, shutdown.Token));
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
 GoToCraftingBenchRuntimePlatform.Configure(

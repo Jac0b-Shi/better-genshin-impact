@@ -155,7 +155,7 @@ public class DrawContent : BetterGenshinImpact.Core.Recognition.IOverlayDrawPlat
         MaskWindow.Instance().Refresh();
     }
 
-    public void SetRectangles(string name, BetterGenshinImpact.GameTask.Model.Area.ImageRegion source,
+    public void SetRectangles(string name, BetterGenshinImpact.GameTask.Model.Area.Region source,
         IReadOnlyList<OpenCvSharp.Rect> rectangles) => PutOrRemoveRectList(
         name, rectangles.Select(rect => source.ToRectDrawable(rect, name)).ToList());
 

@@ -27,30 +27,43 @@ struct FeaturesPage: View {
 struct SoloTasksPage: View {
     @EnvironmentObject private var appState: AppState
 
-    private let tasks: [(BGIIcon, String, String)] = [
-        (.fgi("\u{f6d2}"), "自动七圣召唤", "全自动打牌 - 点击查看使用教程"),
-        (.fgi("\u{f6b2}"), "自动伐木", "装备「王树瑞佑」，通过循环重启游戏刷新并收集木材 - 点击查看使用教程"),
-        (.fgi("\u{f71d}"), "自动战斗", "自动执行选择的战斗策略 - 点击查看使用教程"),
-        (.fgi("\u{f438}"), "自动秘境", "基于钟离的自动循环刷本 - 点击查看使用教程"),
-        (.fgi("\u{e629}"), "自动首领讨伐", "自动传送、战斗并领取奖励"),
-        (.fgi("\u{e588}"), "自动幽境危战", "自动传送并进入幽境危战 - 点击查看使用教程"),
-        (.fgi("\u{e3a8}"), "全自动钓鱼（单个鱼塘）", "不要携带眼宠！在出现钓鱼F按钮的位置启动本任务 - 点击查看使用教程"),
-        (.fgi("\u{f7ff}"), "自动地脉花", "自动定位并刷取地脉花 - 点击查看使用教程"),
-        (.symbol("music.note"), "自动千音雅集", "可以自动演奏单个，也可以全自动完成整个专辑 - 点击查看使用教程"),
-        (.fgi("\u{e43f}"), "自动烹饪", "在手动烹饪界面运行，自动识别并点击结束烹饪"),
-        (.fgi("\u{f4bb}"), "自动分解圣遗物", "指定匹配表达式逐一筛选分解，支持5星圣遗物 - 点击查看使用教程")
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             BGIPageTitle(title: "独立任务设置")
-            ForEach(tasks, id: \.1) { task in
-                BGITaskCard(icon: task.0, title: task.1, subtitle: task.2) {
-                    Text("Core 暂未开放")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            ForEach(appState.soloTasks) { task in
+                BGITaskCard(icon: icon(for: task.name), title: task.displayName,
+                            subtitle: task.unavailableReason ?? detail(for: task.name)) {
+                    if task.available {
+                        Button {
+                            appState.toggleSoloTask(task.name)
+                        } label: {
+                            Image(systemName: isRunning(task.name) ? "stop.fill" : "play.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(appState.soloTaskStatus.state == "stopping")
+                        .help(isRunning(task.name) ? "停止" : "启动")
+                    } else {
+                        Text("Core 暂未开放")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
+    }
+
+    private func isRunning(_ name: String) -> Bool {
+        appState.soloTaskStatus.name == name &&
+            ["running", "stopping"].contains(appState.soloTaskStatus.state)
+    }
+
+    private func icon(for name: String) -> BGIIcon {
+        name == "AutoFishing" ? .fgi("\u{e3a8}") : .symbol("gearshape.2")
+    }
+
+    private func detail(for name: String) -> String {
+        name == "AutoFishing"
+            ? "在出现钓鱼交互提示的位置启动；识别、抛竿和收杆均由共享 C# 任务执行。"
+            : "BetterGI C# Core 独立任务。"
     }
 }

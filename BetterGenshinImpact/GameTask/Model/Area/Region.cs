@@ -241,9 +241,7 @@ public class Region : IDisposable
         var drawable = ToRectDrawable(x, y, w, h, name, pen);
         VisionContext.Instance().DrawContent.PutRect(name, drawable);
 #else
-        OverlayDrawPlatform.Current.SetRectangles(name,
-            this as ImageRegion ?? throw new InvalidOperationException("Overlay drawing requires an ImageRegion."),
-            [new Rect(x, y, w, h)]);
+        drawContent.SetRectangles(name, this, [new Rect(x, y, w, h)]);
 #endif
     }
 
@@ -253,9 +251,7 @@ public class Region : IDisposable
         var drawable = ToRectDrawable(rect.X, rect.Y, rect.Width, rect.Height, name, pen);
         VisionContext.Instance().DrawContent.PutRect(name, drawable);
 #else
-        OverlayDrawPlatform.Current.SetRectangles(name,
-            this as ImageRegion ?? throw new InvalidOperationException("Overlay drawing requires an ImageRegion."),
-            [rect]);
+        drawContent.SetRectangles(name, this, [rect]);
 #endif
     }
 

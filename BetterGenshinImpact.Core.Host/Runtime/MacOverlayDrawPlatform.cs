@@ -11,7 +11,7 @@ public sealed class MacOverlayDrawPlatform(
     PlatformCallbackChannel callbacks, string sessionToken, CancellationToken cancellationToken)
     : IOverlayDrawPlatform
 {
-    public void SetRectangles(string name, ImageRegion source, IReadOnlyList<Rect> rectangles)
+    public void SetRectangles(string name, Region source, IReadOnlyList<Rect> rectangles)
     {
         var mapped = rectangles.Select(rect => source.ConvertPositionToGameCaptureRegion(
             rect.X, rect.Y, rect.Width, rect.Height)).Select(rect => new

@@ -31,12 +31,15 @@ public sealed class CoreRpcServer(
     private RuntimeArtifactStatus? _runtimeArtifactStatus;
     private Action? _platformAssetInitializer;
     private MacTriggerDispatcher? _triggerDispatcher;
+    private SoloTaskCoordinator? _soloTasks;
     private int _platformAssetsInitialized;
     private readonly SemaphoreSlim _runtimeMutationLock = new(1, 1);
     public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
 
     private SchedulerCoordinator Scheduler => _scheduler ??= new SchedulerCoordinator(
         layout, _platformCallbacks, sessionToken, _shutdown.Token);
+    private SoloTaskCoordinator SoloTasks => _soloTasks ?? throw new CapabilityUnavailableException(
+        "Solo task coordinator is unavailable until Core composition completes.");
 
     public void AttachScriptHostServices(MacScriptHostServices services)
     {
@@ -64,6 +67,13 @@ public sealed class CoreRpcServer(
         ArgumentNullException.ThrowIfNull(dispatcher);
         if (Interlocked.CompareExchange(ref _triggerDispatcher, dispatcher, null) is not null)
             throw new InvalidOperationException("Trigger dispatcher has already been attached.");
+    }
+
+    public void AttachSoloTaskCoordinator(SoloTaskCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        if (Interlocked.CompareExchange(ref _soloTasks, coordinator, null) is not null)
+            throw new InvalidOperationException("Solo task coordinator has already been attached.");
     }
 
     public void AttachRuntimeArtifactInitializer(Func<RuntimeArtifactStatus> initializer)
@@ -186,6 +196,10 @@ public sealed class CoreRpcServer(
                     RequiredString(request.Params, "name"),
                     request.Params?.Value<bool?>("enabled")
                         ?? throw new ArgumentException("enabled is required.")),
+                "solo.list" => SoloTasks.List(),
+                "solo.start" => SoloTasks.Start(RequiredString(request.Params, "name")),
+                "solo.stop" => SoloTasks.Stop(RequiredString(request.Params, "taskId")),
+                "solo.status" => SoloTasks.Status(),
                 "runtime.status" => RuntimeStatus(),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),

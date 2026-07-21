@@ -8,7 +8,7 @@ namespace BetterGenshinImpact.Core.Recognition;
 
 public interface IOverlayDrawPlatform
 {
-    void SetRectangles(string name, ImageRegion source, IReadOnlyList<Rect> rectangles);
+    void SetRectangles(string name, Region source, IReadOnlyList<Rect> rectangles);
     void RemoveRectangles(string name);
     void ClearAll();
 }
