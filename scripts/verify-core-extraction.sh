@@ -62,6 +62,16 @@ rg -q 'await genshin\.tp' \
 rg -q 'genshin\.tpToStatueOfTheSeven' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "production ClearScript statue teleport is not behavior-verified"
+rg -Fq "genshin.goToCraftingBench('验证')" \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "production ClearScript crafting-bench path is not behavior-verified"
+rg -q 'new GoToCraftingBenchTask\(\)\.GoToCraftingBench' \
+  BetterGenshinImpact.Core.Host/Runtime/MacGenshinRuntimePlatform.cs \
+  || fail "macOS genshin.GoToCraftingBench is not composed from the upstream task"
+if rg -n '\b(TaskContext|Simulation\.SendInput|User32\.)\b' \
+  BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.cs; then
+  fail "shared GoToCraftingBenchTask still owns Windows runtime dependencies"
+fi
 rg -q 'JsonConvert\.DeserializeObject<GiTpPosition>' \
   BetterGenshinImpact.Core.Host/Runtime/MacTpTaskRuntimePlatform.cs \
   || fail "macOS TpTask composition does not restore the upstream runtime-only statue object"

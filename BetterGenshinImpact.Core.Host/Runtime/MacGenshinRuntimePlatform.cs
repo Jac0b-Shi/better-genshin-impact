@@ -23,7 +23,7 @@ public sealed class MacGenshinRuntimePlatform(
     public Task ClaimBattlePassRewards(CancellationToken cancellationToken) =>
         new ClaimBattlePassRewardsTask().Start(cancellationToken);
     public Task GoToCraftingBench(string country, CancellationToken cancellationToken) =>
-        throw Unavailable("GoToCraftingBench");
+        new GoToCraftingBenchTask().GoToCraftingBench(country, cancellationToken);
     private static CapabilityUnavailableException Unavailable(string member) => new(
         $"genshin.{member} is not composed on macOS because its shared task still depends on Win32 input.");
 }

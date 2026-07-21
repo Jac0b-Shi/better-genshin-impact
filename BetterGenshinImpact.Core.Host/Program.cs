@@ -121,6 +121,8 @@ DispatcherRuntimePlatform.Configure(new MacDispatcherRuntimePlatform(
     paddleAutoPickRecognizer, yapAutoPickRecognizer));
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
+GoToCraftingBenchRuntimePlatform.Configure(
+    new MacGoToCraftingBenchRuntimePlatform(layout, imageRegionOcrService));
 BvSimpleOperationPlatform.Configure(bvSimpleOperationPlatform);
 TpTaskRuntimePlatform.Configure(new MacTpTaskRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo));

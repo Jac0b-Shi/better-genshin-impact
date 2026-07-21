@@ -54,6 +54,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/NewRetry.cs" Link="GameTask/Common/NewRetry.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ReturnMainUiTask.cs" Link="GameTask/Common/Job/ReturnMainUiTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.cs" Link="GameTask/Common/Job/ClaimBattlePassRewardsTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchRuntimePlatform.cs" Link="GameTask/Common/Job/GoToCraftingBenchRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.cs" Link="GameTask/Common/Job/GoToCraftingBenchTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/SetTimeTask.cs" Link="GameTask/Common/Job/SetTimeTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpTask.cs" Link="GameTask/AutoTrackPath/TpTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoTrackPath/TpConfig.cs" Link="GameTask/AutoTrackPath/TpConfig.cs" />
@@ -484,6 +486,14 @@
                       LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.en.resources" />
     <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimBattlePassRewardsTask.fr.resx"
                       LogicalName="BetterGenshinImpact.GameTask.Common.Job.ClaimBattlePassRewardsTask.fr.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.zh-Hans.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.GoToCraftingBenchTask.zh-Hans.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.zh-Hant.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.GoToCraftingBenchTask.zh-Hant.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.en.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.GoToCraftingBenchTask.en.resources" />
+    <EmbeddedResource Include="../BetterGenshinImpact/GameTask/Common/Job/GoToCraftingBenchTask.fr.resx"
+                      LogicalName="BetterGenshinImpact.GameTask.Common.Job.GoToCraftingBenchTask.fr.resources" />
   </ItemGroup>
 
 </Project>

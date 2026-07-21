@@ -1742,6 +1742,22 @@ Assert("ClaimBattlePassRewardsTask captures both reward pages and main UI",
     battlePassCaptureCount >= 5, $"captures={battlePassCaptureCount}");
 Console.WriteLine();
 
+Console.WriteLine("Genshin crafting bench: canonical path assets");
+var craftingBenchRouteDirectory = Path.Combine(Global.StartUpPath, "GameTask", "Common", "Element", "Assets", "Json");
+var craftingBenchRoutes = new[] { "蒙德", "璃月", "稻妻", "枫丹" }
+    .Select(country => PathingTask.BuildFromFilePath(
+        Path.Combine(craftingBenchRouteDirectory, $"合成台_{country}.json")))
+    .ToArray();
+Assert("GoToCraftingBench loads every upstream country route",
+    craftingBenchRoutes.All(route => route is { Positions.Count: >= 2 }),
+    string.Join(",", craftingBenchRoutes.Select(route => route?.Positions.Count ?? -1)));
+Assert("GoToCraftingBench preserves teleport-then-movement route shape",
+    craftingBenchRoutes.All(route => route!.Positions.First().Type == WaypointType.Teleport.Code &&
+                                     route.Positions.Skip(1).Any(position =>
+                                         position.Type != WaypointType.Teleport.Code)),
+    "one or more crafting-bench routes lost its teleport or movement segment");
+Console.WriteLine();
+
 AutoSkipAssets.DestroyInstance();
 AutoSkipAssets.Initialize(b5SystemInfo);
 GameLoadingAssets.DestroyInstance();

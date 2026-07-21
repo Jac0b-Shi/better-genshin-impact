@@ -211,9 +211,15 @@ await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), """
         "hpRestoreDuration": 1
       },
       "hotKeyConfig": { "quickTeleportTickHotkey": "F6" },
-      "autoEatConfig": { "enabled": true, "eatInterval": 1234 }
+      "autoEatConfig": { "enabled": true, "eatInterval": 1234 },
+      "selectedOneDragonFlowConfigName": "selected-crafting"
     }
     """);
+var oneDragonDirectory = Path.Combine(layout.UserPath, "OneDragon");
+await File.WriteAllTextAsync(Path.Combine(oneDragonDirectory, "first.json"),
+    """{"Name":"first-crafting","MinResinToKeep":20}""");
+await File.WriteAllTextAsync(Path.Combine(oneDragonDirectory, "selected.json"),
+    """{"Name":"selected-crafting","MinResinToKeep":80}""");
 var server = new CoreRpcServer(socketPath, sessionToken, layout);
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddSimpleConsole());
 var artifactInitializationCount = 0;
@@ -308,6 +314,12 @@ Require(tpTaskPlatform.TpConfig.ReviveStatueOfTheSeven is
     "macOS TpTask composition did not restore the upstream runtime-only statue object.");
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
+var craftingBenchPlatform = new MacGoToCraftingBenchRuntimePlatform(layout, imageRegionOcrService);
+GoToCraftingBenchRuntimePlatform.Configure(craftingBenchPlatform);
+Require(craftingBenchPlatform.SelectedConfigName == "selected-crafting" &&
+        craftingBenchPlatform.LoadConfigs().Any(config =>
+            config is { Name: "selected-crafting", MinResinToKeep: 80 }),
+    "macOS crafting-bench platform did not read the real selected OneDragon configuration.");
 var quickTeleportPlatform = new MacQuickTeleportRuntimePlatform(
     layout, server.PlatformCallbacks, sessionToken, cancellation.Token);
 QuickTeleportRuntimePlatform.Configure(quickTeleportPlatform);
@@ -1123,6 +1135,108 @@ try
         "genshin.claimBattlePassRewards input sequence changed: " + string.Join(",", battlePassInputs));
     Console.WriteLine(
         "Real BetterGI genshin.claimBattlePassRewards passed: ClearScript, upstream OCR flow and acknowledged semantic input.");
+
+    var craftingBenchRouteDirectory = Path.Combine(
+        layout.RootPath, "GameTask", "Common", "Element", "Assets", "Json");
+    Directory.CreateDirectory(craftingBenchRouteDirectory);
+    await File.WriteAllTextAsync(Path.Combine(craftingBenchRouteDirectory, "合成台_验证.json"),
+        """{"info":{"name":"合成台_验证","type":"collect"},"positions":[]}""");
+    var craftingBenchFixturePath = Path.Combine(layout.UserPath, "JsScript", "GenshinGoToCraftingBench");
+    Directory.CreateDirectory(craftingBenchFixturePath);
+    await File.WriteAllTextAsync(Path.Combine(craftingBenchFixturePath, "manifest.json"), """
+        {"name":"Genshin GoToCraftingBench","version":"1.0.0","description":"verification","authors":[{"name":"BetterGI"}],"main":"main.js","settings":[],"library":[]}
+        """);
+    await File.WriteAllTextAsync(Path.Combine(craftingBenchFixturePath, "main.js"),
+        "export {}; await genshin.goToCraftingBench('验证');");
+    using (var talkFrame = new OpenCvSharp.Mat(
+               schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
+    using (var disabledUi = OpenCvSharp.Cv2.ImRead(
+               Path.Combine(sourceRoot, "AutoSkip/Assets/1920x1080/disabled_ui.png"),
+               OpenCvSharp.ImreadModes.Color))
+    {
+        using (var target = new OpenCvSharp.Mat(
+                   talkFrame, new OpenCvSharp.Rect(100, 30, disabledUi.Width, disabledUi.Height)))
+            disabledUi.CopyTo(target);
+        using var talkRegion = new ImageRegion(talkFrame.Clone(), 0, 0);
+        Require(BetterGenshinImpact.GameTask.Common.BgiVision.Bv.IsInTalkUi(talkRegion),
+            "crafting-bench fixture did not match the upstream talk-UI recognizer.");
+        await WriteCaptureRingFrameAsync(captureRingPath, talkFrame, 9UL);
+    }
+    var craftingBenchMetricsCount = 0;
+    var craftingBenchCaptureCount = 0;
+    var craftingBenchActivationCount = 0;
+    using var craftingBenchResponseCancellation =
+        CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
+    var craftingBenchResponder = Task.Run(async () =>
+    {
+        try
+        {
+            while (true)
+            {
+                var callback = await callbackConnection.ReadRequestAsync(craftingBenchResponseCancellation.Token)
+                    ?? throw new EndOfStreamException("genshin.goToCraftingBench callback channel ended unexpectedly.");
+                if (callback.Method == "window.metrics")
+                {
+                    craftingBenchMetricsCount++;
+                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                    {
+                        captureX = 0, captureY = 0, captureWidth = schedulerWidth,
+                        captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
+                        workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
+                    }), craftingBenchResponseCancellation.Token);
+                    continue;
+                }
+                if (callback.Method == "window.activate")
+                {
+                    craftingBenchActivationCount++;
+                    await callbackConnection.WriteResponseAsync(
+                        RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                        craftingBenchResponseCancellation.Token);
+                    continue;
+                }
+                Require(callback.Method == "capture.request",
+                    $"genshin.goToCraftingBench emitted unexpected callback {callback.Method}.");
+                craftingBenchCaptureCount++;
+                await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                {
+                    ringPath = captureRingPath, frameId = 9UL, sequence = 2UL, slot = 0,
+                    width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
+                    pixelFormat = "BGRA8"
+                }), craftingBenchResponseCancellation.Token);
+            }
+        }
+        catch (OperationCanceledException) when (craftingBenchResponseCancellation.IsCancellationRequested)
+        {
+        }
+    }, craftingBenchResponseCancellation.Token);
+    try
+    {
+        await new ScriptProject("GenshinGoToCraftingBench").ExecuteAsync();
+    }
+    finally
+    {
+        await craftingBenchResponseCancellation.CancelAsync();
+    }
+    await craftingBenchResponder;
+    Require(craftingBenchMetricsCount >= 1,
+        "genshin.goToCraftingBench bypassed PathExecutor game metrics.");
+    Require(craftingBenchActivationCount >= 1,
+        "genshin.goToCraftingBench did not activate the real game window.");
+    Require(craftingBenchCaptureCount == 1,
+        $"genshin.goToCraftingBench talk-UI capture sequence changed: {craftingBenchCaptureCount}.");
+    Console.WriteLine(
+        "Real BetterGI genshin.goToCraftingBench passed: ClearScript, route loading, PathExecutor and talk-UI recognition.");
+    using (var restoredFrame = new OpenCvSharp.Mat(
+               schedulerHeight, schedulerWidth, OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black))
+    using (var restoredPaimon = OpenCvSharp.Cv2.ImRead(
+               Path.Combine(sourceRoot, "Common/Element/Assets/1920x1080/paimon_menu.png"),
+               OpenCvSharp.ImreadModes.Color))
+    {
+        using (var target = new OpenCvSharp.Mat(
+                   restoredFrame, new OpenCvSharp.Rect(24, 20, restoredPaimon.Width, restoredPaimon.Height)))
+            restoredPaimon.CopyTo(target);
+        await WriteCaptureRingFrameAsync(captureRingPath, restoredFrame, 8UL);
+    }
 
     var bvExpectedInputs = new Queue<string>([
         "keyDown", "keyUp", "keyPress", "inputText", "moveMouseBy",

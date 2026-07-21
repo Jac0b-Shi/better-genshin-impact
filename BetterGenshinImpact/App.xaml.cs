@@ -261,6 +261,8 @@ public partial class App : Application
             new Core.Runtime.Windows.WindowsAutoFishingRuntimePlatform());
         GameTask.Model.TaskParameterPlatform.Configure(
             new Core.Runtime.Windows.WindowsTaskParameterPlatform());
+        GameTask.Common.Job.GoToCraftingBenchRuntimePlatform.Configure(
+            new Core.Runtime.Windows.WindowsGoToCraftingBenchRuntimePlatform());
         GameTask.Common.BgiVision.BvSimpleOperationPlatform.Configure(
             new Core.Runtime.Windows.WindowsBvSimpleOperationPlatform());
         GameTask.AutoTrackPath.TpTaskRuntimePlatform.Configure(
