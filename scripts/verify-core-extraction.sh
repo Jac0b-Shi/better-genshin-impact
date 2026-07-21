@@ -251,6 +251,11 @@ if rg -n 'class (Mac|Windows)PathExecutorAutoSkipPlatform' \
   BetterGenshinImpact BetterGenshinImpact.Core.Host; then
   fail "PathExecutor AutoSkip policy is duplicated by platform adapters"
 fi
+rg -q 'mac-core-extraction' .github/workflows/wpf-build.yml \
+  || fail "Windows WPF build does not gate mac-core-extraction pushes"
+if rg -n 'continue-on-error:[[:space:]]*true' .github/workflows/wpf-build.yml; then
+  fail "Windows WPF build is configured as a soft failure"
+fi
 rg -q 'one failing macOS trigger stopped later triggers from processing the same frame' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "macOS trigger dispatcher does not verify per-trigger exception isolation"

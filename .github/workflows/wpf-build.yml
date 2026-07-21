@@ -2,11 +2,22 @@ name: Full WPF Build
 
 on:
   workflow_dispatch:
-  pull_request:
+  push:
     branches:
-      - main
+      - mac-core-extraction
     paths:
       - "BetterGenshinImpact/**"
+      - "BetterGenshinImpact.Core/**"
+      - "BetterGenshinImpact.Core.Host/**"
+      - "BetterGenshinImpact.Platform.Abstractions/**"
+      - "Fischless.WindowsInput/**"
+      - "Fischless.GameCapture/**"
+      - ".github/workflows/wpf-build.yml"
+  pull_request:
+    paths:
+      - "BetterGenshinImpact/**"
+      - "BetterGenshinImpact.Core/**"
+      - "BetterGenshinImpact.Core.Host/**"
       - "BetterGenshinImpact.Platform.Abstractions/**"
       - "Fischless.WindowsInput/**"
       - "Fischless.GameCapture/**"
