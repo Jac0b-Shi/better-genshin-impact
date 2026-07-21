@@ -54,7 +54,8 @@ public sealed class MacScriptGroupExecutionServices : IScriptGroupExecutionServi
 
     public PathingPartyConfig DefaultPartyConfig => _defaultPartyConfig;
 
-    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(cancellationToken);
+    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(
+        cancellationToken, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current, this);
 
     public void AddAutoPickTrigger()
     {

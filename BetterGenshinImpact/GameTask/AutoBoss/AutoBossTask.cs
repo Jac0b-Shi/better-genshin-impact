@@ -1119,7 +1119,9 @@ public class AutoBossTask : ISoloTask<Dictionary<string, int>>
     /// <param name="task">已经解析好的寻路任务。</param>
     private async Task RunPathingTask(PathingTask task)
     {
-        var executor = new PathExecutor(_ct)
+        var executor = new PathExecutor(
+            _ct, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current,
+            ScriptGroupExecutionServices.Current)
         {
             PartyConfig = BuildPathingPartyConfig()
         };

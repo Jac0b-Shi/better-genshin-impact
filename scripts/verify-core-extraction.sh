@@ -251,6 +251,10 @@ if rg -n 'class (Mac|Windows)PathExecutorAutoSkipPlatform' \
   BetterGenshinImpact BetterGenshinImpact.Core.Host; then
   fail "PathExecutor AutoSkip policy is duplicated by platform adapters"
 fi
+if rg -n 'PathExecutorPlatform\.Current|PathExecutorAutoSkipPlatform\.Current|ScriptGroupExecutionServices\.Current' \
+  BetterGenshinImpact/GameTask/AutoPathing/PathExecutor.cs; then
+  fail "PathExecutor still resolves process-global services during execution"
+fi
 rg -q 'mac-core-extraction' .github/workflows/wpf-build.yml \
   || fail "Windows WPF build does not gate mac-core-extraction pushes"
 if rg -n 'continue-on-error:[[:space:]]*true' .github/workflows/wpf-build.yml; then

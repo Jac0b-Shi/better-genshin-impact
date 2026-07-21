@@ -157,7 +157,9 @@ public class Avatar : ICombatCommandAvatar
                 
                 try
                 {
-                    var pathExecutor = new PathExecutor(cts.Token);
+                    var pathExecutor = new PathExecutor(
+                        cts.Token, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current,
+                        ScriptGroupExecutionServices.Current);
                     
                     // FaceTo 朝向战斗点，超时 2 秒
                     cts.CancelAfter(2000);

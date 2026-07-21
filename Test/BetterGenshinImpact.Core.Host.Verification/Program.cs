@@ -1725,7 +1725,9 @@ try
                 }
             ]
         };
-        var forceTeleportExecutor = new PathExecutor(cancellation.Token)
+        var forceTeleportExecutor = new PathExecutor(
+            cancellation.Token, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current,
+            ScriptGroupExecutionServices.Current)
         {
             PartyConfig = new PathingPartyConfig
             {

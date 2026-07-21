@@ -7,7 +7,8 @@ namespace BetterGenshinImpact.GameTask;
 
 public sealed class WindowsScriptGroupExecutionServices : IScriptGroupExecutionServices
 {
-    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(cancellationToken);
+    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(
+        cancellationToken, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current, this);
     public PathingPartyConfig DefaultPartyConfig => PathingPartyConfig.BuildDefault();
     public void AddAutoPickTrigger() => TaskTriggerDispatcher.Instance().AddTrigger("AutoPick", null);
 

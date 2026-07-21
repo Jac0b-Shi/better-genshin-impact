@@ -26,7 +26,9 @@ public class AutoPathingScript
         try
         {
             var task = PathingTask.BuildFromJson(json);
-            var pathExecutor = new PathExecutor(CancellationContext.Instance.Cts.Token);
+            var pathExecutor = new PathExecutor(
+                CancellationContext.Instance.Cts.Token, PathExecutorPlatform.Current,
+                PathExecutorAutoSkipPlatform.Current, ScriptGroupExecutionServices.Current);
             if (_config != null && _config is PathingPartyConfig patyConfig)
             {
                 pathExecutor.PartyConfig = patyConfig;

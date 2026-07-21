@@ -2873,9 +2873,14 @@ try
         return movementFrames[index].Clone();
     };
     Navigation.Reset();
+    var verificationPathExecutionServices = new VerificationScriptGroupExecutionServices();
+    var verificationPathAutoSkipFactory = new PathExecutorAutoSkipSessionFactory();
+    var movementPathingPlatform = new RecordingPathExecutorPlatform(b5SystemInfo, verificationOcrService);
     try
     {
-        var pathExecutor = new PathExecutor(CancellationToken.None)
+        var pathExecutor = new PathExecutor(
+            CancellationToken.None, movementPathingPlatform, verificationPathAutoSkipFactory,
+            verificationPathExecutionServices)
         {
             PartyConfig = new PathingPartyConfig
             {
@@ -2962,7 +2967,9 @@ try
     };
     var verificationCombatCommandPlatform = (VerificationCombatCommandPlatform)CombatCommandPlatform.Current;
     verificationCombatCommandPlatform.Calls.Clear();
-    var fullPathExecutor = new PathExecutor(CancellationToken.None)
+    var fullPathExecutor = new PathExecutor(
+        CancellationToken.None, pathingPlatform, verificationPathAutoSkipFactory,
+        verificationPathExecutionServices)
     {
         PartyConfig = new PathingPartyConfig
         {
@@ -3372,6 +3379,16 @@ sealed class RecordingPathExecutorPlatform(
     public string AutoFetchDispatchAdventurersGuildCountry => string.Empty;
     public PathingConditionConfig PathingConditionConfig { get; } = new();
     public BetterGenshinImpact.Core.Recognition.OCR.IOcrService OcrService { get; } = ocrService;
+}
+
+sealed class VerificationScriptGroupExecutionServices : IScriptGroupExecutionServices
+{
+    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Nested PathExecutor creation is not used by this verification.");
+    public PathingPartyConfig DefaultPartyConfig { get; } = new();
+    public void AddAutoPickTrigger() => throw new NotSupportedException();
+    public PathingFailurePolicy PathingFailurePolicy => new(false, false, false);
+    public void RecordFarmingSession(FarmingSession session, FarmingRouteInfo route) { }
 }
 
 sealed class VerificationAutoFightRuntimePlatform(

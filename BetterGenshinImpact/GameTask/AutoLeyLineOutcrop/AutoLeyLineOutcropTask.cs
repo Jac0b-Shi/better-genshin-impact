@@ -733,7 +733,9 @@ public class AutoLeyLineOutcropTask : ISoloTask
         var fullPath = Path.Combine(workDir, localPath);
 
         var task = PathingTask.BuildFromFilePath(fullPath) ?? throw new Exception("路径文件解析失败");
-        var executor = new PathExecutor(_ct);
+        var executor = new PathExecutor(
+            _ct, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current,
+            ScriptGroupExecutionServices.Current);
         executor.PartyConfig = BuildLeyLinePathingPartyConfig();
         await executor.Pathing(task);
     }

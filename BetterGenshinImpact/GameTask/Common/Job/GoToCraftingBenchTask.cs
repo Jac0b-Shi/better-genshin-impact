@@ -207,7 +207,9 @@ public class GoToCraftingBenchTask
             throw new Exception("地图追踪文件加载失败");
         }
 
-        var pathingTask = new PathExecutor(ct)
+        var pathingTask = new PathExecutor(
+            ct, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current,
+            ScriptGroupExecutionServices.Current)
         {
             PartyConfig = new PathingPartyConfig
             {
