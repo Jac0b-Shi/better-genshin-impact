@@ -106,6 +106,14 @@ public sealed class WindowsDispatcherRuntimePlatform(
                         new AutoLeyLineOutcropParam(leyLine.Config))
                     .Start(cancellationToken);
                 return null;
+            case DispatcherStygianTaskRequest stygian:
+                await new AutoStygianOnslaughtTask(
+                        new AutoStygianOnslaughtParam(
+                            stygian.Config, stygian.DefaultStrategyName,
+                            stygian.ArtifactSalvageStar),
+                        stygian.StrategyPath)
+                    .Start(cancellationToken);
+                return null;
             case DispatcherEatTaskRequest eat:
                 return await new AutoEatTask(new AutoEatParam
                 {

@@ -10,6 +10,7 @@ using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoLeyLineOutcrop;
+using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using Newtonsoft.Json.Linq;
 
@@ -49,6 +50,28 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
+    public AutoStygianOnslaughtConfig BuildAutoStygianOnslaughtConfig()
+    {
+        lock (_lock)
+        {
+            return LoadConfig<AutoStygianOnslaughtConfig>(
+                LoadRoot(), "autoStygianOnslaughtConfig");
+        }
+    }
+
+    public (string? DefaultStrategyName, int ArtifactSalvageStar)
+        BuildAutoStygianOnslaughtDefaults()
+    {
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var autoFight = LoadConfig<AutoFightConfig>(root, "autoFightConfig");
+            var artifact = LoadConfig<AutoArtifactSalvageConfig>(
+                root, "autoArtifactSalvageConfig");
+            return (autoFight.StrategyName, ParseArtifactStar(artifact.MaxArtifactStar));
+        }
+    }
+
     public object Get(string name)
     {
         lock (_lock)
@@ -72,6 +95,9 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
                     LoadConfig<AutoArtifactSalvageConfig>(root, "autoArtifactSalvageConfig")),
                 "AutoLeyLineOutcrop" => Describe(
                     LoadConfig<AutoLeyLineOutcropConfig>(root, "autoLeyLineOutcropConfig")),
+                "AutoStygianOnslaught" => Describe(
+                    LoadConfig<AutoStygianOnslaughtConfig>(root, "autoStygianOnslaughtConfig"),
+                    LoadConfig<AutoArtifactSalvageConfig>(root, "autoArtifactSalvageConfig")),
                 _ => throw Unavailable(name),
             };
         }
@@ -90,6 +116,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             "AutoDomain" => SaveAutoDomain(settings),
             "AutoArtifactSalvage" => SaveAutoArtifactSalvage(settings),
             "AutoLeyLineOutcrop" => SaveAutoLeyLineOutcrop(settings),
+            "AutoStygianOnslaught" => SaveAutoStygianOnslaught(settings),
             _ => throw Unavailable(name),
         };
     }
@@ -417,6 +444,50 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
+    private object SaveAutoStygianOnslaught(JObject settings)
+    {
+        var strategyName = RequiredString(settings, "strategyName");
+        if (!string.IsNullOrEmpty(strategyName) &&
+            !StrategyOptions().Contains(strategyName, StringComparer.Ordinal))
+            throw new ArgumentException($"Unknown AutoFight strategy: {strategyName}");
+        var bossNum = RequiredInt(settings, "bossNum");
+        if (bossNum is < 1 or > 3)
+            throw new ArgumentOutOfRangeException(nameof(bossNum));
+        var originalResinUseCount = NonNegative(settings, "originalResinUseCount");
+        var condensedResinUseCount = NonNegative(settings, "condensedResinUseCount");
+        var transientResinUseCount = NonNegative(settings, "transientResinUseCount");
+        var fragileResinUseCount = NonNegative(settings, "fragileResinUseCount");
+        var maxArtifactStar = RequiredString(settings, "maxArtifactStar");
+        if (ParseArtifactStar(maxArtifactStar).ToString() != maxArtifactStar)
+            throw new ArgumentException($"Unsupported maxArtifactStar: {maxArtifactStar}");
+
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var config = LoadConfig<AutoStygianOnslaughtConfig>(
+                root, "autoStygianOnslaughtConfig");
+            config.StrategyName = strategyName;
+            config.BossNum = bossNum;
+            config.FightTeamName = RequiredString(settings, "fightTeamName");
+            config.SpecifyResinUse = RequiredBool(settings, "specifyResinUse");
+            config.OriginalResinUseCount = originalResinUseCount;
+            config.CondensedResinUseCount = condensedResinUseCount;
+            config.TransientResinUseCount = transientResinUseCount;
+            config.FragileResinUseCount = fragileResinUseCount;
+            config.AutoArtifactSalvage = RequiredBool(settings, "autoArtifactSalvage");
+
+            var artifact = LoadConfig<AutoArtifactSalvageConfig>(
+                root, "autoArtifactSalvageConfig");
+            artifact.MaxArtifactStar = maxArtifactStar;
+            root["autoStygianOnslaughtConfig"] =
+                JsonSerializer.SerializeToNode(config, ConfigJson.Options);
+            root["autoArtifactSalvageConfig"] =
+                JsonSerializer.SerializeToNode(artifact, ConfigJson.Options);
+            SaveRoot(root);
+            return Describe(config, artifact);
+        }
+    }
+
     private static object Describe(AutoCookConfig config) => new
     {
         name = "AutoCook",
@@ -551,6 +622,25 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         },
     };
 
+    private object Describe(
+        AutoStygianOnslaughtConfig config, AutoArtifactSalvageConfig artifactConfig) => new
+    {
+        name = "AutoStygianOnslaught",
+        strategyName = config.StrategyName,
+        strategyOptions = StrategyOptions(),
+        bossNum = config.BossNum,
+        bossNumOptions = new[] { 1, 2, 3 },
+        fightTeamName = config.FightTeamName,
+        specifyResinUse = config.SpecifyResinUse,
+        originalResinUseCount = config.OriginalResinUseCount,
+        condensedResinUseCount = config.CondensedResinUseCount,
+        transientResinUseCount = config.TransientResinUseCount,
+        fragileResinUseCount = config.FragileResinUseCount,
+        autoArtifactSalvage = config.AutoArtifactSalvage,
+        maxArtifactStar = artifactConfig.MaxArtifactStar,
+        maxArtifactStarOptions = new[] { "4", "3", "2", "1" },
+    };
+
     private static readonly string[] LeyLineOutcropTypes = ["启示之花", "藏金之花"];
     private static readonly string[] LeyLineOutcropCountries =
         ["蒙德", "璃月", "稻妻", "须弥", "枫丹", "纳塔", "挪德卡莱"];
@@ -630,6 +720,9 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         var value = RequiredInt(settings, name);
         return value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
     }
+
+    private static int ParseArtifactStar(string? value) =>
+        int.TryParse(value, out var star) && star is >= 1 and <= 4 ? star : 4;
 
     private static CapabilityUnavailableException Unavailable(string name) => new(
         $"solo task settings '{name}' are not composed in the macOS Core yet.");

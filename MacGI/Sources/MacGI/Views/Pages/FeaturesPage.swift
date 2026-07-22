@@ -198,6 +198,7 @@ struct SoloTasksPage: View {
         case "AutoMusicGame": autoMusicGameSettings
         case "AutoBoss": autoBossSettings
         case "AutoLeyLineOutcrop": autoLeyLineOutcropSettings
+        case "AutoStygianOnslaught": autoStygianOnslaughtSettings
         case "AutoDomain": autoDomainSettings
         case "AutoArtifactSalvage": autoArtifactSalvageSettings
         case "AutoFight": autoFightSettings
@@ -657,6 +658,82 @@ struct SoloTasksPage: View {
                 value: Binding(get: { settings.isNotification },
                     set: { appState.saveAutoLeyLineOutcropSettings(isNotification: $0) }))
         } else { settingsLoading }
+    }
+
+    @ViewBuilder
+    private var autoStygianOnslaughtSettings: some View {
+        if let settings = appState.autoStygianOnslaughtSettings {
+            BGISettingLine(title: "选择战斗策略", subtitle: "用于战斗") {
+                Picker("", selection: Binding(
+                    get: { settings.strategyName },
+                    set: { appState.saveAutoStygianOnslaughtSettings(strategyName: $0) })) {
+                    Text("跟随自动战斗配置").tag("")
+                    ForEach(settings.strategyOptions, id: \.self) { Text($0).tag($0) }
+                }.labelsHidden().frame(width: 220)
+            }
+            BGISettingLine(title: "指定刷取的战场", subtitle: "从上到下战场一、二、三") {
+                Picker("", selection: Binding(
+                    get: { settings.bossNum },
+                    set: { appState.saveAutoStygianOnslaughtSettings(bossNum: $0) })) {
+                    ForEach(settings.bossNumOptions, id: \.self) { Text("\($0)").tag($0) }
+                }.labelsHidden().frame(width: 90)
+            }
+            CoreTextSettingLine(
+                title: "指定战斗队伍",
+                subtitle: "输入预设队伍的名称，留空则不更换队伍",
+                value: settings.fightTeamName,
+                onSave: { appState.saveAutoStygianOnslaughtSettings(fightTeamName: $0) })
+            BGISettingLine(
+                title: "刷取至树脂耗尽",
+                subtitle: "优先使用浓缩树脂，然后使用原粹树脂，其余树脂不使用"
+            ) {
+                Toggle("", isOn: Binding(
+                    get: { !settings.specifyResinUse },
+                    set: { appState.saveAutoStygianOnslaughtSettings(specifyResinUse: !$0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            BGISettingLine(title: "指定每种树脂刷取次数", subtitle: "开启后会根据配置的次数使用对应的树脂") {
+                Toggle("", isOn: Binding(
+                    get: { settings.specifyResinUse },
+                    set: { appState.saveAutoStygianOnslaughtSettings(specifyResinUse: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            if settings.specifyResinUse {
+                stygianResinCountLine("原粹树脂刷取次数", value: Binding(
+                    get: { settings.originalResinUseCount },
+                    set: { appState.saveAutoStygianOnslaughtSettings(originalResinUseCount: $0) }))
+                stygianResinCountLine("浓缩树脂刷取次数", value: Binding(
+                    get: { settings.condensedResinUseCount },
+                    set: { appState.saveAutoStygianOnslaughtSettings(condensedResinUseCount: $0) }))
+                stygianResinCountLine("须臾树脂刷取次数", value: Binding(
+                    get: { settings.transientResinUseCount },
+                    set: { appState.saveAutoStygianOnslaughtSettings(transientResinUseCount: $0) }))
+                stygianResinCountLine("脆弱树脂刷取次数", value: Binding(
+                    get: { settings.fragileResinUseCount },
+                    set: { appState.saveAutoStygianOnslaughtSettings(fragileResinUseCount: $0) }))
+            }
+            BGISettingLine(title: "结束后自动分解圣遗物", subtitle: "需要快速分解圣遗物的最高星级") {
+                HStack(spacing: 10) {
+                    Picker("", selection: Binding(
+                        get: { settings.maxArtifactStar },
+                        set: { appState.saveAutoStygianOnslaughtSettings(maxArtifactStar: $0) })) {
+                        ForEach(settings.maxArtifactStarOptions, id: \.self) { Text($0).tag($0) }
+                    }.labelsHidden().frame(width: 80)
+                    Toggle("", isOn: Binding(
+                        get: { settings.autoArtifactSalvage },
+                        set: { appState.saveAutoStygianOnslaughtSettings(autoArtifactSalvage: $0) }))
+                        .toggleStyle(.switch).labelsHidden()
+                }
+            }
+        } else { settingsLoading }
+    }
+
+    private func stygianResinCountLine(_ title: String, value: Binding<Int>) -> some View {
+        BGISettingLine(title: title, subtitle: "最小 0 次") {
+            TextField("", value: value, format: .number)
+                .frame(width: 90)
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     private func leyLineToggle(

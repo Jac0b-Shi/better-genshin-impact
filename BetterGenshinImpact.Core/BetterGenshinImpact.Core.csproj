@@ -88,6 +88,10 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropParam.cs" Link="GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropRuntimePlatform.cs" Link="GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropTask.cs" Link="GameTask/AutoLeyLineOutcrop/AutoLeyLineOutcropTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoStygianOnslaught/AutoStygianOnslaughtConfig.cs" Link="GameTask/AutoStygianOnslaught/AutoStygianOnslaughtConfig.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoStygianOnslaught/AutoStygianOnslaughtParam.cs" Link="GameTask/AutoStygianOnslaught/AutoStygianOnslaughtParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoStygianOnslaught/AutoStygianOnslaughtRuntimePlatform.cs" Link="GameTask/AutoStygianOnslaught/AutoStygianOnslaughtRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoStygianOnslaught/AutoStygianOnslaughtTask.cs" Link="GameTask/AutoStygianOnslaught/AutoStygianOnslaughtTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoMusicGame/AutoMusicGameParam.cs" Link="GameTask/AutoMusicGame/AutoMusicGameParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoMusicGame/AutoMusicGameConfig.cs" Link="GameTask/AutoMusicGame/AutoMusicGameConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoMusicGame/AutoMusicGameRuntimePlatform.cs" Link="GameTask/AutoMusicGame/AutoMusicGameRuntimePlatform.cs" />
@@ -125,6 +129,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/GoToAdventurersGuildTask.cs" Link="GameTask/Common/Job/GoToAdventurersGuildTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ChooseTalkOptionTask.cs" Link="GameTask/Common/Job/ChooseTalkOptionTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ClaimEncounterPointsRewardsTask.cs" Link="GameTask/Common/Job/ClaimEncounterPointsRewardsTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/LowerHeadThenWalkToTask.cs" Link="GameTask/Common/Job/LowerHeadThenWalkToTask.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/WalkToFTask.cs" Link="GameTask/Common/Job/WalkToFTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/OneKeyExpeditionTask.cs" Link="GameTask/AutoSkip/OneKeyExpeditionTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/AutoSkipConfig.cs" Link="GameTask/AutoSkip/AutoSkipConfig.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoSkip/AutoSkipTrigger.cs" Link="GameTask/AutoSkip/AutoSkipTrigger.cs" />

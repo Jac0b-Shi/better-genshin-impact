@@ -16,6 +16,7 @@ using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoLeyLineOutcrop;
+using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.Core.Recognition.OCR;
@@ -42,6 +43,7 @@ public sealed class MacDispatcherRuntimePlatform(
     IAutoBossPathExecutorFactory autoBossPathExecutorFactory,
     IAutoEatRuntimePlatform autoEatRuntimePlatform,
     IAutoLeyLineOutcropRuntimePlatform autoLeyLineOutcropRuntimePlatform,
+    IAutoStygianOnslaughtRuntimePlatform autoStygianOnslaughtRuntimePlatform,
     IScriptGroupExecutionServices scriptGroupExecutionServices,
     IOcrService ocrService,
     RuntimeLayout layout,
@@ -204,6 +206,17 @@ public sealed class MacDispatcherRuntimePlatform(
                 .Start(cancellationToken);
             return null;
         }
+        if (request is DispatcherStygianTaskRequest stygian)
+        {
+            await new AutoStygianOnslaughtTask(
+                    new AutoStygianOnslaughtParam(
+                        stygian.Config, stygian.DefaultStrategyName,
+                        stygian.ArtifactSalvageStar),
+                    stygian.StrategyPath,
+                    autoStygianOnslaughtRuntimePlatform)
+                .Start(cancellationToken);
+            return null;
+        }
         throw Unavailable(request.Name);
     }
 
@@ -232,6 +245,14 @@ public sealed class MacDispatcherRuntimePlatform(
             await new AutoLeyLineOutcropTask(
                     leyLineParam, autoLeyLineOutcropRuntimePlatform,
                     scriptGroupExecutionServices)
+                .Start(cancellationToken);
+            return null;
+        }
+        if (name == "AutoStygianOnslaught" &&
+            parameter is AutoStygianOnslaughtParam stygianParam)
+        {
+            await new AutoStygianOnslaughtTask(
+                    stygianParam, autoStygianOnslaughtRuntimePlatform)
                 .Start(cancellationToken);
             return null;
         }

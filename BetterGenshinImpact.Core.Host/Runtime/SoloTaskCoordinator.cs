@@ -22,7 +22,7 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoFight", "自动战斗", true, true),
         Descriptor("AutoDomain", "自动秘境", true, true),
         Descriptor("AutoBoss", "自动首领讨伐", true, true),
-        Descriptor("AutoStygianOnslaught", "自动幽境危战", false),
+        Descriptor("AutoStygianOnslaught", "自动幽境危战", true, true),
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true, true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", true, true),
         Descriptor("AutoMusicGame", "自动千音雅集", true, true),
@@ -32,7 +32,7 @@ public sealed class SoloTaskCoordinator(
 
     public object Start(string name)
     {
-        if (name is not ("AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop"))
+        if (name is not ("AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop" or "AutoStygianOnslaught"))
             throw new CapabilityUnavailableException(
                 $"solo task '{name}' is not composed in the macOS Core yet; no task was executed.");
 
@@ -91,6 +91,7 @@ public sealed class SoloTaskCoordinator(
                 "AutoArtifactSalvage" => new DispatcherArtifactSalvageTaskRequest(),
                 "AutoLeyLineOutcrop" => new DispatcherLeyLineTaskRequest(
                     settings.BuildAutoLeyLineOutcropConfig()),
+                "AutoStygianOnslaught" => BuildStygianRequest(),
                 "AutoDomain" => new DispatcherDomainTaskRequest(
                     !platform.GetFightStrategy(null, out var path)
                         ? path
@@ -114,6 +115,20 @@ public sealed class SoloTaskCoordinator(
         {
             Complete(taskId, "failed", exception.Message);
         }
+    }
+
+    private DispatcherStygianTaskRequest BuildStygianRequest()
+    {
+        var config = settings.BuildAutoStygianOnslaughtConfig();
+        var strategyName = string.IsNullOrWhiteSpace(config.StrategyName)
+            ? null
+            : config.StrategyName;
+        if (platform.GetFightStrategy(strategyName, out var path))
+            throw new CapabilityUnavailableException(
+                "AutoStygianOnslaught combat strategy is unavailable.");
+        var defaults = settings.BuildAutoStygianOnslaughtDefaults();
+        return new DispatcherStygianTaskRequest(
+            config, defaults.DefaultStrategyName, defaults.ArtifactSalvageStar, path);
     }
 
     private void Complete(string taskId, string state, string? error)

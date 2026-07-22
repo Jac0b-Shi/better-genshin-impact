@@ -228,6 +228,10 @@ var autoLeyLineOutcropRuntimePlatform = new MacAutoLeyLineOutcropRuntimePlatform
     () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService,
     autoFightRuntimePlatform, autoPickConfigProvider, tpConfig.MapScaleFactor,
     loggerFactory, server.PlatformCallbacks, sessionToken, shutdown.Token);
+var autoStygianOnslaughtRuntimePlatform = new MacAutoStygianOnslaughtRuntimePlatform(
+    () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService,
+    autoPickConfigProvider, loggerFactory, server.PlatformCallbacks,
+    sessionToken, shutdown.Token);
 var autoFightConfig = MacDispatcherRuntimePlatform.LoadUserConfig<AutoFightConfig>(
     layout, "autoFightConfig");
 var autoBossRuntimePlatform = new MacAutoBossRuntimePlatform(
@@ -242,7 +246,8 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     paddleAutoPickRecognizer, yapAutoPickRecognizer, autoWoodRuntimePlatform,
     autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, autoBossRuntimePlatform,
     autoBossPathExecutorFactory, autoEatRuntimePlatform,
-    autoLeyLineOutcropRuntimePlatform, scriptGroupExecutionServices,
+    autoLeyLineOutcropRuntimePlatform, autoStygianOnslaughtRuntimePlatform,
+    scriptGroupExecutionServices,
     imageRegionOcrService, layout, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(

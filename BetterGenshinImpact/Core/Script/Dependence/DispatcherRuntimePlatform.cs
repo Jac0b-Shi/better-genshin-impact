@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoLeyLineOutcrop;
+using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
 
 namespace BetterGenshinImpact.Core.Script.Dependence;
 
@@ -39,6 +40,10 @@ public sealed record DispatcherMusicGameTaskRequest() : DispatcherSoloTaskReques
 public sealed record DispatcherArtifactSalvageTaskRequest() : DispatcherSoloTaskRequest("AutoArtifactSalvage");
 public sealed record DispatcherLeyLineTaskRequest(AutoLeyLineOutcropConfig Config) :
     DispatcherSoloTaskRequest("AutoLeyLineOutcrop");
+public sealed record DispatcherStygianTaskRequest(
+    AutoStygianOnslaughtConfig Config, string? DefaultStrategyName,
+    int ArtifactSalvageStar, string StrategyPath) :
+    DispatcherSoloTaskRequest("AutoStygianOnslaught");
 public sealed record DispatcherEatTaskRequest(string? FoodName, DispatcherAutoEatSettings Settings) : DispatcherSoloTaskRequest("AutoEat");
 public sealed record DispatcherCountInventoryTaskRequest(
     int GridScreenName, string? ItemName, IReadOnlyList<string> ItemNames) : DispatcherSoloTaskRequest("CountInventoryItem");

@@ -28,6 +28,15 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                       "finishDetectConfig": { "fastCheckEnabled": true },
                       "timeout": 120
                     }
+                  },
+                  "autoStygianOnslaughtConfig": {
+                    "strategyName": "",
+                    "bossNum": 1,
+                    "resinPriorityList": ["脆弱树脂", "原粹树脂"]
+                  },
+                  "autoArtifactSalvageConfig": {
+                    "maxArtifactStar": "4",
+                    "javaScript": "Output = true;"
                   }
                 }
                 """, cancellationToken);
@@ -93,6 +102,53 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
             context.Require(platform.Request is DispatcherLeyLineTaskRequest request &&
                             request.Config.Country == "枫丹" && request.Config.Count == 9,
                 "SoloTaskCoordinator did not dispatch the Core-owned AutoLeyLineOutcrop config.");
+
+            _ = catalog.Save("AutoStygianOnslaught", JObject.FromObject(new
+            {
+                strategyName = "",
+                bossNum = 3,
+                fightTeamName = "幽境队",
+                specifyResinUse = true,
+                originalResinUseCount = 2,
+                condensedResinUseCount = 1,
+                transientResinUseCount = 0,
+                fragileResinUseCount = 1,
+                autoArtifactSalvage = true,
+                maxArtifactStar = "3",
+            }));
+            persisted = JObject.Parse(await File.ReadAllTextAsync(
+                Path.Combine(layout.UserPath, "config.json"), cancellationToken));
+            context.Require(
+                persisted["autoStygianOnslaughtConfig"]?["resinPriorityList"]?
+                    .Values<string>().SequenceEqual(["脆弱树脂", "原粹树脂"]) == true &&
+                persisted["autoArtifactSalvageConfig"]?.Value<string>("javaScript") ==
+                    "Output = true;" &&
+                persisted["autoArtifactSalvageConfig"]?.Value<string>("maxArtifactStar") == "3",
+                "AutoStygianOnslaught save did not preserve hidden upstream settings.");
+
+            descriptors = JArray.FromObject(coordinator.List());
+            descriptor = descriptors.Single(item =>
+                item.Value<string>("name") == "AutoStygianOnslaught");
+            context.Require(descriptor.Value<bool>("available") &&
+                            descriptor.Value<bool>("settingsAvailable"),
+                "AutoStygianOnslaught was not exposed as a composed configurable solo task.");
+            platform.Reset();
+            _ = coordinator.Start("AutoStygianOnslaught");
+            for (var retry = 0; retry < 20 && platform.Request is null; retry++)
+                await Task.Delay(10, cancellationToken);
+            var stygian = platform.Request as DispatcherStygianTaskRequest;
+            context.Require(stygian is not null &&
+                            stygian.Config.BossNum == 3 &&
+                            stygian.Config.FightTeamName == "幽境队" &&
+                            stygian.ArtifactSalvageStar == 3 &&
+                            stygian.Config.ResinPriorityList.SequenceEqual(
+                                ["脆弱树脂", "原粹树脂"]),
+                $"SoloTaskCoordinator did not dispatch the Core-owned AutoStygianOnslaught config: " +
+                $"type={platform.Request?.GetType().Name ?? "null"}, " +
+                $"boss={stygian?.Config.BossNum}, team={stygian?.Config.FightTeamName}, " +
+                $"star={stygian?.ArtifactSalvageStar}, " +
+                $"priority={string.Join(',', stygian?.Config.ResinPriorityList ?? [])}, " +
+                $"status={JObject.FromObject(coordinator.Status()).ToString(Newtonsoft.Json.Formatting.None)}.");
         }
         finally
         {
@@ -103,6 +159,7 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
     private sealed class RecordingDispatcherPlatform : IDispatcherRuntimePlatform
     {
         public DispatcherSoloTaskRequest? Request { get; private set; }
+        public void Reset() => Request = null;
         public CancellationToken GlobalCancellationToken => CancellationToken.None;
         public int AutoWoodRoundNum => 0;
         public int AutoWoodDailyMaxCount => 0;

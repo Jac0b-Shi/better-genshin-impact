@@ -349,6 +349,7 @@ final class AppState: ObservableObject {
     @Published private(set) var autoMusicGameSettings: BetterGICoreAutoMusicGameSettings?
     @Published private(set) var autoBossSettings: BetterGICoreAutoBossSettings?
     @Published private(set) var autoLeyLineOutcropSettings: BetterGICoreAutoLeyLineOutcropSettings?
+    @Published private(set) var autoStygianOnslaughtSettings: BetterGICoreAutoStygianOnslaughtSettings?
     @Published private(set) var autoDomainSettings: BetterGICoreAutoDomainSettings?
     @Published private(set) var autoArtifactSalvageSettings: BetterGICoreAutoArtifactSalvageSettings?
     @Published private(set) var autoFightSettings: BetterGICoreAutoFightSettings?
@@ -1143,6 +1144,7 @@ final class AppState: ObservableObject {
             autoMusicGameSettings = try await supervisor.autoMusicGameSettings()
             autoBossSettings = try await supervisor.autoBossSettings()
             autoLeyLineOutcropSettings = try await supervisor.autoLeyLineOutcropSettings()
+            autoStygianOnslaughtSettings = try await supervisor.autoStygianOnslaughtSettings()
             autoDomainSettings = try await supervisor.autoDomainSettings()
             autoArtifactSalvageSettings = try await supervisor.autoArtifactSalvageSettings()
             autoFightSettings = try await supervisor.autoFightSettings()
@@ -1154,6 +1156,7 @@ final class AppState: ObservableObject {
             autoMusicGameSettings = nil
             autoBossSettings = nil
             autoLeyLineOutcropSettings = nil
+            autoStygianOnslaughtSettings = nil
             autoDomainSettings = nil
             autoArtifactSalvageSettings = nil
             autoFightSettings = nil
@@ -1314,6 +1317,40 @@ final class AppState: ObservableObject {
             } catch {
                 self?.addLog(.error,
                     "AutoLeyLineOutcrop settings save failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func saveAutoStygianOnslaughtSettings(
+        strategyName: String? = nil, bossNum: Int? = nil,
+        fightTeamName: String? = nil, specifyResinUse: Bool? = nil,
+        originalResinUseCount: Int? = nil, condensedResinUseCount: Int? = nil,
+        transientResinUseCount: Int? = nil, fragileResinUseCount: Int? = nil,
+        autoArtifactSalvage: Bool? = nil, maxArtifactStar: String? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor,
+              let current = autoStygianOnslaughtSettings else { return }
+        let next = BetterGICoreAutoStygianOnslaughtSettings(
+            strategyName: strategyName ?? current.strategyName,
+            strategyOptions: current.strategyOptions,
+            bossNum: bossNum ?? current.bossNum,
+            bossNumOptions: current.bossNumOptions,
+            fightTeamName: fightTeamName ?? current.fightTeamName,
+            specifyResinUse: specifyResinUse ?? current.specifyResinUse,
+            originalResinUseCount: originalResinUseCount ?? current.originalResinUseCount,
+            condensedResinUseCount: condensedResinUseCount ?? current.condensedResinUseCount,
+            transientResinUseCount: transientResinUseCount ?? current.transientResinUseCount,
+            fragileResinUseCount: fragileResinUseCount ?? current.fragileResinUseCount,
+            autoArtifactSalvage: autoArtifactSalvage ?? current.autoArtifactSalvage,
+            maxArtifactStar: maxArtifactStar ?? current.maxArtifactStar,
+            maxArtifactStarOptions: current.maxArtifactStarOptions)
+        Task { [weak self] in
+            do {
+                self?.autoStygianOnslaughtSettings =
+                    try await supervisor.saveAutoStygianOnslaughtSettings(next)
+            } catch {
+                self?.addLog(.error,
+                    "AutoStygianOnslaught settings save failed: \(error.localizedDescription)")
             }
         }
     }

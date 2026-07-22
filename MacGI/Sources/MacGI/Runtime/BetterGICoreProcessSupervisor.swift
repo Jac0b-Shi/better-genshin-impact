@@ -118,6 +118,22 @@ struct BetterGICoreAutoLeyLineOutcropSettings: Sendable, Equatable {
     let isNotification: Bool
 }
 
+struct BetterGICoreAutoStygianOnslaughtSettings: Sendable, Equatable {
+    let strategyName: String
+    let strategyOptions: [String]
+    let bossNum: Int
+    let bossNumOptions: [Int]
+    let fightTeamName: String
+    let specifyResinUse: Bool
+    let originalResinUseCount: Int
+    let condensedResinUseCount: Int
+    let transientResinUseCount: Int
+    let fragileResinUseCount: Int
+    let autoArtifactSalvage: Bool
+    let maxArtifactStar: String
+    let maxArtifactStarOptions: [String]
+}
+
 struct BetterGICoreAutoDomainSettings: Sendable, Equatable {
     let strategyName: String
     let strategyOptions: [String]
@@ -696,6 +712,32 @@ actor BetterGICoreProcessSupervisor {
         ))
     }
 
+    func autoStygianOnslaughtSettings() throws -> BetterGICoreAutoStygianOnslaughtSettings {
+        try decodeAutoStygianOnslaughtSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoStygianOnslaught"]
+        ))
+    }
+
+    func saveAutoStygianOnslaughtSettings(
+        _ settings: BetterGICoreAutoStygianOnslaughtSettings
+    ) throws -> BetterGICoreAutoStygianOnslaughtSettings {
+        try decodeAutoStygianOnslaughtSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoStygianOnslaught", "settings": [
+                "strategyName": settings.strategyName,
+                "bossNum": settings.bossNum,
+                "fightTeamName": settings.fightTeamName,
+                "specifyResinUse": settings.specifyResinUse,
+                "originalResinUseCount": settings.originalResinUseCount,
+                "condensedResinUseCount": settings.condensedResinUseCount,
+                "transientResinUseCount": settings.transientResinUseCount,
+                "fragileResinUseCount": settings.fragileResinUseCount,
+                "autoArtifactSalvage": settings.autoArtifactSalvage,
+                "maxArtifactStar": settings.maxArtifactStar,
+            ]]
+        ))
+    }
+
     func autoLeyLineOutcropSettings() throws -> BetterGICoreAutoLeyLineOutcropSettings {
         try decodeAutoLeyLineOutcropSettings(requestSoloSettings(
             method: "solo.settings.get", parameters: ["name": "AutoLeyLineOutcrop"]
@@ -1004,6 +1046,39 @@ actor BetterGICoreProcessSupervisor {
             team: team, friendshipTeam: friendshipTeam, timeout: timeout,
             useAdventurerHandbook: useAdventurerHandbook,
             isNotification: isNotification)
+    }
+
+    private func decodeAutoStygianOnslaughtSettings(_ value: Any) throws
+        -> BetterGICoreAutoStygianOnslaughtSettings {
+        guard let value = value as? [String: Any],
+              value["name"] as? String == "AutoStygianOnslaught",
+              let strategyName = value["strategyName"] as? String,
+              let strategyOptions = value["strategyOptions"] as? [String],
+              let bossNum = value["bossNum"] as? Int,
+              let bossNumOptions = value["bossNumOptions"] as? [Int],
+              let fightTeamName = value["fightTeamName"] as? String,
+              let specifyResinUse = value["specifyResinUse"] as? Bool,
+              let originalResinUseCount = value["originalResinUseCount"] as? Int,
+              let condensedResinUseCount = value["condensedResinUseCount"] as? Int,
+              let transientResinUseCount = value["transientResinUseCount"] as? Int,
+              let fragileResinUseCount = value["fragileResinUseCount"] as? Int,
+              let autoArtifactSalvage = value["autoArtifactSalvage"] as? Bool,
+              let maxArtifactStar = value["maxArtifactStar"] as? String,
+              let maxArtifactStarOptions = value["maxArtifactStarOptions"] as? [String] else {
+            throw BetterGICoreRPCError.protocolViolation(
+                "Invalid AutoStygianOnslaught settings.")
+        }
+        return .init(
+            strategyName: strategyName, strategyOptions: strategyOptions,
+            bossNum: bossNum, bossNumOptions: bossNumOptions,
+            fightTeamName: fightTeamName, specifyResinUse: specifyResinUse,
+            originalResinUseCount: originalResinUseCount,
+            condensedResinUseCount: condensedResinUseCount,
+            transientResinUseCount: transientResinUseCount,
+            fragileResinUseCount: fragileResinUseCount,
+            autoArtifactSalvage: autoArtifactSalvage,
+            maxArtifactStar: maxArtifactStar,
+            maxArtifactStarOptions: maxArtifactStarOptions)
     }
 
     private func decodeAutoArtifactSalvageSettings(_ value: Any) throws
