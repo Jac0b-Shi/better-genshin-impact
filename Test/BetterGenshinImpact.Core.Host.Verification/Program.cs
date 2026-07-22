@@ -2805,12 +2805,63 @@ try
     Require(missingGroup.Error?.Code == "FileNotFoundException", "scheduler.run did not validate the authoritative Core catalog");
 
     var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
-    Require(soloList.Error is null && soloList.Result is JArray soloItems &&
+    var soloItems = soloList.Result as JArray ??
+                    throw new InvalidOperationException("solo.list did not return an array");
+    Require(soloList.Error is null &&
             soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss")
                 .All(item => item.Value<bool>("available")) &&
             soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
+    Require(soloItems!.Single(item => item.Value<string>("name") == "AutoCook")
+                .Value<bool>("settingsAvailable") &&
+            soloItems.Where(item => item.Value<string>("name") != "AutoCook")
+                .All(item => !item.Value<bool>("settingsAvailable")),
+        "solo.list advertised settings without a composed Core settings boundary");
+    var cookSettings = await ExchangeAsync(
+        connection, "cook-settings-get", "solo.settings.get", sessionToken,
+        JObject.FromObject(new { name = "AutoCook" }), cancellation.Token);
+    Require(cookSettings.Error is null && cookSettings.Result is JObject cookSettingsJson &&
+            cookSettingsJson.Value<int>("checkIntervalMs") == 10 &&
+            cookSettingsJson.Value<bool>("stopTaskWhenRecoverButtonDetected"),
+        cookSettings.Error?.Message ?? "solo.settings.get did not return upstream AutoCook defaults");
+    var savedCookSettings = await ExchangeAsync(
+        connection, "cook-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoCook",
+            settings = new
+            {
+                checkIntervalMs = 125,
+                stopTaskWhenRecoverButtonDetected = false
+            }
+        }), cancellation.Token);
+    var persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    Require(savedCookSettings.Error is null && savedCookSettings.Result is JObject savedCookSettingsJson &&
+            savedCookSettingsJson.Value<int>("checkIntervalMs") == 125 &&
+            !savedCookSettingsJson.Value<bool>("stopTaskWhenRecoverButtonDetected") &&
+            persistedConfig.SelectToken("autoCookConfig.checkIntervalMs")?.Value<int>() == 125 &&
+            persistedConfig.SelectToken("autoCookConfig.stopTaskWhenRecoverButtonDetected")?.Value<bool>() == false,
+        savedCookSettings.Error?.Message ?? "solo.settings.save did not persist AutoCook settings");
+    var invalidCookSettings = await ExchangeAsync(
+        connection, "cook-settings-invalid", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoCook",
+            settings = new
+            {
+                checkIntervalMs = 0,
+                stopTaskWhenRecoverButtonDetected = true
+            }
+        }), cancellation.Token);
+    Require(invalidCookSettings.Error?.Code == "ArgumentOutOfRangeException",
+        "solo.settings.save accepted an AutoCook interval rejected by the upstream UI");
+    var unavailableWoodSettings = await ExchangeAsync(
+        connection, "wood-settings-unavailable", "solo.settings.get", sessionToken,
+        JObject.FromObject(new { name = "AutoWood" }), cancellation.Token);
+    Require(unavailableWoodSettings.Error?.Code == "CapabilityUnavailable",
+        "solo.settings.get returned placeholder settings for an uncomposed task");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoFishing" }), cancellation.Token);
     var soloTaskId = (soloStart.Result as JObject)?.Value<string>("taskId");

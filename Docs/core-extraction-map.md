@@ -36,6 +36,8 @@ Pathing host composition note: the production `pathingScript` receives
 that instance. Its `run`, `runFile`, and `runFileFromUser` paths no longer resolve
 process-global PathExecutor services during script execution.
 
+Independent-task settings follow the same ownership rule as execution. `solo.settings.get/save` currently exposes the two upstream AutoCook settings (`CheckIntervalMs`, constrained to 1-1000, and `StopTaskWhenRecoverButtonDetected`) through a typed Core boundary and atomically persists them to `User/config.json`. `solo.list.settingsAvailable` is false for every task whose complete upstream settings slice is not yet composed, so Swift does not display a nonfunctional disclosure control. AutoWood, AutoFight, AutoDomain, AutoBoss, AutoFishing, AutoMusicGame and AutoArtifactSalvage settings remain required follow-up slices.
+
 ## First-step completion gate
 
 | Requirement | State | Reproducible evidence |

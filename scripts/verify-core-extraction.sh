@@ -293,6 +293,20 @@ rg -q 'solo.start did not execute the shared AutoBoss dispatcher request' \
 rg -q 'Shared dispatcher AutoBoss entry did not preserve the upstream parameter object' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "Core Host verification does not exercise parameterized AutoBoss dispatch"
+rg -q '"solo.settings.get" => _soloTaskSettings.Get' BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  || fail "Core Host does not own independent-task settings reads"
+rg -q '"solo.settings.save" => _soloTaskSettings.Save' BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  || fail "Core Host does not own independent-task settings writes"
+rg -Fq 'Descriptor("AutoCook", "自动烹饪", true, true)' \
+  BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
+  || fail "AutoCook does not truthfully advertise its composed settings boundary"
+rg -q 'settingsAvailable: item\["settingsAvailable"\]' \
+  MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  || fail "Swift does not consume Core-owned independent-task settings capability"
+if rg -n 'Image\(systemName: "chevron.down"\)' \
+  MacGI/Sources/MacGI/Components/BGIComponents.swift; then
+  fail "production task cards contain an unconditional fake disclosure chevron"
+fi
 if rg -n '"window\.activate"' BetterGenshinImpact.Core.Host/Runtime MacGI/Sources/MacGI; then
   fail "macOS production task adapters can still force the game window to the foreground"
 fi

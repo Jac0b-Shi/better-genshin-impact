@@ -19,6 +19,7 @@ public sealed class CoreRpcServer(
     public const int ProtocolVersion = 1;
     private readonly ScriptGroupCatalog _catalog = new(layout);
     private readonly ScriptProjectCatalog _scriptProjectCatalog = new(layout);
+    private readonly SoloTaskSettingsCatalog _soloTaskSettings = new(layout);
     private readonly PlatformCallbackChannel _platformCallbacks = new();
     private SchedulerCoordinator? _scheduler;
     private readonly CancellationTokenSource _shutdown = new();
@@ -200,6 +201,11 @@ public sealed class CoreRpcServer(
                 "solo.start" => SoloTasks.Start(RequiredString(request.Params, "name")),
                 "solo.stop" => SoloTasks.Stop(RequiredString(request.Params, "taskId")),
                 "solo.status" => SoloTasks.Status(),
+                "solo.settings.get" => _soloTaskSettings.Get(RequiredString(request.Params, "name")),
+                "solo.settings.save" => _soloTaskSettings.Save(
+                    RequiredString(request.Params, "name"),
+                    request.Params?["settings"] as JObject
+                    ?? throw new ArgumentException("settings is required.")),
                 "runtime.status" => RuntimeStatus(),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),

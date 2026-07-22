@@ -340,6 +340,7 @@ final class AppState: ObservableObject {
     @Published var soloTasks: [BetterGICoreSoloTask] = []
     @Published private(set) var soloTaskStatus = BetterGICoreSoloTaskStatus(
         taskID: nil, name: nil, state: "idle", error: nil)
+    @Published private(set) var autoCookSettings: BetterGICoreAutoCookSettings?
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -961,9 +962,28 @@ final class AppState: ObservableObject {
         do {
             soloTasks = try await supervisor.listSoloTasks()
             soloTaskStatus = try await supervisor.soloTaskStatus()
+            autoCookSettings = try await supervisor.autoCookSettings()
         } catch {
             soloTasks = []
+            autoCookSettings = nil
             addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    func saveAutoCookSettings(checkIntervalMs: Int? = nil, stopWhenDetected: Bool? = nil) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoCookSettings else { return }
+        let next = BetterGICoreAutoCookSettings(
+            checkIntervalMs: checkIntervalMs ?? current.checkIntervalMs,
+            stopTaskWhenRecoverButtonDetected:
+                stopWhenDetected ?? current.stopTaskWhenRecoverButtonDetected
+        )
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                self.autoCookSettings = try await supervisor.saveAutoCookSettings(next)
+            } catch {
+                self.addLog(.error, "AutoCook settings save failed: \(error.localizedDescription)")
+            }
         }
     }
 

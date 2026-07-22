@@ -25,7 +25,7 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", false),
         Descriptor("AutoMusicGame", "自动千音雅集", true),
-        Descriptor("AutoCook", "自动烹饪", true),
+        Descriptor("AutoCook", "自动烹饪", true, true),
         Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true),
     };
 
@@ -122,11 +122,13 @@ public sealed class SoloTaskCoordinator(
         }
     }
 
-    private static object Descriptor(string name, string displayName, bool available) => new
+    private static object Descriptor(
+        string name, string displayName, bool available, bool settingsAvailable = false) => new
     {
         name,
         displayName,
         available,
+        settingsAvailable,
         unavailableReason = available ? null : "尚未完成共享 C# 任务的平台组合"
     };
 }

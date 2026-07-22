@@ -15,7 +15,13 @@ struct BetterGICoreSoloTask: Sendable, Equatable, Identifiable {
     let displayName: String
     let available: Bool
     let unavailableReason: String?
+    let settingsAvailable: Bool
     var id: String { name }
+}
+
+struct BetterGICoreAutoCookSettings: Sendable, Equatable {
+    let checkIntervalMs: Int
+    let stopTaskWhenRecoverButtonDetected: Bool
 }
 
 struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
@@ -292,9 +298,50 @@ actor BetterGICoreProcessSupervisor {
             }
             return BetterGICoreSoloTask(
                 name: name, displayName: displayName, available: available,
-                unavailableReason: item["unavailableReason"] as? String
+                unavailableReason: item["unavailableReason"] as? String,
+                settingsAvailable: item["settingsAvailable"] as? Bool ?? false
             )
         }
+    }
+
+    func autoCookSettings() throws -> BetterGICoreAutoCookSettings {
+        try decodeAutoCookSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoCook"]
+        ))
+    }
+
+    func saveAutoCookSettings(_ settings: BetterGICoreAutoCookSettings) throws
+        -> BetterGICoreAutoCookSettings {
+        try decodeAutoCookSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: [
+                "name": "AutoCook",
+                "settings": [
+                    "checkIntervalMs": settings.checkIntervalMs,
+                    "stopTaskWhenRecoverButtonDetected": settings.stopTaskWhenRecoverButtonDetected,
+                ],
+            ]
+        ))
+    }
+
+    private func requestSoloSettings(method: String, parameters: [String: Any]) throws -> Any {
+        guard case .running = state, let client else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
+        }
+        return try client.request(method: method, parameters: parameters)
+    }
+
+    private func decodeAutoCookSettings(_ value: Any) throws -> BetterGICoreAutoCookSettings {
+        guard let result = value as? [String: Any],
+              result["name"] as? String == "AutoCook",
+              let interval = result["checkIntervalMs"] as? Int,
+              let stopWhenDetected = result["stopTaskWhenRecoverButtonDetected"] as? Bool else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoCook settings.")
+        }
+        return BetterGICoreAutoCookSettings(
+            checkIntervalMs: interval,
+            stopTaskWhenRecoverButtonDetected: stopWhenDetected
+        )
     }
 
     func startSoloTask(name: String) throws -> BetterGICoreSoloTaskStatus {

@@ -271,10 +271,6 @@ struct BGITaskCard<Trailing: View>: View {
             }
             Spacer(minLength: 20)
             trailing
-            Image(systemName: "chevron.down")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BGIColors.secondaryText)
-                .frame(width: 18)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -286,6 +282,59 @@ struct BGITaskCard<Trailing: View>: View {
                 .stroke(BGIColors.border, lineWidth: 1)
         )
         .padding(.leading, indent)
+    }
+}
+
+struct BGIExpandableTaskCard<Trailing: View, Content: View>: View {
+    let icon: BGIIcon
+    let title: String
+    let subtitle: String
+    @ViewBuilder var trailing: Trailing
+    @ViewBuilder var content: Content
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: BGISpacing.large) {
+                BGIIconView(icon: icon, size: 21)
+                    .foregroundStyle(BGIColors.primaryText.opacity(0.82))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BGIColors.primaryText)
+                    Text(subtitle)
+                        .font(BGIFonts.body)
+                        .foregroundStyle(BGIColors.secondaryText)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 20)
+                trailing
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(BGIColors.secondaryText)
+                    .frame(width: 18)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .frame(minHeight: 74)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    isExpanded.toggle()
+                }
+            }
+
+            if isExpanded {
+                Divider().overlay(BGIColors.border)
+                content
+            }
+        }
+        .background(BGIColors.cardElevated)
+        .clipShape(RoundedRectangle(cornerRadius: BGIRadius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: BGIRadius.small, style: .continuous)
+                .stroke(BGIColors.border, lineWidth: 1)
+        )
     }
 }
 
