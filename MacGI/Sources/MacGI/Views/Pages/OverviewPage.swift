@@ -27,11 +27,13 @@ struct OverviewPage: View {
                 permissionLine(
                     title: "屏幕录制",
                     granted: appState.screenCapturePermissionGranted,
+                    requestMessage: appState.screenCapturePermissionRequestMessage,
                     request: appState.requestScreenCapturePermission
                 )
                 permissionLine(
                     title: "辅助功能",
                     granted: appState.accessibilityPermissionGranted,
+                    requestMessage: nil,
                     request: appState.requestAccessibilityPermission
                 )
             }
@@ -54,6 +56,10 @@ struct OverviewPage: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(appState.runtimeLifecycle.isTransitioning)
             } content: {
+                BGISettingLine(title: "运行时状态", subtitle: appState.runtimeLifecycleMessage) {
+                    Text(appState.runtimeLifecycle.rawValue.capitalized)
+                        .foregroundStyle(appState.runtimeLifecycle == .failed ? .red : .secondary)
+                }
                 BGISettingLine(title: "截图后端", subtitle: "macOS 平台回调使用 ScreenCaptureKit 捕获目标窗口。") {
                     Text("ScreenCaptureKit")
                         .foregroundStyle(.secondary)
@@ -107,10 +113,17 @@ struct OverviewPage: View {
         }
     }
 
-    private func permissionLine(title: String, granted: Bool, request: @escaping () -> Void) -> some View {
+    private func permissionLine(
+        title: String,
+        granted: Bool,
+        requestMessage: String?,
+        request: @escaping () -> Void
+    ) -> some View {
         BGISettingLine(
             title: title,
-            subtitle: granted ? "已授权" : "未授权；授权后 macOS 可能要求重新打开应用。"
+            subtitle: granted
+                ? "已授权"
+                : requestMessage ?? "未授权；授权后 macOS 可能要求重新打开应用。"
         ) {
             if granted {
                 Label("已授权", systemImage: "checkmark.circle.fill")

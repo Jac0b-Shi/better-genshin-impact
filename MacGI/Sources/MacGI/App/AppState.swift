@@ -250,6 +250,8 @@ final class AppState: ObservableObject {
     @Published var coreStatus: RuntimeStatus = .starting
     @Published private(set) var screenCapturePermissionGranted = false
     @Published private(set) var accessibilityPermissionGranted = false
+    @Published private(set) var screenCapturePermissionRequestMessage: String?
+    @Published private(set) var runtimeLifecycleMessage = "运行时尚未启动。"
     @Published var runtimeLifecycle: RuntimeLifecycle = .stopped
     @Published var isHUDVisible = false {
         didSet { onHUDVisibilityChanged?(isHUDVisible) }
@@ -457,19 +459,33 @@ final class AppState: ObservableObject {
     }
 
     func startRuntime() {
-        guard !runtimeLifecycle.isTransitioning, runtimeLifecycle != .running else { return }
+        guard !runtimeLifecycle.isTransitioning else {
+            runtimeLifecycleMessage = "运行时正在\(runtimeLifecycle == .starting ? "启动" : "停止")，请稍候。"
+            addLog(.warn, "Runtime request ignored while lifecycle is \(runtimeLifecycle.rawValue).")
+            return
+        }
+        guard runtimeLifecycle != .running else {
+            runtimeLifecycleMessage = "运行时已经启动。"
+            addLog(.info, "BetterGI runtime is already running.")
+            return
+        }
         refreshPermissionStatus()
         guard screenCapturePermissionGranted, accessibilityPermissionGranted else {
             runtimeLifecycle = .failed
+            runtimeLifecycleMessage = "无法启动：请先授予屏幕录制和辅助功能权限。"
+            appStatus = .error
             addLog(.error, "Cannot start runtime: grant Screen Recording and Accessibility in the macOS permissions section.")
             return
         }
         guard isWindowValid, !selectedWindow.isSynthetic else {
             runtimeLifecycle = .failed
+            runtimeLifecycleMessage = "无法启动：没有选中真实、可见的原神窗口。"
+            appStatus = .error
             addLog(.error, "Cannot start runtime: no real on-screen game window is selected.")
             return
         }
         runtimeLifecycle = .starting
+        runtimeLifecycleMessage = "正在启动 BetterGI Core 与截图器..."
         Task { [weak self] in
             guard let self else { return }
             if self.betterGICoreSupervisor == nil {
@@ -481,6 +497,8 @@ final class AppState: ObservableObject {
             }
             guard let supervisor = self.betterGICoreSupervisor, self.coreStatus == .ok else {
                 self.runtimeLifecycle = .failed
+                self.runtimeLifecycleMessage = "无法启动：BetterGI Core 尚未就绪。"
+                self.appStatus = .error
                 self.addLog(.error, "Cannot start runtime: BetterGI Core is not ready.")
                 return
             }
@@ -492,11 +510,15 @@ final class AppState: ObservableObject {
                 }
                 self.runtimeGeometryPixelSize = self.selectedWindow.capturePixelSize
                 self.runtimeLifecycle = .running
+                self.runtimeLifecycleMessage = "运行时已启动，截图器正在持续捕获。"
+                self.appStatus = .running
                 self.addLog(.info, "BetterGI runtime started with a verified ScreenCaptureKit frame.")
             } catch {
                 try? await supervisor.stopRuntime()
                 self.captureStatus = .error
                 self.runtimeLifecycle = .failed
+                self.runtimeLifecycleMessage = "无法启动：\(error.localizedDescription)"
+                self.appStatus = .error
                 self.addLog(.error, "Cannot start runtime: \(error.localizedDescription)")
             }
         }
@@ -508,13 +530,30 @@ final class AppState: ObservableObject {
     }
 
     func requestScreenCapturePermission() {
-        MacGIPermissionRequester.requestScreenCapture()
+        let result = MacGIPermissionRequester.requestScreenCapture()
+        logPermissionRequestResult(result, name: "Screen Recording")
         refreshPermissionStatus()
+        screenCapturePermissionRequestMessage = screenCapturePermissionGranted
+            ? nil
+            : "已向 macOS 请求授权；若系统未显示弹窗，请检查当前 App 的 TCC 记录。"
     }
 
     func requestAccessibilityPermission() {
-        MacGIPermissionRequester.requestAccessibility()
+        let result = MacGIPermissionRequester.requestAccessibility()
+        logPermissionRequestResult(result, name: "Accessibility")
         refreshPermissionStatus()
+    }
+
+    private func logPermissionRequestResult(
+        _ result: MacGIPermissionRequester.RequestResult,
+        name: String
+    ) {
+        switch result {
+        case .alreadyGranted:
+            addLog(.info, "macOS \(name) permission is already granted.")
+        case .requestSubmitted:
+            addLog(.info, "Submitted macOS \(name) permission request; reopen BetterGI after granting access if required.")
+        }
     }
 
     private func attemptAutoStartRuntime() {
@@ -531,6 +570,7 @@ final class AppState: ObservableObject {
     func stopRuntime() {
         guard runtimeLifecycle == .running else { return }
         runtimeLifecycle = .stopping
+        runtimeLifecycleMessage = "正在停止 BetterGI 运行时..."
         Task { [weak self] in
             guard let self else { return }
             guard let supervisor = self.betterGICoreSupervisor else {
@@ -546,9 +586,13 @@ final class AppState: ObservableObject {
                 self.captureStatus = .missing
                 self.isHUDVisible = false
                 self.runtimeLifecycle = .stopped
+                self.runtimeLifecycleMessage = "运行时已停止。"
+                self.appStatus = .idle
                 self.addLog(.info, "BetterGI runtime stopped.")
             } catch {
                 self.runtimeLifecycle = .failed
+                self.runtimeLifecycleMessage = "停止失败：\(error.localizedDescription)"
+                self.appStatus = .error
                 self.addLog(.error, "Cannot stop runtime: \(error.localizedDescription)")
             }
         }

@@ -10,20 +10,27 @@ final class MacGIApplicationDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum MacGIPermissionRequester {
+    enum RequestResult {
+        case alreadyGranted
+        case requestSubmitted
+    }
+
     static var screenCaptureGranted: Bool { CGPreflightScreenCaptureAccess() }
     static var accessibilityGranted: Bool { AXIsProcessTrusted() }
 
-    static func requestScreenCapture() {
-        guard !screenCaptureGranted else { return }
+    static func requestScreenCapture() -> RequestResult {
+        guard !screenCaptureGranted else { return .alreadyGranted }
         _ = CGRequestScreenCaptureAccess()
+        return .requestSubmitted
     }
 
-    static func requestAccessibility() {
-        guard !accessibilityGranted else { return }
+    static func requestAccessibility() -> RequestResult {
+        guard !accessibilityGranted else { return .alreadyGranted }
         let options = [
             "AXTrustedCheckOptionPrompt": true
         ] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
+        return .requestSubmitted
     }
 }
 

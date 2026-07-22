@@ -13,8 +13,10 @@ executable_name=betterGI-mac
 bundle_identifier=${MACGI_BUNDLE_IDENTIFIER:-cn.jac0bshi.bettergi.mac}
 short_version=${MACGI_SHORT_VERSION:-0.1.0}
 bundle_version=${MACGI_BUNDLE_VERSION:-1}
-signing_identity=${EXPANDED_CODE_SIGN_IDENTITY:-}
-if [[ -z ${signing_identity} ]]; then
+signing_identity=${MACGI_SIGNING_IDENTITY:-${EXPANDED_CODE_SIGN_IDENTITY:-}}
+if [[ ${MACGI_FORCE_AD_HOC_SIGNING:-0} == 1 ]]; then
+  signing_identity=-
+elif [[ -z ${signing_identity} || ${signing_identity} == "-" ]]; then
   signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
     | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' \
     | head -n 1)
