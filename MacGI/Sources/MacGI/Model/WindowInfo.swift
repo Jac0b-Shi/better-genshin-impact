@@ -154,13 +154,13 @@ extension WindowInfo {
     static func unavailable(title: String = "No game window selected") -> WindowInfo {
         WindowInfo(
             id: .max,
-            ownerPID: 99999,
-            ownerName: "YAAGL",
+            ownerPID: 0,
+            ownerName: "None",
             title: title,
-            frame: CGRect(x: 0, y: 44, width: 2560, height: 1440 - 44),
+            frame: .zero,
             layer: 0,
-            isOnScreen: true,
-            scaleFactor: 2.0,
+            isOnScreen: false,
+            scaleFactor: 1.0,
             isSynthetic: true
         )
     }

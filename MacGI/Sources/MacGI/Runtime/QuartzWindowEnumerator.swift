@@ -29,7 +29,7 @@ enum QuartzWindowEnumerator {
 
     static func bestGameWindow(from windows: [WindowInfo]) -> WindowInfo? {
         let rankedWindows = windows.sorted(by: sortForGameSelection)
-        return rankedWindows.first(where: \.isLikelyGameWindow) ?? rankedWindows.first
+        return rankedWindows.first(where: \.isLikelyGameWindow)
     }
 
     private static func sortForGameSelection(_ lhs: WindowInfo, _ rhs: WindowInfo) -> Bool {

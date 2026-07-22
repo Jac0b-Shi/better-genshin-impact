@@ -1367,21 +1367,44 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func refreshSelectedWindowGeometry() -> WindowInfo? {
-        guard selectedWindow.id != 0, !selectedWindow.isSynthetic else { return nil }
-        guard let refreshed = QuartzWindowEnumerator.enumerateApplicationWindows()
-            .first(where: { $0.id == selectedWindow.id }) else {
+        let windows = QuartzWindowEnumerator.enumerateApplicationWindows()
+        if let refreshed = windows.first(where: { $0.id == selectedWindow.id }) {
+            if refreshed != selectedWindow {
+                selectedWindow = refreshed
+            }
+            if runtimeLifecycle == .running,
+               runtimeGeometryPixelSize != refreshed.capturePixelSize {
+                scheduleRuntimeGeometryRefresh(for: refreshed.capturePixelSize)
+            }
+            gameWindowStatus = refreshed.isLikelyGameWindow ? .detected : .missing
+            return refreshed
+        }
+
+        if let replacement = QuartzWindowEnumerator.bestGameWindow(from: windows) {
+            let previousWindowID = selectedWindow.isSynthetic ? nil : selectedWindow.id
+            selectedWindow = replacement
+            availableWindows = windows
+            gameWindowStatus = .detected
+            if runtimeLifecycle == .running,
+               runtimeGeometryPixelSize != replacement.capturePixelSize {
+                scheduleRuntimeGeometryRefresh(for: replacement.capturePixelSize)
+            }
+            if let previousWindowID {
+                addLog(.info,
+                    "Game window restarted; rebound WindowID \(previousWindowID) to \(replacement.id).")
+            } else {
+                addLog(.info, "Game window detected: \(replacement.displayName)")
+            }
+            return replacement
+        }
+
+        if !selectedWindow.isSynthetic {
+            selectedWindow = .unavailable(title: "Game window unavailable")
+            availableWindows = windows
             gameWindowStatus = .missing
-            return nil
+            addLog(.warn, "Selected game window disappeared; waiting for a new Genshin window.")
         }
-        if refreshed != selectedWindow {
-            selectedWindow = refreshed
-        }
-        if runtimeLifecycle == .running,
-           runtimeGeometryPixelSize != refreshed.capturePixelSize {
-            scheduleRuntimeGeometryRefresh(for: refreshed.capturePixelSize)
-        }
-        gameWindowStatus = refreshed.isLikelyGameWindow ? .detected : .missing
-        return refreshed
+        return nil
     }
 
     private func scheduleRuntimeGeometryRefresh(for pixelSize: CGSize) {

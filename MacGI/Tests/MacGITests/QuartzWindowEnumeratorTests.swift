@@ -59,6 +59,18 @@ struct QuartzWindowEnumeratorTests {
         #expect(QuartzWindowEnumerator.bestGameWindow(from: [utility, game]) == game)
     }
 
+    @Test("Ordinary full-screen windows are never selected as the game")
+    func ordinaryFullScreenWindowIsNotSelected() {
+        let ordinaryWindow = makeWindow(
+            id: 5,
+            ownerName: "Finder",
+            title: "Desktop",
+            frame: CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        )
+
+        #expect(QuartzWindowEnumerator.bestGameWindow(from: [ordinaryWindow]) == nil)
+    }
+
     @Test("HUD frame follows Quartz window geometry")
     @MainActor
     func hudFrameFollowsQuartzWindowGeometry() {
