@@ -52,6 +52,12 @@ struct BetterGICoreAutoCookSettings: Sendable, Equatable {
     let stopTaskWhenRecoverButtonDetected: Bool
 }
 
+struct BetterGICoreAutoGeniusInvokationSettings: Sendable, Equatable {
+    let strategyName: String
+    let strategyOptions: [String]
+    let sleepDelay: Int
+}
+
 struct BetterGICoreAutoFishingSettings: Sendable, Equatable {
     let autoThrowRodTimeOut: Int
     let wholeProcessTimeoutSeconds: Int
@@ -611,6 +617,26 @@ actor BetterGICoreProcessSupervisor {
         ))
     }
 
+    func autoGeniusInvokationSettings() throws
+        -> BetterGICoreAutoGeniusInvokationSettings {
+        try decodeAutoGeniusInvokationSettings(requestSoloSettings(
+            method: "solo.settings.get",
+            parameters: ["name": "AutoGeniusInvokation"]
+        ))
+    }
+
+    func saveAutoGeniusInvokationSettings(
+        _ settings: BetterGICoreAutoGeniusInvokationSettings
+    ) throws -> BetterGICoreAutoGeniusInvokationSettings {
+        try decodeAutoGeniusInvokationSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoGeniusInvokation", "settings": [
+                "strategyName": settings.strategyName,
+                "sleepDelay": settings.sleepDelay,
+            ]]
+        ))
+    }
+
     func autoFishingSettings() throws -> BetterGICoreAutoFishingSettings {
         try decodeAutoFishingSettings(requestSoloSettings(
             method: "solo.settings.get", parameters: ["name": "AutoFishing"]
@@ -862,6 +888,22 @@ actor BetterGICoreProcessSupervisor {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
         }
         return try client.request(method: method, parameters: parameters)
+    }
+
+    private func decodeAutoGeniusInvokationSettings(_ value: Any) throws
+        -> BetterGICoreAutoGeniusInvokationSettings {
+        guard let value = value as? [String: Any],
+              value["name"] as? String == "AutoGeniusInvokation",
+              let strategyName = value["strategyName"] as? String,
+              let strategyOptions = value["strategyOptions"] as? [String],
+              let sleepDelay = value["sleepDelay"] as? Int else {
+            throw BetterGICoreRPCError.protocolViolation(
+                "Invalid AutoGeniusInvokation settings.")
+        }
+        return .init(
+            strategyName: strategyName,
+            strategyOptions: strategyOptions,
+            sleepDelay: sleepDelay)
     }
 
     private func decodeAutoCookSettings(_ value: Any) throws -> BetterGICoreAutoCookSettings {

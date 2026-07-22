@@ -11,6 +11,7 @@ using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoLeyLineOutcrop;
 using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
+using BetterGenshinImpact.GameTask.AutoGeniusInvokation;
 using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using Newtonsoft.Json.Linq;
 
@@ -38,6 +39,32 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             var config = LoadConfig<AutoFishingConfig>(LoadRoot(), "autoFishingConfig");
             return AutoFishingTaskParam.BuildFromConfig(
                 config, AutoFishingSaveScreenshotOnKeyTick);
+        }
+    }
+
+    public AutoGeniusInvokationConfig BuildAutoGeniusInvokationConfig()
+    {
+        lock (_lock)
+        {
+            return LoadConfig<AutoGeniusInvokationConfig>(
+                LoadRoot(), "autoGeniusInvokationConfig");
+        }
+    }
+
+    public string GetTcgStrategy()
+    {
+        lock (_lock)
+        {
+            var config = LoadConfig<AutoGeniusInvokationConfig>(
+                LoadRoot(), "autoGeniusInvokationConfig");
+            if (string.IsNullOrWhiteSpace(config.StrategyName))
+                throw new InvalidOperationException("AutoGeniusInvokation strategy is not selected.");
+            var folder = Path.Combine(layout.UserPath, "AutoGeniusInvokation");
+            var path = Path.Combine(folder, config.StrategyName + ".txt");
+            if (!File.Exists(path))
+                throw new FileNotFoundException(
+                    $"AutoGeniusInvokation strategy does not exist: {config.StrategyName}", path);
+            return File.ReadAllText(path);
         }
     }
 
@@ -79,6 +106,9 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             var root = LoadRoot();
             return name switch
             {
+                "AutoGeniusInvokation" => Describe(
+                    LoadConfig<AutoGeniusInvokationConfig>(
+                        root, "autoGeniusInvokationConfig")),
                 "AutoCook" => Describe(LoadConfig<AutoCookConfig>(root, "autoCookConfig")),
                 "AutoFishing" => Describe(
                     LoadConfig<AutoFishingConfig>(root, "autoFishingConfig")),
@@ -107,6 +137,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
     {
         return name switch
         {
+            "AutoGeniusInvokation" => SaveAutoGeniusInvokation(settings),
             "AutoCook" => SaveAutoCook(settings),
             "AutoFishing" => SaveAutoFishing(settings),
             "AutoWood" => SaveAutoWood(settings),
@@ -119,6 +150,27 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             "AutoStygianOnslaught" => SaveAutoStygianOnslaught(settings),
             _ => throw Unavailable(name),
         };
+    }
+
+    private object SaveAutoGeniusInvokation(JObject settings)
+    {
+        var strategyName = RequiredString(settings, "strategyName");
+        if (strategyName.Length > 0 &&
+            !TcgStrategyOptions().Contains(strategyName, StringComparer.Ordinal))
+            throw new ArgumentException($"Unknown AutoGeniusInvokation strategy: {strategyName}");
+        var sleepDelay = RequiredInt(settings, "sleepDelay");
+        if (sleepDelay is < 0 or > 5000)
+            throw new ArgumentOutOfRangeException(
+                "sleepDelay", sleepDelay, "sleepDelay must be between 0 and 5000.");
+        lock (_lock)
+        {
+            var config = LoadConfig<AutoGeniusInvokationConfig>(
+                LoadRoot(), "autoGeniusInvokationConfig");
+            config.StrategyName = strategyName;
+            config.SleepDelay = sleepDelay;
+            SaveConfig("autoGeniusInvokationConfig", config);
+            return Describe(config);
+        }
     }
 
     private object SaveAutoCook(JObject settings)
@@ -525,6 +577,14 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
 
     private static readonly string[] MusicLevels = ["传说", "大师", "困难", "普通", "所有"];
 
+    private object Describe(AutoGeniusInvokationConfig config) => new
+    {
+        name = "AutoGeniusInvokation",
+        strategyName = config.StrategyName,
+        strategyOptions = TcgStrategyOptions(),
+        sleepDelay = config.SleepDelay,
+    };
+
     private static object Describe(AutoMusicGameConfig config) => new
     {
         name = "AutoMusicGame",
@@ -691,6 +751,16 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
                 .Select(path => Path.ChangeExtension(Path.GetRelativePath(folder, path), null))
                 .Order(StringComparer.Ordinal),
         ];
+    }
+
+    private string[] TcgStrategyOptions()
+    {
+        var folder = Path.Combine(layout.UserPath, "AutoGeniusInvokation");
+        Directory.CreateDirectory(folder);
+        return Directory.EnumerateFiles(folder, "*.txt", SearchOption.TopDirectoryOnly)
+            .Select(path => Path.GetFileNameWithoutExtension(path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static T LoadConfig<T>(JsonObject root, string propertyName) where T : class, new() =>

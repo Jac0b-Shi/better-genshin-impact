@@ -17,7 +17,7 @@ public sealed class SoloTaskCoordinator(
 
     public object List() => new[]
     {
-        Descriptor("AutoGeniusInvokation", "自动七圣召唤", false),
+        Descriptor("AutoGeniusInvokation", "自动七圣召唤", true, true),
         Descriptor("AutoWood", "自动伐木", true, true),
         Descriptor("AutoFight", "自动战斗", true, true),
         Descriptor("AutoDomain", "自动秘境", true, true),
@@ -32,7 +32,7 @@ public sealed class SoloTaskCoordinator(
 
     public object Start(string name)
     {
-        if (name is not ("AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop" or "AutoStygianOnslaught"))
+        if (name is not ("AutoGeniusInvokation" or "AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop" or "AutoStygianOnslaught"))
             throw new CapabilityUnavailableException(
                 $"solo task '{name}' is not composed in the macOS Core yet; no task was executed.");
 
@@ -81,6 +81,8 @@ public sealed class SoloTaskCoordinator(
         {
             var request = name switch
             {
+                "AutoGeniusInvokation" => new DispatcherGeniusTaskRequest(
+                    settings.GetTcgStrategy()),
                 "AutoFishing" => (DispatcherSoloTaskRequest)new DispatcherFishingTaskRequest(
                     null, settings.BuildAutoFishingTaskParam()),
                 "AutoWood" => new DispatcherWoodTaskRequest(

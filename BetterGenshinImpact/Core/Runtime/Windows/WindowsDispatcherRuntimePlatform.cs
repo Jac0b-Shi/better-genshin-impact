@@ -61,7 +61,10 @@ public sealed class WindowsDispatcherRuntimePlatform(
         switch (request)
         {
             case DispatcherGeniusTaskRequest genius:
-                await new AutoGeniusInvokationTask(new GeniusInvokationTaskParam(genius.Strategy))
+                await new AutoGeniusInvokationTask(
+                        new GeniusInvokationTaskParam(genius.Strategy),
+                        TaskContext.Instance().Config.AutoGeniusInvokationConfig,
+                        new BetterGenshinImpact.Core.Runtime.Windows.WindowsAutoGeniusInvokationRuntimePlatform())
                     .Start(cancellationToken);
                 return null;
             case DispatcherWoodTaskRequest wood:

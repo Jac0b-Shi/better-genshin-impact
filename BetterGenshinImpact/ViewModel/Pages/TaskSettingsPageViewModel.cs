@@ -380,7 +380,10 @@ public partial class TaskSettingsPageViewModel : ViewModel
 
         SwitchAutoGeniusInvokationEnabled = true;
         await new TaskRunner()
-            .RunSoloTaskAsync(new AutoGeniusInvokationTask(new GeniusInvokationTaskParam(content)));
+            .RunSoloTaskAsync(new AutoGeniusInvokationTask(
+                new GeniusInvokationTaskParam(content),
+                Config.AutoGeniusInvokationConfig,
+                new Core.Runtime.Windows.WindowsAutoGeniusInvokationRuntimePlatform()));
         SwitchAutoGeniusInvokationEnabled = false;
     }
 

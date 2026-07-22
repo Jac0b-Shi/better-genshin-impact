@@ -361,6 +361,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/*.cs" Link="GameTask/AutoDomain/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/Model/*.cs" Link="GameTask/AutoDomain/Model/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoBoss/*.cs" Link="GameTask/AutoBoss/%(Filename)%(Extension)" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoGeniusInvokation/**/*.cs" Link="GameTask/AutoGeniusInvokation/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatRuntimePlatform.cs" Link="GameTask/AutoEat/AutoEatRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTrigger.cs" Link="GameTask/AutoEat/AutoEatTrigger.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatParam.cs" Link="GameTask/AutoEat/AutoEatParam.cs" />
@@ -384,12 +385,12 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvSimpleOperationPlatform.cs" Link="GameTask/Common/BgiVision/BvSimpleOperationPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/GetGridIcons/GridIconClassifier.cs" Link="GameTask/GetGridIcons/GridIconClassifier.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ImageDifferenceDetector.cs" Link="Core/Recognition/OpenCv/ImageDifferenceDetector.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recognition/OpenCv/ArithmeticHelper.cs" Link="Core/Recognition/OpenCv/ArithmeticHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/StringUtils.cs" Link="Helpers/StringUtils.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/RegexHelper.cs" Link="Helpers/RegexHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/CultureHelper.cs" Link="Helpers/CultureHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/Extensions/EnumExtensions.cs" Link="Helpers/Extensions/EnumExtensions.cs" />
     <Compile Include="../BetterGenshinImpact/Helpers/ScriptObjectConverter.cs" Link="Helpers/ScriptObjectConverter.cs" />
-    <Compile Include="../BetterGenshinImpact/GameTask/AutoGeniusInvokation/Model/ElementalType.cs" Link="GameTask/AutoGeniusInvokation/Model/ElementalType.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/HandledException.cs" Link="GameTask/Common/Exceptions/HandledException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/RetryException.cs" Link="GameTask/Common/Exceptions/RetryException.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Exceptions/RetryNoCountException.cs" Link="GameTask/Common/Exceptions/RetryNoCountException.cs" />

@@ -33,6 +33,8 @@ rg -q 'stage-game-task-assets\.sh' MacGI/scripts/package-macgi-app.sh \
   || fail "App packaging does not stage canonical BetterGI GameTask assets"
 rg -q -- '--recognition-smoke --runtime-root' MacGI/scripts/package-macgi-app.sh \
   || fail "App packaging does not verify its staged recognition resources"
+rg -qx 'AutoGeniusInvokation' MacGI/Resources/game-task-assets.manifest \
+  || fail "composed AutoGeniusInvokation assets are missing from the canonical package manifest"
 
 if rg -n 'layout, gameTaskManagerPlatform\.SystemInfo' BetterGenshinImpact.Core.Host/Program.cs; then
   echo "Core Host must not query Swift window metrics before the callback channel attaches." >&2
@@ -297,6 +299,7 @@ rg -q '"solo.settings.get" => _soloTaskSettings.Get' BetterGenshinImpact.Core.Ho
 rg -q '"solo.settings.save" => _soloTaskSettings.Save' BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
   || fail "Core Host does not own independent-task settings writes"
 for descriptor in \
+  'Descriptor("AutoGeniusInvokation", "自动七圣召唤", true, true)' \
   'Descriptor("AutoWood", "自动伐木", true, true)' \
   'Descriptor("AutoBoss", "自动首领讨伐", true, true)' \
   'Descriptor("AutoDomain", "自动秘境", true, true)' \
@@ -306,6 +309,13 @@ for descriptor in \
   rg -Fq "${descriptor}" BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
     || fail "composed independent-task settings are missing from the truthful catalog: ${descriptor}"
 done
+rg -q 'new AutoGeniusInvokationTask' \
+  BetterGenshinImpact.Core.Host/Runtime/MacDispatcherRuntimePlatform.cs \
+  || fail "macOS dispatcher does not execute the upstream AutoGeniusInvokation task"
+if rg -n 'GeniusInvokationControl\.GetInstance|TaskContext|App\.GetLogger|SystemControl|ClickExtension|Simulation' \
+  BetterGenshinImpact/GameTask/AutoGeniusInvokation; then
+  fail "shared AutoGeniusInvokation still resolves process-global or Windows-only dependencies"
+fi
 rg -q 'solo.settings.save did not preserve AutoBoss model semantics' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "Core Host verification does not cover independent-task settings semantics"

@@ -343,6 +343,8 @@ final class AppState: ObservableObject {
     @Published var soloTasks: [BetterGICoreSoloTask] = []
     @Published private(set) var soloTaskStatus = BetterGICoreSoloTaskStatus(
         taskID: nil, name: nil, state: "idle", error: nil)
+    @Published private(set) var autoGeniusInvokationSettings:
+        BetterGICoreAutoGeniusInvokationSettings?
     @Published private(set) var autoCookSettings: BetterGICoreAutoCookSettings?
     @Published private(set) var autoFishingSettings: BetterGICoreAutoFishingSettings?
     @Published private(set) var autoWoodSettings: BetterGICoreAutoWoodSettings?
@@ -1138,6 +1140,7 @@ final class AppState: ObservableObject {
         do {
             soloTasks = try await supervisor.listSoloTasks()
             soloTaskStatus = try await supervisor.soloTaskStatus()
+            autoGeniusInvokationSettings = try await supervisor.autoGeniusInvokationSettings()
             autoCookSettings = try await supervisor.autoCookSettings()
             autoFishingSettings = try await supervisor.autoFishingSettings()
             autoWoodSettings = try await supervisor.autoWoodSettings()
@@ -1150,6 +1153,7 @@ final class AppState: ObservableObject {
             autoFightSettings = try await supervisor.autoFightSettings()
         } catch {
             soloTasks = []
+            autoGeniusInvokationSettings = nil
             autoCookSettings = nil
             autoFishingSettings = nil
             autoWoodSettings = nil
@@ -1161,6 +1165,26 @@ final class AppState: ObservableObject {
             autoArtifactSalvageSettings = nil
             autoFightSettings = nil
             addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    func saveAutoGeniusInvokationSettings(
+        strategyName: String? = nil, sleepDelay: Int? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor,
+              let current = autoGeniusInvokationSettings else { return }
+        let next = BetterGICoreAutoGeniusInvokationSettings(
+            strategyName: strategyName ?? current.strategyName,
+            strategyOptions: current.strategyOptions,
+            sleepDelay: sleepDelay ?? current.sleepDelay)
+        Task { [weak self] in
+            do {
+                self?.autoGeniusInvokationSettings =
+                    try await supervisor.saveAutoGeniusInvokationSettings(next)
+            } catch {
+                self?.addLog(.error,
+                    "AutoGeniusInvokation settings save failed: \(error.localizedDescription)")
+            }
         }
     }
 

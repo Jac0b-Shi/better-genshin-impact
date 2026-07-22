@@ -17,6 +17,7 @@ using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoLeyLineOutcrop;
 using BetterGenshinImpact.GameTask.AutoStygianOnslaught;
+using BetterGenshinImpact.GameTask.AutoGeniusInvokation;
 using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.Core.Recognition.OCR;
@@ -44,9 +45,11 @@ public sealed class MacDispatcherRuntimePlatform(
     IAutoEatRuntimePlatform autoEatRuntimePlatform,
     IAutoLeyLineOutcropRuntimePlatform autoLeyLineOutcropRuntimePlatform,
     IAutoStygianOnslaughtRuntimePlatform autoStygianOnslaughtRuntimePlatform,
+    IAutoGeniusInvokationRuntimePlatform autoGeniusInvokationRuntimePlatform,
     IScriptGroupExecutionServices scriptGroupExecutionServices,
     IOcrService ocrService,
     RuntimeLayout layout,
+    SoloTaskSettingsCatalog settings,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken { get; } = globalCancellationToken;
@@ -79,8 +82,11 @@ public sealed class MacDispatcherRuntimePlatform(
         return true;
     }
 
-    public bool GetTcgStrategy(out string content) =>
-        throw Unavailable("AutoGeniusInvokation");
+    public bool GetTcgStrategy(out string content)
+    {
+        content = settings.GetTcgStrategy();
+        return false;
+    }
 
     public bool GetFightStrategy(string? strategyName, out string path)
     {
@@ -100,6 +106,15 @@ public sealed class MacDispatcherRuntimePlatform(
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
+        if (request is DispatcherGeniusTaskRequest genius)
+        {
+            await new AutoGeniusInvokationTask(
+                    new GeniusInvokationTaskParam(genius.Strategy),
+                    settings.BuildAutoGeniusInvokationConfig(),
+                    autoGeniusInvokationRuntimePlatform)
+                .Start(cancellationToken);
+            return null;
+        }
         if (request is DispatcherFishingTaskRequest fishing)
         {
             await new AutoFishingTask(

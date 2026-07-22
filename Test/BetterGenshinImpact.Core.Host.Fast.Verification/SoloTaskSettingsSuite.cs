@@ -18,6 +18,11 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
             layout.EnsureCreated();
             await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), """
                 {
+                  "autoGeniusInvokationConfig": {
+                    "strategyName": "1.测试策略",
+                    "sleepDelay": 25,
+                    "activeCharacterCardSpace": 55
+                  },
                   "autoLeyLineOutcropConfig": {
                     "leyLineOutcropType": "启示之花",
                     "country": "蒙德",
@@ -42,6 +47,36 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                 """, cancellationToken);
 
             var catalog = new SoloTaskSettingsCatalog(layout);
+            var tcgFolder = Path.Combine(layout.UserPath, "AutoGeniusInvokation");
+            Directory.CreateDirectory(tcgFolder);
+            const string tcgStrategy = "角色定义:\n角色1=莫娜\n角色2=砂糖\n角色3=琴\n";
+            await File.WriteAllTextAsync(
+                Path.Combine(tcgFolder, "1.测试策略.txt"), tcgStrategy, cancellationToken);
+            _ = catalog.Save("AutoGeniusInvokation", JObject.FromObject(new
+            {
+                strategyName = "1.测试策略",
+                sleepDelay = 350,
+            }));
+            var platform = new RecordingDispatcherPlatform();
+            var coordinator = new SoloTaskCoordinator(platform, catalog, CancellationToken.None);
+            var descriptors = JArray.FromObject(coordinator.List());
+            var descriptor = descriptors.Single(item =>
+                item.Value<string>("name") == "AutoGeniusInvokation");
+            context.Require(descriptor.Value<bool>("available") &&
+                            descriptor.Value<bool>("settingsAvailable"),
+                "AutoGeniusInvokation was not exposed as a composed configurable solo task.");
+            _ = coordinator.Start("AutoGeniusInvokation");
+            for (var retry = 0; retry < 20 && platform.Request is null; retry++)
+                await Task.Delay(10, cancellationToken);
+            var genius = platform.Request as DispatcherGeniusTaskRequest;
+            var geniusConfig = catalog.BuildAutoGeniusInvokationConfig();
+            var geniusPersisted = JObject.Parse(await File.ReadAllTextAsync(
+                Path.Combine(layout.UserPath, "config.json"), cancellationToken));
+            context.Require(genius?.Strategy == tcgStrategy && geniusConfig.SleepDelay == 350 &&
+                            geniusPersisted["autoGeniusInvokationConfig"]?
+                                .Value<int>("activeCharacterCardSpace") == 55,
+                "AutoGeniusInvokation did not preserve hidden config or dispatch the selected strategy.");
+
             var initial = JObject.FromObject(catalog.Get("AutoLeyLineOutcrop"));
             context.Require(initial.Value<string>("leyLineOutcropType") == "启示之花" &&
                             initial["countryOptions"]?.Values<string>().Contains("挪德卡莱") == true,
@@ -88,10 +123,9 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                             config.UseAdventurerHandbook && config.IsNotification,
                 "AutoLeyLineOutcrop task config did not reflect the saved Core-owned settings.");
 
-            var platform = new RecordingDispatcherPlatform();
-            var coordinator = new SoloTaskCoordinator(platform, catalog, CancellationToken.None);
-            var descriptors = JArray.FromObject(coordinator.List());
-            var descriptor = descriptors.Single(item =>
+            platform.Reset();
+            descriptors = JArray.FromObject(coordinator.List());
+            descriptor = descriptors.Single(item =>
                 item.Value<string>("name") == "AutoLeyLineOutcrop");
             context.Require(descriptor.Value<bool>("available") &&
                             descriptor.Value<bool>("settingsAvailable"),

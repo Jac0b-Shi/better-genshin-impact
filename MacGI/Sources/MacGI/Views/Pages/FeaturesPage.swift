@@ -192,6 +192,7 @@ struct SoloTasksPage: View {
     @ViewBuilder
     private func settingsContent(for name: String) -> some View {
         switch name {
+        case "AutoGeniusInvokation": autoGeniusInvokationSettings
         case "AutoFishing": autoFishingSettings
         case "AutoCook": autoCookSettings
         case "AutoWood": autoWoodSettings
@@ -207,6 +208,32 @@ struct SoloTasksPage: View {
                 BGIStatusBadge(text: "不可用", tint: BGIColors.muted)
             }
         }
+    }
+
+    @ViewBuilder
+    private var autoGeniusInvokationSettings: some View {
+        if let settings = appState.autoGeniusInvokationSettings {
+            BGISettingLine(title: "选择卡组", subtitle: "选择你想要使用的卡组与策略") {
+                Picker("", selection: Binding(
+                    get: { settings.strategyName },
+                    set: { appState.saveAutoGeniusInvokationSettings(strategyName: $0) })) {
+                    Text("请选择策略").tag("")
+                    ForEach(settings.strategyOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden().frame(width: 220)
+            }
+            BGISettingLine(
+                title: "设置延时（毫秒）",
+                subtitle: "如果频繁出现操作速度过快，操作动画未播放完毕的情况可以添加延时"
+            ) {
+                Stepper(value: Binding(
+                    get: { settings.sleepDelay },
+                    set: { appState.saveAutoGeniusInvokationSettings(sleepDelay: $0) }),
+                    in: 0...5000) {
+                    Text("\(settings.sleepDelay)").frame(minWidth: 52)
+                }
+            }
+        } else { settingsLoading }
     }
 
     @ViewBuilder

@@ -232,6 +232,9 @@ var autoStygianOnslaughtRuntimePlatform = new MacAutoStygianOnslaughtRuntimePlat
     () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService,
     autoPickConfigProvider, loggerFactory, server.PlatformCallbacks,
     sessionToken, shutdown.Token);
+var autoGeniusInvokationRuntimePlatform = new MacAutoGeniusInvokationRuntimePlatform(
+    layout, () => gameTaskManagerPlatform.SystemInfo,
+    imageRegionOcrService, loggerFactory);
 var autoFightConfig = MacDispatcherRuntimePlatform.LoadUserConfig<AutoFightConfig>(
     layout, "autoFightConfig");
 var autoBossRuntimePlatform = new MacAutoBossRuntimePlatform(
@@ -247,8 +250,9 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, autoBossRuntimePlatform,
     autoBossPathExecutorFactory, autoEatRuntimePlatform,
     autoLeyLineOutcropRuntimePlatform, autoStygianOnslaughtRuntimePlatform,
+    autoGeniusInvokationRuntimePlatform,
     scriptGroupExecutionServices,
-    imageRegionOcrService, layout, loggerFactory);
+    imageRegionOcrService, layout, server.SoloTaskSettings, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
     dispatcherRuntimePlatform, server.SoloTaskSettings, shutdown.Token));
