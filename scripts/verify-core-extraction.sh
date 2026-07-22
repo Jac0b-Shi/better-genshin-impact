@@ -273,6 +273,26 @@ if rg -n 'PathExecutorPlatform\.Current|PathExecutorAutoSkipPlatform\.Current|Sc
   BetterGenshinImpact/GameTask/AutoPathing/PathExecutor.cs; then
   fail "PathExecutor still resolves process-global services during execution"
 fi
+rg -q 'GameTask/AutoBoss/\*\.cs' BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj \
+  || fail "upstream AutoBoss sources are not linked into Core"
+rg -q 'Descriptor\("AutoBoss", "自动首领讨伐", true\)' \
+  BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
+  || fail "AutoBoss is not exposed by the truthful Core solo-task catalog"
+rg -q 'new AutoBossTask' BetterGenshinImpact.Core.Host/Runtime/MacDispatcherRuntimePlatform.cs \
+  || fail "macOS dispatcher does not execute the upstream AutoBoss task"
+if rg -n 'TaskContext|new PathExecutor|PathExecutorPlatform\.Current|PathExecutorAutoSkipPlatform\.Current' \
+  BetterGenshinImpact/GameTask/AutoBoss/AutoBossTask.cs; then
+  fail "shared AutoBoss task resolves Windows or process-global PathExecutor dependencies"
+fi
+rg -q 'AutoBoss creates PathExecutor through the explicit Core factory' \
+  Test/BetterGenshinImpact.Core.Verification/Program.cs \
+  || fail "Core verification does not prove AutoBoss PathExecutor factory usage"
+rg -q 'solo.start did not execute the shared AutoBoss dispatcher request' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not exercise AutoBoss solo start"
+rg -q 'Shared dispatcher AutoBoss entry did not preserve the upstream parameter object' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not exercise parameterized AutoBoss dispatch"
 if rg -n '"window\.activate"' BetterGenshinImpact.Core.Host/Runtime MacGI/Sources/MacGI; then
   fail "macOS production task adapters can still force the game window to the foreground"
 fi

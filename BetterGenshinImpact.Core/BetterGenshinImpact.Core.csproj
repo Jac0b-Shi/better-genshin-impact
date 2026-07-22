@@ -348,6 +348,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoArtifactSalvage/*.cs" Link="GameTask/AutoArtifactSalvage/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/*.cs" Link="GameTask/AutoDomain/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoDomain/Model/*.cs" Link="GameTask/AutoDomain/Model/%(Filename)%(Extension)" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoBoss/*.cs" Link="GameTask/AutoBoss/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatRuntimePlatform.cs" Link="GameTask/AutoEat/AutoEatRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTrigger.cs" Link="GameTask/AutoEat/AutoEatTrigger.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseTaskParam.cs" Link="GameTask/Model/BaseTaskParam.cs" />

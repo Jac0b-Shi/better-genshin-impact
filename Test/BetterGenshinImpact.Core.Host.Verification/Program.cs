@@ -1044,9 +1044,21 @@ try
     Require(dispatcherRuntime.ClearCount == 1 && dispatcherRuntime.AddedNames.SequenceEqual(["AutoPick"]),
         "ClearScript dispatcher did not preserve AddTimer clear-then-add semantics");
     var sharedDispatcher = new Dispatcher(new object());
+    var parameterizedBoss = new BetterGenshinImpact.GameTask.AutoBoss.AutoBossParam(
+        "/verification/User/AutoFight/strategy.txt",
+        new BetterGenshinImpact.GameTask.AutoBoss.AutoBossConfig
+        {
+            BossName = "无相之雷",
+            SpecifyRunCount = true,
+            RunCount = 2,
+        });
+    await sharedDispatcher.RunAutoBossTask(parameterizedBoss, cancellation.Token);
+    Require(dispatcherRuntime.ParameterizedBossStartCount == 1 &&
+            ReferenceEquals(dispatcherRuntime.LastParameterizedBossParam, parameterizedBoss),
+        "Shared dispatcher AutoBoss entry did not preserve the upstream parameter object.");
     try
     {
-        await sharedDispatcher.RunTask(new SoloTask("AutoBoss"));
+        await sharedDispatcher.RunTask(new SoloTask("AutoGeniusInvokation"));
         throw new InvalidOperationException("Dispatcher accepted an unavailable task as successful.");
     }
     catch (CapabilityUnavailableException)
@@ -2794,9 +2806,9 @@ try
 
     var soloList = await ExchangeAsync(connection, "solo-list", "solo.list", sessionToken, null, cancellation.Token);
     Require(soloList.Error is null && soloList.Result is JArray soloItems &&
-            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain")
+            soloItems.Where(item => item.Value<string>("name") is "AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss")
                 .All(item => item.Value<bool>("available")) &&
-            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain"))
+            soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
@@ -2827,6 +2839,7 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.CookCancelled,
         "solo.stop did not cancel the active Core AutoCook task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "cook", cancellation.Token);
     var woodStart = await ExchangeAsync(connection, "wood-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoWood" }), cancellation.Token);
     var woodTaskId = (woodStart.Result as JObject)?.Value<string>("taskId");
@@ -2842,6 +2855,7 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.WoodCancelled,
         "solo.stop did not cancel the active Core AutoWood task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "wood", cancellation.Token);
     var musicStart = await ExchangeAsync(connection, "music-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoMusicGame" }), cancellation.Token);
     var musicTaskId = (musicStart.Result as JObject)?.Value<string>("taskId");
@@ -2855,6 +2869,7 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.MusicCancelled,
         "solo.stop did not cancel the active Core AutoMusicGame task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "music", cancellation.Token);
     var artifactStart = await ExchangeAsync(connection, "artifact-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoArtifactSalvage" }), cancellation.Token);
     var artifactTaskId = (artifactStart.Result as JObject)?.Value<string>("taskId");
@@ -2869,6 +2884,7 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.ArtifactSalvageCancelled,
         "solo.stop did not cancel the active Core AutoArtifactSalvage task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "artifact", cancellation.Token);
     var domainStart = await ExchangeAsync(connection, "domain-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoDomain" }), cancellation.Token);
     var domainTaskId = (domainStart.Result as JObject)?.Value<string>("taskId");
@@ -2881,8 +2897,24 @@ try
     Require(domainStop.Error is null, domainStop.Error?.Message ?? "solo.stop AutoDomain failed");
     for (var attempt = 0; attempt < 20 && !dispatcherRuntime.DomainCancelled; attempt++)
         await Task.Delay(25, cancellation.Token);
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "domain", cancellation.Token);
     Require(dispatcherRuntime.DomainCancelled,
         "solo.stop did not cancel the active Core AutoDomain task");
+    var bossStart = await ExchangeAsync(connection, "boss-start", "solo.start", sessionToken,
+        JObject.FromObject(new { name = "AutoBoss" }), cancellation.Token);
+    var bossTaskId = (bossStart.Result as JObject)?.Value<string>("taskId");
+    Require(bossStart.Error is null && !string.IsNullOrEmpty(bossTaskId) &&
+            dispatcherRuntime.BossStartCount == 1 &&
+            dispatcherRuntime.LastBossStrategyPath == "/verification/User/AutoFight/strategy.txt",
+        "solo.start did not execute the shared AutoBoss dispatcher request");
+    var bossStop = await ExchangeAsync(connection, "boss-stop", "solo.stop", sessionToken,
+        JObject.FromObject(new { taskId = bossTaskId }), cancellation.Token);
+    Require(bossStop.Error is null, bossStop.Error?.Message ?? "solo.stop AutoBoss failed");
+    for (var attempt = 0; attempt < 20 && !dispatcherRuntime.BossCancelled; attempt++)
+        await Task.Delay(25, cancellation.Token);
+    Require(dispatcherRuntime.BossCancelled,
+        "solo.stop did not cancel the active Core AutoBoss task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "boss", cancellation.Token);
     var fightStart = await ExchangeAsync(connection, "fight-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);
     var fightTaskId = (fightStart.Result as JObject)?.Value<string>("taskId");
@@ -2896,6 +2928,7 @@ try
         await Task.Delay(25, cancellation.Token);
     Require(dispatcherRuntime.FightCancelled,
         "solo.stop did not cancel the active Core AutoFight task");
+    await WaitForSoloStateAsync(connection, sessionToken, "cancelled", "fight", cancellation.Token);
     await connection.DisposeAsync();
 
     await using var rejectedConnection = await ConnectAsync(socketPath, cancellation.Token);
@@ -2992,6 +3025,27 @@ static async Task<RpcResponse> ExchangeAsync(
     await connection.WriteRequestAsync(new RpcRequest(id, method, parameters, token), cancellationToken);
     return await connection.ReadResponseAsync(cancellationToken)
         ?? throw new EndOfStreamException("Core closed the RPC connection without a response.");
+}
+
+static async Task<JObject> WaitForSoloStateAsync(
+    FramedJsonConnection connection,
+    string token,
+    string expectedState,
+    string idPrefix,
+    CancellationToken cancellationToken)
+{
+    JObject? status = null;
+    for (var attempt = 0; attempt < 40; attempt++)
+    {
+        var response = await ExchangeAsync(connection, $"{idPrefix}-status-{attempt}",
+            "solo.status", token, null, cancellationToken);
+        status = response.Result as JObject;
+        if (status?.Value<string>("state") == expectedState)
+            return status;
+        await Task.Delay(25, cancellationToken);
+    }
+    throw new InvalidOperationException(
+        $"solo.status did not reach {expectedState}; last state was {status?.Value<string>("state") ?? "missing"}.");
 }
 
 static void Require(bool condition, string message)
@@ -3253,7 +3307,7 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public CancellationToken GlobalCancellationToken { get; } = cancellationToken;
     public int AutoWoodRoundNum => 0;
     public int AutoWoodDailyMaxCount => 2000;
-    public string AutoBossStrategyName => throw new CapabilityUnavailableException("AutoBoss");
+    public string AutoBossStrategyName => "verification";
     public DispatcherAutoEatSettings AutoEatSettings => throw new CapabilityUnavailableException("AutoEat");
     public int ClearCount { get; private set; }
     public List<string> AddedNames { get; } = [];
@@ -3274,6 +3328,11 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public int DomainStartCount { get; private set; }
     public bool DomainCancelled { get; private set; }
     public string? LastDomainStrategyPath { get; private set; }
+    public int BossStartCount { get; private set; }
+    public bool BossCancelled { get; private set; }
+    public string? LastBossStrategyPath { get; private set; }
+    public int ParameterizedBossStartCount { get; private set; }
+    public object? LastParameterizedBossParam { get; private set; }
     public void ClearTriggers() => ClearCount++;
     public bool AddTrigger(string name, object? config)
     {
@@ -3290,7 +3349,7 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
-        if (request is not (DispatcherFishingTaskRequest or DispatcherWoodTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest or DispatcherMusicGameTaskRequest or DispatcherArtifactSalvageTaskRequest or DispatcherDomainTaskRequest))
+        if (request is not (DispatcherFishingTaskRequest or DispatcherWoodTaskRequest or DispatcherFightTaskRequest or DispatcherCookTaskRequest or DispatcherMusicGameTaskRequest or DispatcherArtifactSalvageTaskRequest or DispatcherDomainTaskRequest or DispatcherBossTaskRequest))
             throw new CapabilityUnavailableException(request.Name);
         if (request is DispatcherFishingTaskRequest) FishingStartCount++;
         else if (request is DispatcherWoodTaskRequest wood)
@@ -3312,6 +3371,11 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
             DomainStartCount++;
             LastDomainStrategyPath = domain.StrategyPath;
         }
+        else if (request is DispatcherBossTaskRequest boss)
+        {
+            BossStartCount++;
+            LastBossStrategyPath = boss.StrategyPath;
+        }
         else CookStartCount++;
         try
         {
@@ -3325,13 +3389,21 @@ sealed class VerificationDispatcherRuntimePlatform(CancellationToken cancellatio
             else if (request is DispatcherMusicGameTaskRequest) MusicCancelled = true;
             else if (request is DispatcherArtifactSalvageTaskRequest) ArtifactSalvageCancelled = true;
             else if (request is DispatcherDomainTaskRequest) DomainCancelled = true;
+            else if (request is DispatcherBossTaskRequest) BossCancelled = true;
             else CookCancelled = true;
             throw;
         }
         return null;
     }
     public Task<object?> RunParameterizedTask(string name, object parameter,
-        CancellationToken cancellationToken) => throw new CapabilityUnavailableException(name);
+        CancellationToken cancellationToken)
+    {
+        if (name != "AutoBoss")
+            throw new CapabilityUnavailableException(name);
+        ParameterizedBossStartCount++;
+        LastParameterizedBossParam = parameter;
+        return Task.FromResult<object?>(null);
+    }
 }
 
 sealed class ForcedAvatarOcrFallbackCombatScenes(

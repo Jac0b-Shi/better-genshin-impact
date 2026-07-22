@@ -52,7 +52,14 @@ public sealed class MacScriptGroupExecutionServices : IScriptGroupExecutionServi
             restart.Enabled, restart.IsPathingFailureExceptional, restart.IsFightFailureExceptional);
     }
 
-    public PathingPartyConfig DefaultPartyConfig => _defaultPartyConfig;
+    public PathingPartyConfig DefaultPartyConfig => CreateDefaultPartyConfig();
+
+    public PathingPartyConfig CreateDefaultPartyConfig() => new()
+    {
+        OnlyInTeleportRecover = _defaultPartyConfig.OnlyInTeleportRecover,
+        UseGadgetIntervalMs = _defaultPartyConfig.UseGadgetIntervalMs,
+        AutoEatEnabled = _defaultPartyConfig.AutoEatEnabled,
+    };
 
     public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken) => new PathExecutor(
         cancellationToken, PathExecutorPlatform.Current, PathExecutorAutoSkipPlatform.Current, this);

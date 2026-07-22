@@ -31,6 +31,7 @@ using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
 using BetterGenshinImpact.GameTask.AutoDomain;
+using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.GetGridIcons;
 using BetterGenshinImpact.GameTask.AutoPathing.Model;
 using BetterGenshinImpact.GameTask.AutoPathing.Model.Enum;
@@ -1819,6 +1820,62 @@ catch (Exception exception) when (exception.Message == "游戏窗口分辨率不
 }
 Assert("AutoDomain preserves upstream 16:9 resolution gate",
     rejectedNonWideDomainResolution, "1920x1200 was accepted");
+
+Console.WriteLine("AutoBoss: shared configuration, resolution and PathExecutor factory");
+var autoBossConfig = new AutoBossConfig
+{
+    BossName = "无相之雷",
+    StrategyName = "verification-boss",
+    TeamName = "verification-party",
+    SpecifyRunCount = true,
+    RunCount = 4,
+    UseTransientResin = true,
+    UseFragileResin = true,
+    ReviveRetryCount = 2,
+    ReturnToStatueAfterEachRound = true,
+    RewardRecognitionEnabled = true,
+};
+var autoBossParam = new AutoBossParam("/verification/strategy.txt", autoBossConfig);
+Assert("AutoBoss parameter copies the Core-owned config snapshot",
+    autoBossParam.BossName == autoBossConfig.BossName &&
+    autoBossParam.StrategyName == autoBossConfig.StrategyName &&
+    autoBossParam.TeamName == autoBossConfig.TeamName &&
+    autoBossParam.SpecifyRunCount && autoBossParam.RunCount == 4 &&
+    autoBossParam.UseTransientResin && autoBossParam.UseFragileResin &&
+    autoBossParam.ReviveRetryCount == 2 &&
+    autoBossParam.ReturnToStatueAfterEachRound &&
+    autoBossParam.RewardRecognitionEnabled &&
+    autoBossParam.CombatStrategyPath == "/verification/strategy.txt",
+    $"boss={autoBossParam.BossName} runs={autoBossParam.RunCount}");
+AutoBossTask.ValidateScreenResolution(
+    new BgiRect(0, 0, 2560, 1440), NullLogger.Instance);
+var rejectedNonWideBossResolution = false;
+try
+{
+    AutoBossTask.ValidateScreenResolution(
+        new BgiRect(0, 0, 1920, 1200), NullLogger.Instance);
+}
+catch (Exception exception) when (exception.Message == "游戏窗口分辨率不是 16:9")
+{
+    rejectedNonWideBossResolution = true;
+}
+Assert("AutoBoss preserves upstream 16:9 resolution gate",
+    rejectedNonWideBossResolution, "1920x1200 was accepted");
+var autoBossExecutionServices = new RecordingAutoBossExecutionServices();
+var autoBossFactory = new AutoBossPathExecutorFactory(
+    autoBossExecutionServices,
+    () => new PathingPartyConfig { AutoEatEnabled = true });
+var autoBossExecutor = autoBossFactory.Create(CancellationToken.None);
+var autoBossPartyConfig = AutoBossTask.ConfigurePathingPartyConfig(
+    autoBossFactory.CreatePartyConfig());
+Assert("AutoBoss creates PathExecutor through the explicit Core factory",
+    ReferenceEquals(autoBossExecutor, autoBossExecutionServices.Executor) &&
+    autoBossExecutionServices.CreateCount == 1,
+    $"createCount={autoBossExecutionServices.CreateCount}");
+Assert("AutoBoss pathing preserves platform defaults but disables switch and fight",
+    autoBossPartyConfig.AutoEatEnabled && autoBossPartyConfig.SkipPartySwitch &&
+    !autoBossPartyConfig.AutoFightEnabled,
+    $"eat={autoBossPartyConfig.AutoEatEnabled} switch={autoBossPartyConfig.SkipPartySwitch} fight={autoBossPartyConfig.AutoFightEnabled}");
 
 Console.WriteLine("AutoCook: upstream UI recognition, peak tracking and semantic Space input");
 using var cookFrame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
@@ -3622,6 +3679,31 @@ sealed class VerificationScriptGroupExecutionServices : IScriptGroupExecutionSer
     public void AddAutoPickTrigger() => throw new NotSupportedException();
     public PathingFailurePolicy PathingFailurePolicy => new(false, false, false);
     public void RecordFarmingSession(FarmingSession session, FarmingRouteInfo route) { }
+}
+
+sealed class RecordingAutoBossExecutionServices : IScriptGroupExecutionServices
+{
+    public RecordingAutoBossPathExecutor Executor { get; } = new();
+    public int CreateCount { get; private set; }
+
+    public IPathExecutor CreatePathExecutor(CancellationToken cancellationToken)
+    {
+        CreateCount++;
+        return Executor;
+    }
+
+    public PathingPartyConfig DefaultPartyConfig { get; } = new();
+    public void AddAutoPickTrigger() => throw new NotSupportedException();
+    public PathingFailurePolicy PathingFailurePolicy => new(false, false, false);
+    public void RecordFarmingSession(FarmingSession session, FarmingRouteInfo route) { }
+}
+
+sealed class RecordingAutoBossPathExecutor : IPathExecutor
+{
+    public PathingPartyConfig PartyConfig { get; set; } = new();
+    public int SuccessFight => 0;
+    public bool SuccessEnd => false;
+    public Task Pathing(PathingTask task) => Task.CompletedTask;
 }
 
 sealed class VerificationAutoFightRuntimePlatform(

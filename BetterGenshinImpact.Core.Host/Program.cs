@@ -11,6 +11,7 @@ using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
 using BetterGenshinImpact.GameTask.AutoWood;
+using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.Model;
@@ -141,15 +142,6 @@ var autoDomainRuntimePlatform = new MacAutoDomainRuntimePlatform(
 GenshinRuntimePlatform.Configure(new MacGenshinRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo, autoFishingRuntimePlatform,
     imageRegionOcrService, loggerFactory, "TemplateMatch"));
-var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
-    shutdown.Token, autoPickRuntimeState, semanticInputBackend,
-    () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
-    paddleAutoPickRecognizer, yapAutoPickRecognizer, autoWoodRuntimePlatform,
-    autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, imageRegionOcrService,
-    layout, loggerFactory);
-DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
-server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
-    dispatcherRuntimePlatform, shutdown.Token));
 TaskParameterPlatform.Configure(new MacTaskParameterPlatform(
     autoFishingRuntimePlatform.GameCultureInfoName));
 GoToCraftingBenchRuntimePlatform.Configure(
@@ -210,6 +202,23 @@ var scriptGroupExecutionServices = new MacScriptGroupExecutionServices(
     layout, autoPickRuntimeState, semanticInputBackend, () => gameTaskManagerPlatform.SystemInfo,
     autoPickConfigProvider, paddleAutoPickRecognizer, yapAutoPickRecognizer);
 ScriptGroupExecutionServices.Configure(scriptGroupExecutionServices);
+var autoFightConfig = MacDispatcherRuntimePlatform.LoadUserConfig<AutoFightConfig>(
+    layout, "autoFightConfig");
+var autoBossRuntimePlatform = new MacAutoBossRuntimePlatform(
+    () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, autoFightConfig,
+    loggerFactory, server.PlatformCallbacks, sessionToken, shutdown.Token);
+var autoBossPathExecutorFactory = new AutoBossPathExecutorFactory(
+    scriptGroupExecutionServices,
+    scriptGroupExecutionServices.CreateDefaultPartyConfig);
+var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
+    shutdown.Token, autoPickRuntimeState, semanticInputBackend,
+    () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
+    paddleAutoPickRecognizer, yapAutoPickRecognizer, autoWoodRuntimePlatform,
+    autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, autoBossRuntimePlatform,
+    autoBossPathExecutorFactory, imageRegionOcrService, layout, loggerFactory);
+DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
+server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
+    dispatcherRuntimePlatform, shutdown.Token));
 DesktopRegionInputPlatform.Configure(semanticInputBackend);
 TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token,

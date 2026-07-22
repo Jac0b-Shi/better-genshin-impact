@@ -20,7 +20,7 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoWood", "自动伐木", true),
         Descriptor("AutoFight", "自动战斗", true),
         Descriptor("AutoDomain", "自动秘境", true),
-        Descriptor("AutoBoss", "自动首领讨伐", false),
+        Descriptor("AutoBoss", "自动首领讨伐", true),
         Descriptor("AutoStygianOnslaught", "自动幽境危战", false),
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", false),
@@ -31,7 +31,7 @@ public sealed class SoloTaskCoordinator(
 
     public object Start(string name)
     {
-        if (name is not ("AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain"))
+        if (name is not ("AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss"))
             throw new CapabilityUnavailableException(
                 $"solo task '{name}' is not composed in the macOS Core yet; no task was executed.");
 
@@ -92,6 +92,11 @@ public sealed class SoloTaskCoordinator(
                         ? path
                         : throw new CapabilityUnavailableException(
                             "AutoDomain combat strategy is unavailable.")),
+                "AutoBoss" => new DispatcherBossTaskRequest(
+                    !platform.GetFightStrategy(platform.AutoBossStrategyName, out var bossPath)
+                        ? bossPath
+                        : throw new CapabilityUnavailableException(
+                            "AutoBoss combat strategy is unavailable.")),
                 _ => throw new CapabilityUnavailableException($"Unknown composed solo task '{name}'.")
             };
             await platform.ExecuteSoloTask(request, cancellationToken);

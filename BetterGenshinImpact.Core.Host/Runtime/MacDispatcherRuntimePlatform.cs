@@ -12,6 +12,7 @@ using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
 using BetterGenshinImpact.GameTask.AutoDomain;
+using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Config;
@@ -32,6 +33,8 @@ public sealed class MacDispatcherRuntimePlatform(
     IAutoWoodRuntimePlatform autoWoodRuntimePlatform,
     IAutoMusicGameRuntimePlatform autoMusicGameRuntimePlatform,
     IAutoDomainRuntimePlatform autoDomainRuntimePlatform,
+    IAutoBossRuntimePlatform autoBossRuntimePlatform,
+    IAutoBossPathExecutorFactory autoBossPathExecutorFactory,
     IOcrService ocrService,
     RuntimeLayout layout,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
@@ -39,7 +42,8 @@ public sealed class MacDispatcherRuntimePlatform(
     public CancellationToken GlobalCancellationToken { get; } = globalCancellationToken;
     public int AutoWoodRoundNum => 0;
     public int AutoWoodDailyMaxCount => 2000;
-    public string AutoBossStrategyName => throw Unavailable("AutoBoss");
+    public string AutoBossStrategyName =>
+        LoadUserConfig<AutoBossConfig>(layout, "autoBossConfig").StrategyName;
     public DispatcherAutoEatSettings AutoEatSettings => throw Unavailable("AutoEat");
 
     public void ClearTriggers() => GameTaskManager.ClearTriggers();
@@ -62,7 +66,7 @@ public sealed class MacDispatcherRuntimePlatform(
 
     public bool GetFightStrategy(string? strategyName, out string path)
     {
-        strategyName ??= LoadConfig<AutoFightConfig>(
+        strategyName ??= LoadUserConfig<AutoFightConfig>(
             layout, "autoFightConfig").StrategyName;
         if (string.IsNullOrWhiteSpace(strategyName))
         {
@@ -129,14 +133,22 @@ public sealed class MacDispatcherRuntimePlatform(
         }
         if (request is DispatcherDomainTaskRequest domain)
         {
-            var config = LoadConfig<AutoDomainConfig>(layout, "autoDomainConfig");
-            var artifactConfig = LoadConfig<AutoArtifactSalvageConfig>(
+            var config = LoadUserConfig<AutoDomainConfig>(layout, "autoDomainConfig");
+            var artifactConfig = LoadUserConfig<AutoArtifactSalvageConfig>(
                 layout, "autoArtifactSalvageConfig");
-            var pickConfig = LoadConfig<AutoPickConfig>(layout, "autoPickConfig");
+            var pickConfig = LoadUserConfig<AutoPickConfig>(layout, "autoPickConfig");
             var parameter = new AutoDomainParam(
                 0, domain.StrategyPath, config, artifactConfig.MaxArtifactStar);
             return await new AutoDomainTask(
                     parameter, config, pickConfig.PickKey, autoDomainRuntimePlatform)
+                .Start(cancellationToken);
+        }
+        if (request is DispatcherBossTaskRequest boss)
+        {
+            var config = LoadUserConfig<AutoBossConfig>(layout, "autoBossConfig");
+            var parameter = new AutoBossParam(boss.StrategyPath, config);
+            return await new AutoBossTask(
+                    parameter, autoBossRuntimePlatform, autoBossPathExecutorFactory)
                 .Start(cancellationToken);
         }
         throw Unavailable(request.Name);
@@ -151,6 +163,12 @@ public sealed class MacDispatcherRuntimePlatform(
                 .GetFactory(autoFightParam.CombatStrategyPath);
             await factory.CreateTask(autoFightParam).Start(cancellationToken);
             return null;
+        }
+        if (name == "AutoBoss" && parameter is AutoBossParam autoBossParam)
+        {
+            return await new AutoBossTask(
+                    autoBossParam, autoBossRuntimePlatform, autoBossPathExecutorFactory)
+                .Start(cancellationToken);
         }
         throw Unavailable(name);
     }
@@ -171,7 +189,7 @@ public sealed class MacDispatcherRuntimePlatform(
                ?? new AutoCookConfig();
     }
 
-    private static T LoadConfig<T>(RuntimeLayout layout, string propertyName) where T : class, new()
+    public static T LoadUserConfig<T>(RuntimeLayout layout, string propertyName) where T : class, new()
     {
         var path = Path.Combine(layout.UserPath, "config.json");
         if (!File.Exists(path)) return new T();
