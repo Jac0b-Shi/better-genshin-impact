@@ -53,6 +53,29 @@ struct BetterGICoreAutoBossSettings: Sendable, Equatable {
     let reviveRetryCount: Int
 }
 
+struct BetterGICoreAutoDomainSettings: Sendable, Equatable {
+    let strategyName: String
+    let strategyOptions: [String]
+    let partyName: String
+    let domainName: String
+    let domainOptions: [String]
+    let specifyResinUse: Bool
+    let originalResinUseCount: Int
+    let condensedResinUseCount: Int
+    let transientResinUseCount: Int
+    let fragileResinUseCount: Int
+    let autoArtifactSalvage: Bool
+    let maxArtifactStar: String
+    let maxArtifactStarOptions: [String]
+    let fightEndDelay: Double
+    let shortMovement: Bool
+    let walkToF: Bool
+    let leftRightMoveTimes: Int
+    let autoEat: Bool
+    let rewardRecognitionEnabled: Bool
+    let reviveRetryCount: Int
+}
+
 struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
     let taskID: String?
     let name: String?
@@ -415,6 +438,38 @@ actor BetterGICoreProcessSupervisor {
         ))
     }
 
+    func autoDomainSettings() throws -> BetterGICoreAutoDomainSettings {
+        try decodeAutoDomainSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoDomain"]
+        ))
+    }
+
+    func saveAutoDomainSettings(_ settings: BetterGICoreAutoDomainSettings) throws
+        -> BetterGICoreAutoDomainSettings {
+        try decodeAutoDomainSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoDomain", "settings": [
+                "strategyName": settings.strategyName,
+                "partyName": settings.partyName,
+                "domainName": settings.domainName,
+                "specifyResinUse": settings.specifyResinUse,
+                "originalResinUseCount": settings.originalResinUseCount,
+                "condensedResinUseCount": settings.condensedResinUseCount,
+                "transientResinUseCount": settings.transientResinUseCount,
+                "fragileResinUseCount": settings.fragileResinUseCount,
+                "autoArtifactSalvage": settings.autoArtifactSalvage,
+                "maxArtifactStar": settings.maxArtifactStar,
+                "fightEndDelay": settings.fightEndDelay,
+                "shortMovement": settings.shortMovement,
+                "walkToF": settings.walkToF,
+                "leftRightMoveTimes": settings.leftRightMoveTimes,
+                "autoEat": settings.autoEat,
+                "rewardRecognitionEnabled": settings.rewardRecognitionEnabled,
+                "reviveRetryCount": settings.reviveRetryCount,
+            ]]
+        ))
+    }
+
     private func requestSoloSettings(method: String, parameters: [String: Any]) throws -> Any {
         guard case .running = state, let client else {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
@@ -485,6 +540,42 @@ actor BetterGICoreProcessSupervisor {
                      runCount: runCount, useTransientResin: useTransientResin,
                      useFragileResin: useFragileResin,
                      returnToStatueAfterEachRound: returnToStatue,
+                     rewardRecognitionEnabled: rewardRecognition,
+                     reviveRetryCount: reviveRetryCount)
+    }
+
+    private func decodeAutoDomainSettings(_ value: Any) throws -> BetterGICoreAutoDomainSettings {
+        guard let value = value as? [String: Any], value["name"] as? String == "AutoDomain",
+              let strategyName = value["strategyName"] as? String,
+              let strategyOptions = value["strategyOptions"] as? [String],
+              let partyName = value["partyName"] as? String,
+              let domainName = value["domainName"] as? String,
+              let domainOptions = value["domainOptions"] as? [String],
+              let specifyResinUse = value["specifyResinUse"] as? Bool,
+              let original = value["originalResinUseCount"] as? Int,
+              let condensed = value["condensedResinUseCount"] as? Int,
+              let transient = value["transientResinUseCount"] as? Int,
+              let fragile = value["fragileResinUseCount"] as? Int,
+              let salvage = value["autoArtifactSalvage"] as? Bool,
+              let maxStar = value["maxArtifactStar"] as? String,
+              let starOptions = value["maxArtifactStarOptions"] as? [String],
+              let fightEndDelay = value["fightEndDelay"] as? Double,
+              let shortMovement = value["shortMovement"] as? Bool,
+              let walkToF = value["walkToF"] as? Bool,
+              let moveTimes = value["leftRightMoveTimes"] as? Int,
+              let autoEat = value["autoEat"] as? Bool,
+              let rewardRecognition = value["rewardRecognitionEnabled"] as? Bool,
+              let reviveRetryCount = value["reviveRetryCount"] as? Int else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoDomain settings.")
+        }
+        return .init(strategyName: strategyName, strategyOptions: strategyOptions,
+                     partyName: partyName, domainName: domainName, domainOptions: domainOptions,
+                     specifyResinUse: specifyResinUse, originalResinUseCount: original,
+                     condensedResinUseCount: condensed, transientResinUseCount: transient,
+                     fragileResinUseCount: fragile, autoArtifactSalvage: salvage,
+                     maxArtifactStar: maxStar, maxArtifactStarOptions: starOptions,
+                     fightEndDelay: fightEndDelay, shortMovement: shortMovement,
+                     walkToF: walkToF, leftRightMoveTimes: moveTimes, autoEat: autoEat,
                      rewardRecognitionEnabled: rewardRecognition,
                      reviveRetryCount: reviveRetryCount)
     }

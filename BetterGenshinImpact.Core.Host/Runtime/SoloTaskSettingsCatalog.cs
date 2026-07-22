@@ -3,8 +3,12 @@ using System.Text.Json.Nodes;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoCook;
+using BetterGenshinImpact.GameTask.AutoDomain;
+using BetterGenshinImpact.GameTask.AutoFight;
+using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
 using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoWood;
+using BetterGenshinImpact.GameTask.Common.Element.Assets;
 using Newtonsoft.Json.Linq;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
@@ -27,6 +31,10 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
                 "AutoMusicGame" => Describe(
                     LoadConfig<AutoMusicGameConfig>(root, "autoMusicGameConfig")),
                 "AutoBoss" => Describe(LoadConfig<AutoBossConfig>(root, "autoBossConfig")),
+                "AutoDomain" => Describe(
+                    LoadConfig<AutoDomainConfig>(root, "autoDomainConfig"),
+                    LoadConfig<AutoFightConfig>(root, "autoFightConfig"),
+                    LoadConfig<AutoArtifactSalvageConfig>(root, "autoArtifactSalvageConfig")),
                 _ => throw Unavailable(name),
             };
         }
@@ -40,6 +48,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             "AutoWood" => SaveAutoWood(settings),
             "AutoMusicGame" => SaveAutoMusicGame(settings),
             "AutoBoss" => SaveAutoBoss(settings),
+            "AutoDomain" => SaveAutoDomain(settings),
             _ => throw Unavailable(name),
         };
     }
@@ -139,6 +148,53 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
+    private object SaveAutoDomain(JObject settings)
+    {
+        var strategyName = RequiredString(settings, "strategyName");
+        if (!StrategyOptions().Contains(strategyName, StringComparer.Ordinal))
+            throw new ArgumentException($"Unknown AutoFight strategy: {strategyName}");
+        var domainName = RequiredString(settings, "domainName");
+        if (!string.IsNullOrEmpty(domainName) &&
+            !MapLazyAssets.Get().DomainNameList.Contains(domainName, StringComparer.Ordinal))
+            throw new ArgumentException($"Unknown domainName: {domainName}");
+        var artifactStar = RequiredString(settings, "maxArtifactStar");
+        if (artifactStar is not ("1" or "2" or "3" or "4"))
+            throw new ArgumentException($"Unsupported maxArtifactStar: {artifactStar}");
+
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var config = LoadConfig<AutoDomainConfig>(root, "autoDomainConfig");
+            config.PartyName = RequiredString(settings, "partyName");
+            config.DomainName = domainName;
+            config.SpecifyResinUse = RequiredBool(settings, "specifyResinUse");
+            config.OriginalResinUseCount = NonNegative(settings, "originalResinUseCount");
+            config.CondensedResinUseCount = NonNegative(settings, "condensedResinUseCount");
+            config.TransientResinUseCount = NonNegative(settings, "transientResinUseCount");
+            config.FragileResinUseCount = NonNegative(settings, "fragileResinUseCount");
+            config.AutoArtifactSalvage = RequiredBool(settings, "autoArtifactSalvage");
+            config.FightEndDelay = RequiredDouble(settings, "fightEndDelay");
+            config.ShortMovement = RequiredBool(settings, "shortMovement");
+            config.WalkToF = RequiredBool(settings, "walkToF");
+            config.LeftRightMoveTimes = RequiredInt(settings, "leftRightMoveTimes");
+            config.AutoEat = RequiredBool(settings, "autoEat");
+            config.RewardRecognitionEnabled = RequiredBool(settings, "rewardRecognitionEnabled");
+            config.ReviveRetryCount = RequiredInt(settings, "reviveRetryCount");
+
+            var fightConfig = LoadConfig<AutoFightConfig>(root, "autoFightConfig");
+            fightConfig.StrategyName = strategyName;
+            var artifactConfig = LoadConfig<AutoArtifactSalvageConfig>(
+                root, "autoArtifactSalvageConfig");
+            artifactConfig.MaxArtifactStar = artifactStar;
+            root["autoDomainConfig"] = JsonSerializer.SerializeToNode(config, ConfigJson.Options);
+            root["autoFightConfig"] = JsonSerializer.SerializeToNode(fightConfig, ConfigJson.Options);
+            root["autoArtifactSalvageConfig"] = JsonSerializer.SerializeToNode(
+                artifactConfig, ConfigJson.Options);
+            SaveRoot(root);
+            return Describe(config, fightConfig, artifactConfig);
+        }
+    }
+
     private static object Describe(AutoCookConfig config) => new
     {
         name = "AutoCook",
@@ -183,6 +239,33 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         reviveRetryCount = config.ReviveRetryCount,
     };
 
+    private object Describe(
+        AutoDomainConfig config, AutoFightConfig fightConfig,
+        AutoArtifactSalvageConfig artifactConfig) => new
+    {
+        name = "AutoDomain",
+        strategyName = fightConfig.StrategyName,
+        strategyOptions = StrategyOptions(),
+        partyName = config.PartyName,
+        domainName = config.DomainName,
+        domainOptions = MapLazyAssets.Get().DomainNameList,
+        specifyResinUse = config.SpecifyResinUse,
+        originalResinUseCount = config.OriginalResinUseCount,
+        condensedResinUseCount = config.CondensedResinUseCount,
+        transientResinUseCount = config.TransientResinUseCount,
+        fragileResinUseCount = config.FragileResinUseCount,
+        autoArtifactSalvage = config.AutoArtifactSalvage,
+        maxArtifactStar = artifactConfig.MaxArtifactStar,
+        maxArtifactStarOptions = new[] { "4", "3", "2", "1" },
+        fightEndDelay = config.FightEndDelay,
+        shortMovement = config.ShortMovement,
+        walkToF = config.WalkToF,
+        leftRightMoveTimes = config.LeftRightMoveTimes,
+        autoEat = config.AutoEat,
+        rewardRecognitionEnabled = config.RewardRecognitionEnabled,
+        reviveRetryCount = config.ReviveRetryCount,
+    };
+
     private string[] StrategyOptions()
     {
         var folder = Path.Combine(layout.UserPath, "AutoFight");
@@ -216,6 +299,15 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
 
     private static string RequiredString(JObject settings, string name) =>
         settings.Value<string>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private static double RequiredDouble(JObject settings, string name) =>
+        settings.Value<double?>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private static int NonNegative(JObject settings, string name)
+    {
+        var value = RequiredInt(settings, name);
+        return value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
+    }
 
     private static CapabilityUnavailableException Unavailable(string name) => new(
         $"solo task settings '{name}' are not composed in the macOS Core yet.");

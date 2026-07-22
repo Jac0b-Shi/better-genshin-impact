@@ -344,6 +344,7 @@ final class AppState: ObservableObject {
     @Published private(set) var autoWoodSettings: BetterGICoreAutoWoodSettings?
     @Published private(set) var autoMusicGameSettings: BetterGICoreAutoMusicGameSettings?
     @Published private(set) var autoBossSettings: BetterGICoreAutoBossSettings?
+    @Published private(set) var autoDomainSettings: BetterGICoreAutoDomainSettings?
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -969,12 +970,14 @@ final class AppState: ObservableObject {
             autoWoodSettings = try await supervisor.autoWoodSettings()
             autoMusicGameSettings = try await supervisor.autoMusicGameSettings()
             autoBossSettings = try await supervisor.autoBossSettings()
+            autoDomainSettings = try await supervisor.autoDomainSettings()
         } catch {
             soloTasks = []
             autoCookSettings = nil
             autoWoodSettings = nil
             autoMusicGameSettings = nil
             autoBossSettings = nil
+            autoDomainSettings = nil
             addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
         }
     }
@@ -1050,6 +1053,44 @@ final class AppState: ObservableObject {
         Task { [weak self] in
             do { self?.autoBossSettings = try await supervisor.saveAutoBossSettings(next) }
             catch { self?.addLog(.error, "AutoBoss settings save failed: \(error.localizedDescription)") }
+        }
+    }
+
+    func saveAutoDomainSettings(
+        strategyName: String? = nil, partyName: String? = nil, domainName: String? = nil,
+        specifyResinUse: Bool? = nil, originalResinUseCount: Int? = nil,
+        condensedResinUseCount: Int? = nil, transientResinUseCount: Int? = nil,
+        fragileResinUseCount: Int? = nil, autoArtifactSalvage: Bool? = nil,
+        maxArtifactStar: String? = nil, fightEndDelay: Double? = nil,
+        shortMovement: Bool? = nil, walkToF: Bool? = nil,
+        leftRightMoveTimes: Int? = nil, autoEat: Bool? = nil,
+        rewardRecognitionEnabled: Bool? = nil, reviveRetryCount: Int? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoDomainSettings else { return }
+        let next = BetterGICoreAutoDomainSettings(
+            strategyName: strategyName ?? current.strategyName,
+            strategyOptions: current.strategyOptions,
+            partyName: partyName ?? current.partyName,
+            domainName: domainName ?? current.domainName, domainOptions: current.domainOptions,
+            specifyResinUse: specifyResinUse ?? current.specifyResinUse,
+            originalResinUseCount: originalResinUseCount ?? current.originalResinUseCount,
+            condensedResinUseCount: condensedResinUseCount ?? current.condensedResinUseCount,
+            transientResinUseCount: transientResinUseCount ?? current.transientResinUseCount,
+            fragileResinUseCount: fragileResinUseCount ?? current.fragileResinUseCount,
+            autoArtifactSalvage: autoArtifactSalvage ?? current.autoArtifactSalvage,
+            maxArtifactStar: maxArtifactStar ?? current.maxArtifactStar,
+            maxArtifactStarOptions: current.maxArtifactStarOptions,
+            fightEndDelay: fightEndDelay ?? current.fightEndDelay,
+            shortMovement: shortMovement ?? current.shortMovement,
+            walkToF: walkToF ?? current.walkToF,
+            leftRightMoveTimes: leftRightMoveTimes ?? current.leftRightMoveTimes,
+            autoEat: autoEat ?? current.autoEat,
+            rewardRecognitionEnabled:
+                rewardRecognitionEnabled ?? current.rewardRecognitionEnabled,
+            reviveRetryCount: reviveRetryCount ?? current.reviveRetryCount)
+        Task { [weak self] in
+            do { self?.autoDomainSettings = try await supervisor.saveAutoDomainSettings(next) }
+            catch { self?.addLog(.error, "AutoDomain settings save failed: \(error.localizedDescription)") }
         }
     }
 

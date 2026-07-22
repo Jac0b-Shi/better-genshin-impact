@@ -57,6 +57,7 @@ struct SoloTasksPage: View {
         case "AutoWood": autoWoodSettings
         case "AutoMusicGame": autoMusicGameSettings
         case "AutoBoss": autoBossSettings
+        case "AutoDomain": autoDomainSettings
         default:
             BGISettingLine(title: "设置", subtitle: "Core 未返回该任务的设置模型") {
                 BGIStatusBadge(text: "不可用", tint: BGIColors.muted)
@@ -248,6 +249,116 @@ struct SoloTasksPage: View {
                 }
             }
         } else { settingsLoading }
+    }
+
+    @ViewBuilder
+    private var autoDomainSettings: some View {
+        if let settings = appState.autoDomainSettings {
+            BGISettingLine(title: "选择战斗策略", subtitle: "用于战斗") {
+                Picker("", selection: Binding(
+                    get: { settings.strategyName },
+                    set: { appState.saveAutoDomainSettings(strategyName: $0) })) {
+                    ForEach(settings.strategyOptions, id: \.self) { Text($0).tag($0) }
+                }.labelsHidden().frame(width: 220)
+            }
+            BGISettingLine(title: "自动切换到指定队伍", subtitle: "注意队伍名称是游戏内手动设置的名称") {
+                TextField("队伍名称", text: Binding(
+                    get: { settings.partyName },
+                    set: { appState.saveAutoDomainSettings(partyName: $0) }))
+                    .frame(width: 200)
+            }
+            BGISettingLine(title: "指定要前往的秘境", subtitle: "自动传送到刷取的秘境") {
+                Picker("", selection: Binding(
+                    get: { settings.domainName },
+                    set: { appState.saveAutoDomainSettings(domainName: $0) })) {
+                    Text("未选择").tag("")
+                    ForEach(settings.domainOptions, id: \.self) { Text($0).tag($0) }
+                }.labelsHidden().frame(width: 220)
+            }
+            BGISettingLine(title: "指定每种树脂刷取次数", subtitle: "关闭时优先使用浓缩树脂，然后使用原粹树脂") {
+                Toggle("", isOn: Binding(
+                    get: { settings.specifyResinUse },
+                    set: { appState.saveAutoDomainSettings(specifyResinUse: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            if settings.specifyResinUse {
+                domainCountLine("原粹树脂刷取次数", value: Binding(
+                    get: { settings.originalResinUseCount },
+                    set: { appState.saveAutoDomainSettings(originalResinUseCount: $0) }))
+                domainCountLine("浓缩树脂刷取次数", value: Binding(
+                    get: { settings.condensedResinUseCount },
+                    set: { appState.saveAutoDomainSettings(condensedResinUseCount: $0) }))
+                domainCountLine("须臾树脂刷取次数", value: Binding(
+                    get: { settings.transientResinUseCount },
+                    set: { appState.saveAutoDomainSettings(transientResinUseCount: $0) }))
+                domainCountLine("脆弱树脂刷取次数", value: Binding(
+                    get: { settings.fragileResinUseCount },
+                    set: { appState.saveAutoDomainSettings(fragileResinUseCount: $0) }))
+            }
+            BGISettingLine(title: "结束后自动分解圣遗物", subtitle: "选择需要快速分解圣遗物的最高星级") {
+                HStack(spacing: 12) {
+                    Picker("", selection: Binding(
+                        get: { settings.maxArtifactStar },
+                        set: { appState.saveAutoDomainSettings(maxArtifactStar: $0) })) {
+                        ForEach(settings.maxArtifactStarOptions, id: \.self) { Text($0).tag($0) }
+                    }.labelsHidden().frame(width: 70)
+                    Toggle("", isOn: Binding(
+                        get: { settings.autoArtifactSalvage },
+                        set: { appState.saveAutoDomainSettings(autoArtifactSalvage: $0) }))
+                        .toggleStyle(.switch).labelsHidden()
+                }
+            }
+            BGISettingLine(title: "战斗完成后等待时间（秒）", subtitle: "寻找石化古树前等待角色技能完全结束") {
+                TextField("", value: Binding(
+                    get: { settings.fightEndDelay },
+                    set: { appState.saveAutoDomainSettings(fightEndDelay: $0) }), format: .number)
+                    .frame(width: 90).multilineTextAlignment(.trailing)
+            }
+            BGISettingLine(title: "寻找古树时使用小步伐行走", subtitle: "仅用于识别较慢的计算机") {
+                Toggle("", isOn: Binding(
+                    get: { settings.shortMovement },
+                    set: { appState.saveAutoDomainSettings(shortMovement: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            BGISettingLine(title: "步行前往开启秘境和领取奖励", subtitle: "用于 F 点击不到的情况") {
+                Toggle("", isOn: Binding(
+                    get: { settings.walkToF },
+                    set: { appState.saveAutoDomainSettings(walkToF: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            BGISettingLine(title: "寻找古树时左右移动次数", subtitle: "正常用户不建议修改") {
+                TextField("", value: Binding(
+                    get: { settings.leftRightMoveTimes },
+                    set: { appState.saveAutoDomainSettings(leftRightMoveTimes: $0) }), format: .number)
+                    .frame(width: 90).multilineTextAlignment(.trailing)
+            }
+            BGISettingLine(title: "自动吃药", subtitle: "装备便携营养袋后，红血时自动按 Z 键吃药") {
+                Toggle("", isOn: Binding(
+                    get: { settings.autoEat },
+                    set: { appState.saveAutoDomainSettings(autoEat: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            BGISettingLine(title: "启用奖励识别", subtitle: "每轮领取后识别奖励名称与数量，任务结束打印汇总") {
+                Toggle("", isOn: Binding(
+                    get: { settings.rewardRecognitionEnabled },
+                    set: { appState.saveAutoDomainSettings(rewardRecognitionEnabled: $0) }))
+                    .toggleStyle(.switch).labelsHidden()
+            }
+            BGISettingLine(title: "角色死亡后重试次数", subtitle: "秘境战斗中发生角色死亡时重试") {
+                TextField("", value: Binding(
+                    get: { settings.reviveRetryCount },
+                    set: { appState.saveAutoDomainSettings(reviveRetryCount: $0) }), format: .number)
+                    .frame(width: 90).multilineTextAlignment(.trailing)
+            }
+        } else { settingsLoading }
+    }
+
+    private func domainCountLine(_ title: String, value: Binding<Int>) -> some View {
+        BGISettingLine(title: title, subtitle: "最小 0 次") {
+            Stepper(value: value, in: 0...999) {
+                Text("\(value.wrappedValue)").frame(minWidth: 36, alignment: .trailing)
+            }
+        }
     }
 
     private var settingsLoading: some View {

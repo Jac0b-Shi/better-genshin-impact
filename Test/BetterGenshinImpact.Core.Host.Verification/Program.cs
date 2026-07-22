@@ -2814,7 +2814,8 @@ try
             soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
-    var settingsTaskNames = new[] { "AutoCook", "AutoWood", "AutoMusicGame", "AutoBoss" };
+    var settingsTaskNames = new[]
+        { "AutoCook", "AutoWood", "AutoMusicGame", "AutoBoss", "AutoDomain" };
     Require(soloItems.Where(item => settingsTaskNames.Contains(item.Value<string>("name")))
                 .All(item => item.Value<bool>("settingsAvailable")) &&
             soloItems.Where(item => !settingsTaskNames.Contains(item.Value<string>("name")))
@@ -2928,6 +2929,75 @@ try
             !bossSettingsJson.Value<bool>("useTransientResin") &&
             !bossSettingsJson.Value<bool>("useFragileResin"),
         bossSettings.Error?.Message ?? "solo.settings.save did not preserve AutoBoss model semantics");
+    persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    persistedConfig["autoDomainConfig"] = JObject.FromObject(new
+    {
+        sundaySelectedValue = "verification-hidden",
+        resinPriorityList = new[] { "脆弱树脂", "原粹树脂" }
+    });
+    await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"),
+        persistedConfig.ToString(), cancellation.Token);
+    var domainSettings = await ExchangeAsync(
+        connection, "domain-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoDomain",
+            settings = new
+            {
+                strategyName = Path.Combine("nested", "boss"),
+                partyName = "秘境队",
+                domainName = "铭记之谷",
+                specifyResinUse = true,
+                originalResinUseCount = 2,
+                condensedResinUseCount = 3,
+                transientResinUseCount = 4,
+                fragileResinUseCount = 5,
+                autoArtifactSalvage = true,
+                maxArtifactStar = "3",
+                fightEndDelay = 6.5,
+                shortMovement = true,
+                walkToF = false,
+                leftRightMoveTimes = 7,
+                autoEat = true,
+                rewardRecognitionEnabled = true,
+                reviveRetryCount = 8
+            }
+        }), cancellation.Token);
+    persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    Require(domainSettings.Error is null && domainSettings.Result is JObject domainSettingsJson &&
+            domainSettingsJson.Value<string>("domainName") == "铭记之谷" &&
+            domainSettingsJson["domainOptions"]?.Values<string>().Contains("铭记之谷") == true &&
+            domainSettingsJson.Value<int>("condensedResinUseCount") == 3 &&
+            domainSettingsJson.Value<string>("maxArtifactStar") == "3" &&
+            Math.Abs(domainSettingsJson.Value<double>("fightEndDelay") - 6.5) < 0.001 &&
+            persistedConfig.SelectToken("autoFightConfig.strategyName")?.Value<string>() ==
+                Path.Combine("nested", "boss") &&
+            persistedConfig.SelectToken("autoArtifactSalvageConfig.maxArtifactStar")?.Value<string>() == "3" &&
+            persistedConfig.SelectToken("autoDomainConfig.sundaySelectedValue")?.Value<string>() ==
+                "verification-hidden" &&
+            persistedConfig.SelectToken("autoDomainConfig.resinPriorityList")?.Values<string>()
+                .SequenceEqual(new[] { "脆弱树脂", "原粹树脂" }) == true,
+        domainSettings.Error?.Message ?? "solo.settings.save did not preserve upstream AutoDomain settings");
+    var invalidDomainSettingsDocument = JObject.FromObject(new
+    {
+        name = "AutoDomain",
+        settings = new
+        {
+            strategyName = Path.Combine("nested", "boss"), partyName = "", domainName = "不存在秘境",
+            specifyResinUse = true, originalResinUseCount = -1, condensedResinUseCount = 0,
+            transientResinUseCount = 0, fragileResinUseCount = 0, autoArtifactSalvage = false,
+            maxArtifactStar = "4", fightEndDelay = 5, shortMovement = false, walkToF = true,
+            leftRightMoveTimes = 3, autoEat = false, rewardRecognitionEnabled = false,
+            reviveRetryCount = 3
+        }
+    });
+    var invalidDomainSettings = await ExchangeAsync(
+        connection, "domain-settings-invalid", "solo.settings.save", sessionToken,
+        invalidDomainSettingsDocument, cancellation.Token);
+    Require(invalidDomainSettings.Error?.Code == "ArgumentException",
+        "solo.settings.save accepted a domain absent from the upstream domain catalog");
     var unavailableFightSettings = await ExchangeAsync(
         connection, "fight-settings-unavailable", "solo.settings.get", sessionToken,
         JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);

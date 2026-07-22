@@ -300,6 +300,7 @@ rg -q '"solo.settings.save" => _soloTaskSettings.Save' BetterGenshinImpact.Core.
 for descriptor in \
   'Descriptor("AutoWood", "自动伐木", true, true)' \
   'Descriptor("AutoBoss", "自动首领讨伐", true, true)' \
+  'Descriptor("AutoDomain", "自动秘境", true, true)' \
   'Descriptor("AutoMusicGame", "自动千音雅集", true, true)' \
   'Descriptor("AutoCook", "自动烹饪", true, true)'; do
   rg -Fq "${descriptor}" BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
@@ -308,6 +309,17 @@ done
 rg -q 'solo.settings.save did not preserve AutoBoss model semantics' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
   || fail "Core Host verification does not cover independent-task settings semantics"
+rg -q 'solo.settings.save did not preserve upstream AutoDomain settings' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not cover AutoDomain settings persistence"
+rg -q 'autoDomainConfig\.sundaySelectedValue' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not preserve hidden AutoDomain fields"
+for config_section in autoDomainConfig autoFightConfig autoArtifactSalvageConfig; do
+  rg -Fq "root[\"${config_section}\"]" \
+    BetterGenshinImpact.Core.Host/Runtime/SoloTaskSettingsCatalog.cs \
+    || fail "AutoDomain settings do not atomically update ${config_section}"
+done
 rg -q 'settingsAvailable: item\["settingsAvailable"\]' \
   MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
   || fail "Swift does not consume Core-owned independent-task settings capability"
