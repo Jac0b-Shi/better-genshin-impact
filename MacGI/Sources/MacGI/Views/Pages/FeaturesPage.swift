@@ -38,6 +38,7 @@ struct FeaturesPage: View {
     private func triggerSettings(for name: String) -> some View {
         switch name {
         case "AutoPick": autoPickSettings
+        case "AutoSkip": AutoSkipTriggerSettingsView()
         case "AutoFish":
             BGISettingLine(
                 title: "全自动钓鱼已迁移至独立任务下",

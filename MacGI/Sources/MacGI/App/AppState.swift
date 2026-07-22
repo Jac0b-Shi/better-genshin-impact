@@ -372,9 +372,11 @@ final class AppState: ObservableObject {
     @Published private(set) var autoFightSettings: BetterGICoreAutoFightSettings?
     @Published private(set) var autoEatTriggerSettings: BetterGICoreAutoEatTriggerSettings?
     @Published private(set) var autoPickTriggerSettings: BetterGICoreAutoPickTriggerSettings?
+    @Published private(set) var autoSkipTriggerSettings: BetterGICoreAutoSkipTriggerSettings?
     @Published var autoPickExactBlackListDraft = ""
     @Published var autoPickFuzzyBlackListDraft = ""
     @Published var autoPickWhiteListDraft = ""
+    @Published var autoSkipCustomPriorityOptionsDraft = ""
     @Published private(set) var quickTeleportTriggerSettings: BetterGICoreQuickTeleportTriggerSettings?
     @Published private(set) var mapMaskTriggerSettings: BetterGICoreMapMaskTriggerSettings?
     @Published private(set) var mapMaskPickerSettings: BetterGICoreMapMaskPickerSettings?
@@ -1212,12 +1214,16 @@ final class AppState: ObservableObject {
             autoPickExactBlackListDraft = autoPickSettings.exactBlackList
             autoPickFuzzyBlackListDraft = autoPickSettings.fuzzyBlackList
             autoPickWhiteListDraft = autoPickSettings.whiteList
+            let autoSkipSettings = try await supervisor.autoSkipTriggerSettings()
+            autoSkipTriggerSettings = autoSkipSettings
+            autoSkipCustomPriorityOptionsDraft = autoSkipSettings.customPriorityOptions
             autoEatTriggerSettings = try await supervisor.autoEatTriggerSettings()
             quickTeleportTriggerSettings = try await supervisor.quickTeleportTriggerSettings()
             mapMaskTriggerSettings = try await supervisor.mapMaskTriggerSettings()
         } catch {
             features = []
             autoPickTriggerSettings = nil
+            autoSkipTriggerSettings = nil
             autoEatTriggerSettings = nil
             quickTeleportTriggerSettings = nil
             mapMaskTriggerSettings = nil
@@ -1294,6 +1300,66 @@ final class AppState: ObservableObject {
                 self?.addLog(.error, "Core failed to save AutoPick settings: \(error.localizedDescription)")
             }
         }
+    }
+
+    func saveAutoSkipTriggerSettings(
+        quicklySkipConversationsEnabled: Bool? = nil,
+        afterChooseOptionSleepDelay: Int? = nil,
+        autoWaitDialogueOptionVoiceEnabled: Bool? = nil,
+        dialogueOptionVoiceMaxWaitSeconds: Int? = nil,
+        beforeClickConfirmDelay: Int? = nil,
+        autoGetDailyRewardsEnabled: Bool? = nil,
+        autoReExploreEnabled: Bool? = nil,
+        clickChatOption: String? = nil,
+        customPriorityOptionsEnabled: Bool? = nil,
+        customPriorityOptions: String? = nil,
+        autoHangoutEventEnabled: Bool? = nil,
+        autoHangoutEndChoose: String? = nil,
+        autoHangoutChooseOptionSleepDelay: Int? = nil,
+        autoHangoutPressSkipEnabled: Bool? = nil,
+        submitGoodsEnabled: Bool? = nil,
+        closePopupPagedEnabled: Bool? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoSkipTriggerSettings else { return }
+        let next = BetterGICoreAutoSkipTriggerSettings(
+            quicklySkipConversationsEnabled:
+                quicklySkipConversationsEnabled ?? current.quicklySkipConversationsEnabled,
+            afterChooseOptionSleepDelay:
+                afterChooseOptionSleepDelay ?? current.afterChooseOptionSleepDelay,
+            autoWaitDialogueOptionVoiceEnabled:
+                autoWaitDialogueOptionVoiceEnabled ?? current.autoWaitDialogueOptionVoiceEnabled,
+            dialogueOptionVoiceMaxWaitSeconds:
+                dialogueOptionVoiceMaxWaitSeconds ?? current.dialogueOptionVoiceMaxWaitSeconds,
+            beforeClickConfirmDelay: beforeClickConfirmDelay ?? current.beforeClickConfirmDelay,
+            autoGetDailyRewardsEnabled:
+                autoGetDailyRewardsEnabled ?? current.autoGetDailyRewardsEnabled,
+            autoReExploreEnabled: autoReExploreEnabled ?? current.autoReExploreEnabled,
+            clickChatOption: clickChatOption ?? current.clickChatOption,
+            clickChatOptionOptions: current.clickChatOptionOptions,
+            customPriorityOptionsEnabled:
+                customPriorityOptionsEnabled ?? current.customPriorityOptionsEnabled,
+            customPriorityOptions: customPriorityOptions ?? current.customPriorityOptions,
+            autoHangoutEventEnabled: autoHangoutEventEnabled ?? current.autoHangoutEventEnabled,
+            autoHangoutEndChoose: autoHangoutEndChoose ?? current.autoHangoutEndChoose,
+            autoHangoutEndChooseOptions: current.autoHangoutEndChooseOptions,
+            autoHangoutChooseOptionSleepDelay:
+                autoHangoutChooseOptionSleepDelay ?? current.autoHangoutChooseOptionSleepDelay,
+            autoHangoutPressSkipEnabled:
+                autoHangoutPressSkipEnabled ?? current.autoHangoutPressSkipEnabled,
+            submitGoodsEnabled: submitGoodsEnabled ?? current.submitGoodsEnabled,
+            closePopupPagedEnabled: closePopupPagedEnabled ?? current.closePopupPagedEnabled)
+        Task { [weak self] in
+            do {
+                self?.autoSkipTriggerSettings = try await supervisor.saveAutoSkipTriggerSettings(next)
+            } catch {
+                self?.addLog(.error, "Core failed to save AutoSkip settings: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func saveAutoSkipCustomPriorityOptions() {
+        let draft = autoSkipCustomPriorityOptionsDraft
+        saveAutoSkipTriggerSettings(customPriorityOptions: draft)
     }
 
     func saveAutoEatTriggerSettings(checkInterval: Int? = nil, eatInterval: Int? = nil) {

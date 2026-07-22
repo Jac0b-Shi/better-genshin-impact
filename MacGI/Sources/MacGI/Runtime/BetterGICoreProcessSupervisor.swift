@@ -30,6 +30,27 @@ struct BetterGICoreAutoPickTriggerSettings: Sendable, Equatable {
     let pickKeyOptions: [String]
 }
 
+struct BetterGICoreAutoSkipTriggerSettings: Sendable, Equatable {
+    let quicklySkipConversationsEnabled: Bool
+    let afterChooseOptionSleepDelay: Int
+    let autoWaitDialogueOptionVoiceEnabled: Bool
+    let dialogueOptionVoiceMaxWaitSeconds: Int
+    let beforeClickConfirmDelay: Int
+    let autoGetDailyRewardsEnabled: Bool
+    let autoReExploreEnabled: Bool
+    let clickChatOption: String
+    let clickChatOptionOptions: [String]
+    let customPriorityOptionsEnabled: Bool
+    let customPriorityOptions: String
+    let autoHangoutEventEnabled: Bool
+    let autoHangoutEndChoose: String
+    let autoHangoutEndChooseOptions: [String]
+    let autoHangoutChooseOptionSleepDelay: Int
+    let autoHangoutPressSkipEnabled: Bool
+    let submitGoodsEnabled: Bool
+    let closePopupPagedEnabled: Bool
+}
+
 struct BetterGICoreQuickTeleportTriggerSettings: Sendable, Equatable {
     let teleportListClickDelay: Int
     let waitTeleportPanelDelay: Int
@@ -605,6 +626,34 @@ actor BetterGICoreProcessSupervisor {
             method: "trigger.settings.get", name: "AutoPick"))
     }
 
+    func autoSkipTriggerSettings() throws -> BetterGICoreAutoSkipTriggerSettings {
+        try decodeAutoSkipTriggerSettings(requestTriggerSettings(
+            method: "trigger.settings.get", name: "AutoSkip"))
+    }
+
+    func saveAutoSkipTriggerSettings(_ settings: BetterGICoreAutoSkipTriggerSettings) throws
+        -> BetterGICoreAutoSkipTriggerSettings {
+        try decodeAutoSkipTriggerSettings(requestTriggerSettings(
+            method: "trigger.settings.save", name: "AutoSkip", settings: [
+                "quicklySkipConversationsEnabled": settings.quicklySkipConversationsEnabled,
+                "afterChooseOptionSleepDelay": settings.afterChooseOptionSleepDelay,
+                "autoWaitDialogueOptionVoiceEnabled": settings.autoWaitDialogueOptionVoiceEnabled,
+                "dialogueOptionVoiceMaxWaitSeconds": settings.dialogueOptionVoiceMaxWaitSeconds,
+                "beforeClickConfirmDelay": settings.beforeClickConfirmDelay,
+                "autoGetDailyRewardsEnabled": settings.autoGetDailyRewardsEnabled,
+                "autoReExploreEnabled": settings.autoReExploreEnabled,
+                "clickChatOption": settings.clickChatOption,
+                "customPriorityOptionsEnabled": settings.customPriorityOptionsEnabled,
+                "customPriorityOptions": settings.customPriorityOptions,
+                "autoHangoutEventEnabled": settings.autoHangoutEventEnabled,
+                "autoHangoutEndChoose": settings.autoHangoutEndChoose,
+                "autoHangoutChooseOptionSleepDelay": settings.autoHangoutChooseOptionSleepDelay,
+                "autoHangoutPressSkipEnabled": settings.autoHangoutPressSkipEnabled,
+                "submitGoodsEnabled": settings.submitGoodsEnabled,
+                "closePopupPagedEnabled": settings.closePopupPagedEnabled,
+            ]))
+    }
+
     func saveAutoPickTriggerSettings(_ settings: BetterGICoreAutoPickTriggerSettings) throws
         -> BetterGICoreAutoPickTriggerSettings {
         try decodeAutoPickTriggerSettings(requestTriggerSettings(
@@ -755,6 +804,49 @@ actor BetterGICoreProcessSupervisor {
             blackListEnabled: blackListEnabled, exactBlackList: exactBlackList,
             fuzzyBlackList: fuzzyBlackList, whiteListEnabled: whiteListEnabled,
             whiteList: whiteList, pickKey: pickKey, pickKeyOptions: pickKeyOptions)
+    }
+
+    private func decodeAutoSkipTriggerSettings(_ value: [String: Any]) throws
+        -> BetterGICoreAutoSkipTriggerSettings {
+        guard let quicklySkipConversationsEnabled = value["quicklySkipConversationsEnabled"] as? Bool,
+              let afterChooseOptionSleepDelay = value["afterChooseOptionSleepDelay"] as? Int,
+              let autoWaitDialogueOptionVoiceEnabled = value["autoWaitDialogueOptionVoiceEnabled"] as? Bool,
+              let dialogueOptionVoiceMaxWaitSeconds = value["dialogueOptionVoiceMaxWaitSeconds"] as? Int,
+              let beforeClickConfirmDelay = value["beforeClickConfirmDelay"] as? Int,
+              let autoGetDailyRewardsEnabled = value["autoGetDailyRewardsEnabled"] as? Bool,
+              let autoReExploreEnabled = value["autoReExploreEnabled"] as? Bool,
+              let clickChatOption = value["clickChatOption"] as? String,
+              let clickChatOptionOptions = value["clickChatOptionOptions"] as? [String],
+              let customPriorityOptionsEnabled = value["customPriorityOptionsEnabled"] as? Bool,
+              let customPriorityOptions = value["customPriorityOptions"] as? String,
+              let autoHangoutEventEnabled = value["autoHangoutEventEnabled"] as? Bool,
+              let autoHangoutEndChoose = value["autoHangoutEndChoose"] as? String,
+              let autoHangoutEndChooseOptions = value["autoHangoutEndChooseOptions"] as? [String],
+              let autoHangoutChooseOptionSleepDelay = value["autoHangoutChooseOptionSleepDelay"] as? Int,
+              let autoHangoutPressSkipEnabled = value["autoHangoutPressSkipEnabled"] as? Bool,
+              let submitGoodsEnabled = value["submitGoodsEnabled"] as? Bool,
+              let closePopupPagedEnabled = value["closePopupPagedEnabled"] as? Bool else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoSkip trigger settings.")
+        }
+        return .init(
+            quicklySkipConversationsEnabled: quicklySkipConversationsEnabled,
+            afterChooseOptionSleepDelay: afterChooseOptionSleepDelay,
+            autoWaitDialogueOptionVoiceEnabled: autoWaitDialogueOptionVoiceEnabled,
+            dialogueOptionVoiceMaxWaitSeconds: dialogueOptionVoiceMaxWaitSeconds,
+            beforeClickConfirmDelay: beforeClickConfirmDelay,
+            autoGetDailyRewardsEnabled: autoGetDailyRewardsEnabled,
+            autoReExploreEnabled: autoReExploreEnabled,
+            clickChatOption: clickChatOption,
+            clickChatOptionOptions: clickChatOptionOptions,
+            customPriorityOptionsEnabled: customPriorityOptionsEnabled,
+            customPriorityOptions: customPriorityOptions,
+            autoHangoutEventEnabled: autoHangoutEventEnabled,
+            autoHangoutEndChoose: autoHangoutEndChoose,
+            autoHangoutEndChooseOptions: autoHangoutEndChooseOptions,
+            autoHangoutChooseOptionSleepDelay: autoHangoutChooseOptionSleepDelay,
+            autoHangoutPressSkipEnabled: autoHangoutPressSkipEnabled,
+            submitGoodsEnabled: submitGoodsEnabled,
+            closePopupPagedEnabled: closePopupPagedEnabled)
     }
 
     private func decodeMapMaskTriggerSettings(_ value: [String: Any]) throws

@@ -120,6 +120,7 @@ var autoPickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntim
     bvSimpleOperationPlatform.AutoPickConfig, PaddleOcrModelConfig.V5Auto, "zh-Hans");
 server.TriggerSettings.AttachAutoPickUpdated(autoPickConfigProvider.UpdateAutoPickConfig);
 server.TriggerSettings.AttachAutoPickListsUpdated(() => GameTaskManager.RefreshTriggerConfig("AutoPick"));
+server.TriggerSettings.AttachAutoSkipUpdated(gameTaskManagerPlatform.UpdateAutoSkipConfig);
 var autoPickRuntimeState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(
     () => RunnerContext.Instance.AutoPickTriggerStopCount);
 var semanticInputBackend = new MacSemanticInputBackend(

@@ -12,7 +12,7 @@ configuration.
 | --- | --- | --- | --- |
 | GameLoading | complete | not user-configurable upstream | None. It remains an internal initial trigger. |
 | AutoPick | complete | complete | Fast mode, OCR engine, lists, list enable flags and pick key use Core-owned settings. |
-| AutoSkip | complete | missing | Expose the applicable upstream dialogue, option priority, VAD wait, submit, popup, daily reward, expedition and hangout settings. Background/PiP controls require a separate macOS capability decision and must not be presented as working before that boundary exists. |
+| AutoSkip | complete | complete for applicable macOS controls | Dialogue skipping, fixed delay, process-audio VAD wait, option priority, custom priority text, submit, popup, daily reward, expedition and hangout settings are Core-owned, atomically persisted and hot-updated on the live trigger. Background activation and PiP remain intentionally absent because macOS pauses input when the game loses focus. |
 | AutoFish | complete | complete | Upstream exposes the realtime half-auto enable switch and directs full automation to the independent task. |
 | AutoEat | complete | complete | Enable state, check interval and eat interval use the upstream config. |
 | QuickTeleport | complete | complete | Enable state, list click delay, panel wait delay and hotkey mode use the upstream config. |

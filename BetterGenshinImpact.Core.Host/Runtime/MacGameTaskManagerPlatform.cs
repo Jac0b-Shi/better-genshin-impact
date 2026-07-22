@@ -33,6 +33,26 @@ public sealed class MacGameTaskManagerPlatform(
 {
     private readonly AutoSkipConfig _autoSkipConfig = LoadAutoSkipConfig(layout);
 
+    public void UpdateAutoSkipConfig(AutoSkipConfig source)
+    {
+        _autoSkipConfig.QuicklySkipConversationsEnabled = source.QuicklySkipConversationsEnabled;
+        _autoSkipConfig.AfterChooseOptionSleepDelay = source.AfterChooseOptionSleepDelay;
+        _autoSkipConfig.AutoWaitDialogueOptionVoiceEnabled = source.AutoWaitDialogueOptionVoiceEnabled;
+        _autoSkipConfig.DialogueOptionVoiceMaxWaitSeconds = source.DialogueOptionVoiceMaxWaitSeconds;
+        _autoSkipConfig.BeforeClickConfirmDelay = source.BeforeClickConfirmDelay;
+        _autoSkipConfig.AutoGetDailyRewardsEnabled = source.AutoGetDailyRewardsEnabled;
+        _autoSkipConfig.AutoReExploreEnabled = source.AutoReExploreEnabled;
+        _autoSkipConfig.ClickChatOption = source.ClickChatOption;
+        _autoSkipConfig.CustomPriorityOptionsEnabled = source.CustomPriorityOptionsEnabled;
+        _autoSkipConfig.CustomPriorityOptions = source.CustomPriorityOptions;
+        _autoSkipConfig.AutoHangoutEventEnabled = source.AutoHangoutEventEnabled;
+        _autoSkipConfig.AutoHangoutEndChoose = source.AutoHangoutEndChoose;
+        _autoSkipConfig.AutoHangoutChooseOptionSleepDelay = source.AutoHangoutChooseOptionSleepDelay;
+        _autoSkipConfig.AutoHangoutPressSkipEnabled = source.AutoHangoutPressSkipEnabled;
+        _autoSkipConfig.SubmitGoodsEnabled = source.SubmitGoodsEnabled;
+        _autoSkipConfig.ClosePopupPagedEnabled = source.ClosePopupPagedEnabled;
+    }
+
     public ISystemInfo SystemInfo => CreateSystemInfo(Metrics());
 
     internal static ISystemInfo CreateSystemInfo(JObject metrics) => new CallbackSystemInfo(metrics);

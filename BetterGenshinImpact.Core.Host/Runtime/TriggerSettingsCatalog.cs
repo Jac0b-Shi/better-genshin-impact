@@ -4,6 +4,7 @@ using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.AutoSkip;
+using BetterGenshinImpact.GameTask.AutoSkip.Assets;
 using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using Newtonsoft.Json.Linq;
@@ -16,6 +17,7 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     private Action<AutoEatConfig>? _autoEatUpdated;
     private Action<AutoPickConfig>? _autoPickUpdated;
     private Action? _autoPickListsUpdated;
+    private Action<AutoSkipConfig>? _autoSkipUpdated;
     private Action<QuickTeleportConfig>? _quickTeleportUpdated;
     private Action<MapMaskConfig>? _mapMaskUpdated;
 
@@ -28,6 +30,9 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     public void AttachAutoPickListsUpdated(Action callback) =>
         _autoPickListsUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 
+    public void AttachAutoSkipUpdated(Action<AutoSkipConfig> callback) =>
+        _autoSkipUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
+
     public void AttachQuickTeleportUpdated(Action<QuickTeleportConfig> callback) =>
         _quickTeleportUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 
@@ -35,7 +40,7 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
         _mapMaskUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 
     public bool IsAvailable(string name) =>
-        name is "AutoPick" or "AutoFish" or "AutoEat" or "QuickTeleport" or "MapMask";
+        name is "AutoPick" or "AutoSkip" or "AutoFish" or "AutoEat" or "QuickTeleport" or "MapMask";
 
     public object Get(string name)
     {
@@ -45,6 +50,7 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
             return name switch
             {
                 "AutoPick" => Describe(LoadConfig<AutoPickConfig>(root, "autoPickConfig")),
+                "AutoSkip" => Describe(LoadConfig<AutoSkipConfig>(root, "autoSkipConfig")),
                 "AutoFish" => new { },
                 "AutoEat" => Describe(LoadConfig<AutoEatConfig>(root, "autoEatConfig")),
                 "QuickTeleport" => Describe(
@@ -58,11 +64,62 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     public object Save(string name, JObject settings) => name switch
     {
         "AutoPick" => SaveAutoPick(settings),
+        "AutoSkip" => SaveAutoSkip(settings),
         "AutoEat" => SaveAutoEat(settings),
         "QuickTeleport" => SaveQuickTeleport(settings),
         "MapMask" => SaveMapMask(settings),
         _ => throw Unavailable(name),
     };
+
+    private object SaveAutoSkip(JObject settings)
+    {
+        var quicklySkipConversationsEnabled = RequiredBoolean(settings, "quicklySkipConversationsEnabled");
+        var afterChooseOptionSleepDelay = RequiredNonNegative(settings, "afterChooseOptionSleepDelay");
+        var autoWaitDialogueOptionVoiceEnabled = RequiredBoolean(settings, "autoWaitDialogueOptionVoiceEnabled");
+        var dialogueOptionVoiceMaxWaitSeconds = RequiredRange(
+            settings, "dialogueOptionVoiceMaxWaitSeconds", 0, 600);
+        var beforeClickConfirmDelay = RequiredNonNegative(settings, "beforeClickConfirmDelay");
+        var autoGetDailyRewardsEnabled = RequiredBoolean(settings, "autoGetDailyRewardsEnabled");
+        var autoReExploreEnabled = RequiredBoolean(settings, "autoReExploreEnabled");
+        var clickChatOption = RequiredOption(settings, "clickChatOption", ClickChatOptions);
+        var customPriorityOptionsEnabled = RequiredBoolean(settings, "customPriorityOptionsEnabled");
+        var customPriorityOptions = RequiredString(settings, "customPriorityOptions");
+        var autoHangoutEventEnabled = RequiredBoolean(settings, "autoHangoutEventEnabled");
+        var autoHangoutEndChoose = RequiredString(settings, "autoHangoutEndChoose");
+        var hangoutOptions = HangoutConfig.Instance.HangoutOptionsTitleList;
+        if (autoHangoutEndChoose.Length > 0 && !hangoutOptions.Contains(autoHangoutEndChoose))
+            throw new ArgumentException("autoHangoutEndChoose has an unsupported value.");
+        var autoHangoutChooseOptionSleepDelay = RequiredNonNegative(
+            settings, "autoHangoutChooseOptionSleepDelay");
+        var autoHangoutPressSkipEnabled = RequiredBoolean(settings, "autoHangoutPressSkipEnabled");
+        var submitGoodsEnabled = RequiredBoolean(settings, "submitGoodsEnabled");
+        var closePopupPagedEnabled = RequiredBoolean(settings, "closePopupPagedEnabled");
+
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var config = LoadConfig<AutoSkipConfig>(root, "autoSkipConfig");
+            config.QuicklySkipConversationsEnabled = quicklySkipConversationsEnabled;
+            config.AfterChooseOptionSleepDelay = afterChooseOptionSleepDelay;
+            config.AutoWaitDialogueOptionVoiceEnabled = autoWaitDialogueOptionVoiceEnabled;
+            config.DialogueOptionVoiceMaxWaitSeconds = dialogueOptionVoiceMaxWaitSeconds;
+            config.BeforeClickConfirmDelay = beforeClickConfirmDelay;
+            config.AutoGetDailyRewardsEnabled = autoGetDailyRewardsEnabled;
+            config.AutoReExploreEnabled = autoReExploreEnabled;
+            config.ClickChatOption = clickChatOption;
+            config.CustomPriorityOptionsEnabled = customPriorityOptionsEnabled;
+            config.CustomPriorityOptions = customPriorityOptions;
+            config.AutoHangoutEventEnabled = autoHangoutEventEnabled;
+            config.AutoHangoutEndChoose = autoHangoutEndChoose;
+            config.AutoHangoutChooseOptionSleepDelay = autoHangoutChooseOptionSleepDelay;
+            config.AutoHangoutPressSkipEnabled = autoHangoutPressSkipEnabled;
+            config.SubmitGoodsEnabled = submitGoodsEnabled;
+            config.ClosePopupPagedEnabled = closePopupPagedEnabled;
+            SaveConfig(root, "autoSkipConfig", config);
+            _autoSkipUpdated?.Invoke(config);
+            return Describe(config);
+        }
+    }
 
     private object SaveAutoPick(JObject settings)
     {
@@ -243,6 +300,36 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
         };
     }
 
+    private static readonly string[] ClickChatOptions =
+    [
+        "优先选择第一个选项",
+        "随机选择选项",
+        "优先选择最后一个选项",
+        "不选择选项",
+    ];
+
+    private static object Describe(AutoSkipConfig config) => new
+    {
+        quicklySkipConversationsEnabled = config.QuicklySkipConversationsEnabled,
+        afterChooseOptionSleepDelay = config.AfterChooseOptionSleepDelay,
+        autoWaitDialogueOptionVoiceEnabled = config.AutoWaitDialogueOptionVoiceEnabled,
+        dialogueOptionVoiceMaxWaitSeconds = config.DialogueOptionVoiceMaxWaitSeconds,
+        beforeClickConfirmDelay = config.BeforeClickConfirmDelay,
+        autoGetDailyRewardsEnabled = config.AutoGetDailyRewardsEnabled,
+        autoReExploreEnabled = config.AutoReExploreEnabled,
+        clickChatOption = config.ClickChatOption,
+        clickChatOptionOptions = ClickChatOptions,
+        customPriorityOptionsEnabled = config.CustomPriorityOptionsEnabled,
+        customPriorityOptions = config.CustomPriorityOptions,
+        autoHangoutEventEnabled = config.AutoHangoutEventEnabled,
+        autoHangoutEndChoose = config.AutoHangoutEndChoose,
+        autoHangoutEndChooseOptions = HangoutConfig.Instance.HangoutOptionsTitleList,
+        autoHangoutChooseOptionSleepDelay = config.AutoHangoutChooseOptionSleepDelay,
+        autoHangoutPressSkipEnabled = config.AutoHangoutPressSkipEnabled,
+        submitGoodsEnabled = config.SubmitGoodsEnabled,
+        closePopupPagedEnabled = config.ClosePopupPagedEnabled,
+    };
+
     private static object Describe(QuickTeleportConfig config) => new
     {
         teleportListClickDelay = config.TeleportListClickDelay,
@@ -272,6 +359,14 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     {
         var value = settings.Value<int?>(name) ?? throw new ArgumentException($"{name} is required.");
         return value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
+    }
+
+    private static int RequiredRange(JObject settings, string name, int minimum, int maximum)
+    {
+        var value = settings.Value<int?>(name) ?? throw new ArgumentException($"{name} is required.");
+        return value >= minimum && value <= maximum
+            ? value
+            : throw new ArgumentOutOfRangeException(name);
     }
 
     private static bool RequiredBoolean(JObject settings, string name) =>

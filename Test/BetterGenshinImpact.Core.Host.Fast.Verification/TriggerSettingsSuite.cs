@@ -2,10 +2,12 @@ using System.Collections.Concurrent;
 using BetterGenshinImpact.Core.Abstractions.Recognition;
 using BetterGenshinImpact.Core.Abstractions.Runtime;
 using BetterGenshinImpact.Core.Adapters;
+using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.Core.Host.Runtime;
 using BetterGenshinImpact.Core.Recognition;
 using BetterGenshinImpact.GameTask;
 using BetterGenshinImpact.GameTask.AutoPick;
+using BetterGenshinImpact.GameTask.AutoSkip;
 using BetterGenshinImpact.GameTask.Common.BgiVision;
 using BetterGenshinImpact.GameTask.Model;
 using BetterGenshinImpact.Platform.Abstractions;
@@ -20,6 +22,9 @@ public sealed class TriggerSettingsSuite : IVerificationSuite
 
     public async Task RunAsync(VerificationContext context, CancellationToken cancellationToken)
     {
+        var previousStartupPath = Global.StartUpPath;
+        Global.StartUpPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../../BetterGenshinImpact"));
         var mapMaskCategoryTrigger = new MapMaskCategoryTrigger();
         var now = DateTime.UtcNow;
         var stableCategorySince = now - TimeSpan.FromSeconds(31);
@@ -52,6 +57,12 @@ public sealed class TriggerSettingsSuite : IVerificationSuite
                     "pickKey": "F",
                     "blackListEnabled": true,
                     "whiteListEnabled": false
+                  },
+                  "autoSkipConfig": {
+                    "enabled": true,
+                    "quicklySkipConversationsEnabled": true,
+                    "clickChatOption": "优先选择第一个选项",
+                    "skipBuiltInClickOptions": true
                   }
                 }
                 """, cancellationToken);
@@ -71,8 +82,10 @@ public sealed class TriggerSettingsSuite : IVerificationSuite
             var adapter = new MacCoreRuntimeAdapter(
                 liveConfig, PaddleOcrModelConfig.V5Auto, "zh-Hans");
             var catalog = new TriggerSettingsCatalog(layout);
+            AutoSkipConfig? updatedAutoSkip = null;
             catalog.AttachAutoPickUpdated(adapter.UpdateAutoPickConfig);
             catalog.AttachAutoPickListsUpdated(() => GameTaskManager.RefreshTriggerConfig("AutoPick"));
+            catalog.AttachAutoSkipUpdated(config => updatedAutoSkip = config);
 
             var initial = JObject.FromObject(catalog.Get("AutoPick"));
             context.Require(initial.Value<string>("ocrEngine") == "Paddle" &&
@@ -110,9 +123,49 @@ public sealed class TriggerSettingsSuite : IVerificationSuite
                             await File.ReadAllTextAsync(
                                 Path.Combine(layout.UserPath, "pick_white_lists.txt"), cancellationToken) == "合成\n启动\n",
                 "AutoPick save did not persist the three upstream text lists.");
+
+            var initialAutoSkip = JObject.FromObject(catalog.Get("AutoSkip"));
+            var hangoutOptions = initialAutoSkip["autoHangoutEndChooseOptions"]?.Values<string>().ToArray();
+            var hangoutOption = hangoutOptions?.FirstOrDefault()
+                ?? throw new InvalidDataException("AutoSkip hangout option catalog is empty.");
+            context.Require(catalog.IsAvailable("AutoSkip") &&
+                            initialAutoSkip.Value<string>("clickChatOption") == "优先选择第一个选项" &&
+                            initialAutoSkip["clickChatOptionOptions"]?.Values<string>().Count() == 4 &&
+                            hangoutOptions is { Length: > 0 },
+                "AutoSkip settings did not expose the upstream option catalogs.");
+
+            _ = catalog.Save("AutoSkip", JObject.FromObject(new
+            {
+                quicklySkipConversationsEnabled = false,
+                afterChooseOptionSleepDelay = 250,
+                autoWaitDialogueOptionVoiceEnabled = true,
+                dialogueOptionVoiceMaxWaitSeconds = 45,
+                beforeClickConfirmDelay = 100,
+                autoGetDailyRewardsEnabled = false,
+                autoReExploreEnabled = false,
+                clickChatOption = "优先选择最后一个选项",
+                customPriorityOptionsEnabled = true,
+                customPriorityOptions = "重要选项；确认",
+                autoHangoutEventEnabled = true,
+                autoHangoutEndChoose = hangoutOption,
+                autoHangoutChooseOptionSleepDelay = 300,
+                autoHangoutPressSkipEnabled = false,
+                submitGoodsEnabled = false,
+                closePopupPagedEnabled = false,
+            }));
+
+            persisted = JObject.Parse(await File.ReadAllTextAsync(
+                Path.Combine(layout.UserPath, "config.json"), cancellationToken));
+            context.Require(updatedAutoSkip is not null &&
+                            updatedAutoSkip.ClickChatOption == "优先选择最后一个选项" &&
+                            updatedAutoSkip.DialogueOptionVoiceMaxWaitSeconds == 45 &&
+                            persisted["autoSkipConfig"]?["skipBuiltInClickOptions"]?.Value<bool>() == true &&
+                            persisted["autoSkipConfig"]?["customPriorityOptions"]?.Value<string>() == "重要选项；确认",
+                "AutoSkip save did not preserve hidden fields, persist settings, and update the live config.");
         }
         finally
         {
+            Global.StartUpPath = previousStartupPath;
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
     }
