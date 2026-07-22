@@ -15,9 +15,11 @@ using BetterGenshinImpact.GameTask.AutoDomain;
 using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoPick;
+using BetterGenshinImpact.GameTask.Common.Job;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Config;
 using Microsoft.Extensions.Logging;
+using System.Dynamic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -160,6 +162,15 @@ public sealed class MacDispatcherRuntimePlatform(
                     loggerFactory.CreateLogger<AutoEatTask>())
                 .Start(cancellationToken);
         }
+        if (request is DispatcherCountInventoryTaskRequest count)
+        {
+            return await RunCountInventory(new CountInventoryItemParam
+            {
+                GridScreenName = (GameTask.Model.GameUI.GridScreenName)count.GridScreenName,
+                ItemName = count.ItemName,
+                ItemNames = [.. count.ItemNames]
+            }, cancellationToken);
+        }
         if (request is DispatcherDomainTaskRequest domain)
         {
             var config = LoadUserConfig<AutoDomainConfig>(layout, "autoDomainConfig");
@@ -199,7 +210,27 @@ public sealed class MacDispatcherRuntimePlatform(
                     autoBossParam, autoBossRuntimePlatform, autoBossPathExecutorFactory)
                 .Start(cancellationToken);
         }
+        if (name == "CountInventoryItem" && parameter is CountInventoryItemParam countInventoryItemParam)
+        {
+            return await RunCountInventory(countInventoryItemParam, cancellationToken);
+        }
         throw Unavailable(name);
+    }
+
+    private async Task<object?> RunCountInventory(
+        CountInventoryItemParam parameter,
+        CancellationToken cancellationToken)
+    {
+        var result = await new CountInventoryItem(
+                parameter,
+                ocrService,
+                loggerFactory.CreateLogger<CountInventoryItem>())
+            .Start(cancellationToken);
+        if (parameter.ItemName is not null) return result;
+        dynamic expando = new ExpandoObject();
+        var dictionary = (IDictionary<string, object>)expando;
+        foreach (var pair in (Dictionary<string, int>)result) dictionary[pair.Key] = pair.Value;
+        return expando;
     }
 
     private static CapabilityUnavailableException Unavailable(string name) => new(

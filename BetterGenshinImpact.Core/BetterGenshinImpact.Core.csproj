@@ -364,6 +364,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/GridCell.cs" Link="GameTask/Model/GameUI/GridCell.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/ArtifactSetFilterScreen.cs" Link="GameTask/Model/GameUI/ArtifactSetFilterScreen.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ItemIconRecognizer.cs" Link="GameTask/Common/Job/ItemIconRecognizer.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/CountInventoryItem.cs" Link="GameTask/Common/Job/CountInventoryItem.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/CountInventoryItemParam.cs" Link="GameTask/Common/Job/CountInventoryItemParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Job/ItemIconRecognitionMode.cs" Link="GameTask/Common/Job/ItemIconRecognitionMode.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Reward/RewardResultRecognizer.cs" Link="GameTask/Common/Reward/RewardResultRecognizer.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/Reward/RewardResultRuntimePlatform.cs" Link="GameTask/Common/Reward/RewardResultRuntimePlatform.cs" />
