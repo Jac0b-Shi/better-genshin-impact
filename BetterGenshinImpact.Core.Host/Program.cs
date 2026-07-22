@@ -267,7 +267,8 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     autoLeyLineOutcropRuntimePlatform, autoStygianOnslaughtRuntimePlatform,
     autoGeniusInvokationRuntimePlatform,
     scriptGroupExecutionServices,
-    imageRegionOcrService, layout, server.SoloTaskSettings, loggerFactory);
+    imageRegionOcrService, layout, server.SoloTaskSettings,
+    foregroundInputCoordinator, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
     dispatcherRuntimePlatform, server.SoloTaskSettings, shutdown.Token));

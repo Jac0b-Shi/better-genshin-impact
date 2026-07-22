@@ -71,6 +71,22 @@ public sealed class SoloTaskCoordinator(
         }
     }
 
+    public async Task<bool> StopActiveAsync(CancellationToken cancellationToken)
+    {
+        Task? activeTask;
+        lock (_lock)
+        {
+            if (_activeTask is not { IsCompleted: false })
+                return false;
+            _state = "stopping";
+            _activeCancellation?.Cancel();
+            activeTask = _activeTask;
+        }
+
+        await activeTask.WaitAsync(cancellationToken);
+        return true;
+    }
+
     public object Status()
     {
         lock (_lock)

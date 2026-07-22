@@ -53,6 +53,7 @@ public sealed class MacDispatcherRuntimePlatform(
     IOcrService ocrService,
     RuntimeLayout layout,
     SoloTaskSettingsCatalog settings,
+    ForegroundInputCoordinator inputCoordinator,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
 {
     public CancellationToken GlobalCancellationToken { get; } = globalCancellationToken;
@@ -109,6 +110,7 @@ public sealed class MacDispatcherRuntimePlatform(
     public async Task<object?> ExecuteSoloTask(DispatcherSoloTaskRequest request,
         CancellationToken cancellationToken)
     {
+        using var cancellationScope = inputCoordinator.UseCancellationToken(cancellationToken);
         if (request is DispatcherGeniusTaskRequest genius)
         {
             await new AutoGeniusInvokationTask(

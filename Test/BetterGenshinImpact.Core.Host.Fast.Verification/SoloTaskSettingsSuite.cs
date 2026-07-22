@@ -228,6 +228,16 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                 $"star={stygian?.ArtifactSalvageStar}, " +
                 $"priority={string.Join(',', stygian?.Config.ResinPriorityList ?? [])}, " +
                 $"status={JObject.FromObject(coordinator.Status()).ToString(Newtonsoft.Json.Formatting.None)}.");
+
+            platform.Reset();
+            platform.BlockUntilCancelled = true;
+            _ = coordinator.Start("AutoCook");
+            await platform.Started.Task.WaitAsync(cancellationToken);
+            context.Require(await coordinator.StopActiveAsync(cancellationToken),
+                "Runtime stop did not cancel the active solo task.");
+            var stoppedStatus = JObject.FromObject(coordinator.Status());
+            context.Require(stoppedStatus.Value<string>("state") == "cancelled",
+                "Active solo task did not reach cancelled after runtime stop.");
         }
         finally
         {
@@ -238,7 +248,15 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
     private sealed class RecordingDispatcherPlatform : IDispatcherRuntimePlatform
     {
         public DispatcherSoloTaskRequest? Request { get; private set; }
-        public void Reset() => Request = null;
+        public bool BlockUntilCancelled { get; set; }
+        public TaskCompletionSource Started { get; private set; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Reset()
+        {
+            Request = null;
+            BlockUntilCancelled = false;
+            Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
         public CancellationToken GlobalCancellationToken => CancellationToken.None;
         public int AutoWoodRoundNum => 0;
         public int AutoWoodDailyMaxCount => 0;
@@ -256,10 +274,19 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
             DispatcherSoloTaskRequest request, CancellationToken cancellationToken)
         {
             Request = request;
+            Started.TrySetResult();
+            if (BlockUntilCancelled)
+                return WaitForCancellation(cancellationToken);
             return Task.FromResult<object?>(null);
         }
         public Task<object?> RunParameterizedTask(
             string name, object parameter, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        private static async Task<object?> WaitForCancellation(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return null;
+        }
     }
 }

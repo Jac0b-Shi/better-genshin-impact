@@ -411,6 +411,10 @@ public sealed class CoreRpcServer(
         await _runtimeMutationLock.WaitAsync(cancellationToken);
         try
         {
+            if (_scheduler is not null)
+                await _scheduler.StopActiveAsync(cancellationToken);
+            if (_soloTasks is not null)
+                await _soloTasks.StopActiveAsync(cancellationToken);
             await RequiredTriggerDispatcher().StopAsync();
             return RuntimeStatus();
         }

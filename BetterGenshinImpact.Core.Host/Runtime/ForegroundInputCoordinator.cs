@@ -13,12 +13,19 @@ public sealed class ForegroundInputCoordinator(
     Func<bool>? focusProbe = null)
 {
     private readonly TimeSpan _pollInterval = pollInterval ?? TimeSpan.FromMilliseconds(100);
+    private readonly AsyncLocal<CancellationToken?> _operationCancellation = new();
     private int _releaseRequired;
+
+    public IDisposable UseCancellationToken(CancellationToken cancellationToken)
+    {
+        var previous = _operationCancellation.Value;
+        _operationCancellation.Value = cancellationToken;
+        return new CancellationScope(_operationCancellation, previous);
+    }
 
     public void WaitForGameFocus(CancellationToken cancellationToken = default)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-            hostCancellationToken, cancellationToken);
+        using var linked = CreateLinkedCancellation(cancellationToken);
         while (true)
         {
             ThrowIfTaskCancelled(linked.Token);
@@ -32,8 +39,7 @@ public sealed class ForegroundInputCoordinator(
 
     public void Dispatch(JObject parameters, CancellationToken cancellationToken = default)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-            hostCancellationToken, cancellationToken);
+        using var linked = CreateLinkedCancellation(cancellationToken);
         while (true)
         {
             WaitForGameFocus(linked.Token);
@@ -57,8 +63,7 @@ public sealed class ForegroundInputCoordinator(
 
     public void ReleaseAllWhenFocused(CancellationToken cancellationToken = default)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-            hostCancellationToken, cancellationToken);
+        using var linked = CreateLinkedCancellation(cancellationToken);
         if (!IsGameFocused(linked.Token))
         {
             Interlocked.Exchange(ref _releaseRequired, 1);
@@ -79,6 +84,16 @@ public sealed class ForegroundInputCoordinator(
         ?? Metrics(cancellationToken).Value<bool?>("isActive")
         ?? throw new InvalidDataException("window.metrics did not return isActive.");
 
+    private CancellationTokenSource CreateLinkedCancellation(CancellationToken cancellationToken)
+    {
+        var operationCancellation = _operationCancellation.Value;
+        return operationCancellation is { } operation
+            ? CancellationTokenSource.CreateLinkedTokenSource(
+                hostCancellationToken, cancellationToken, operation)
+            : CancellationTokenSource.CreateLinkedTokenSource(
+                hostCancellationToken, cancellationToken);
+    }
+
     private void RequireAcknowledgement(
         string method, JObject parameters, CancellationToken cancellationToken)
     {
@@ -93,5 +108,18 @@ public sealed class ForegroundInputCoordinator(
         cancellationToken.ThrowIfCancellationRequested();
         if (CancellationContext.Instance.IsCancellationRequested)
             throw new OperationCanceledException("BetterGI task was cancelled while waiting for game focus.");
+    }
+
+    private sealed class CancellationScope(
+        AsyncLocal<CancellationToken?> storage,
+        CancellationToken? previous) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                storage.Value = previous;
+        }
     }
 }

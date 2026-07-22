@@ -62,6 +62,21 @@ public sealed class SchedulerCoordinator(
         return new { taskId, state = "stopping" };
     }
 
+    public async Task<bool> StopActiveAsync(CancellationToken cancellationToken)
+    {
+        Task? execution;
+        lock (_sync)
+        {
+            if (_execution is not { IsCompleted: false })
+                return false;
+            CancellationContext.Instance.ManualCancel();
+            execution = _execution;
+        }
+
+        await execution.WaitAsync(cancellationToken);
+        return true;
+    }
+
     private async Task ExecuteAsync(string taskId, ScriptGroup group)
     {
         try
@@ -70,6 +85,10 @@ public sealed class SchedulerCoordinator(
             await new ScriptService().RunMulti(group.Projects, group.Name);
             var state = CancellationContext.Instance.IsManualStop ? "cancelled" : "completed";
             await EmitAsync(taskId, state, null);
+        }
+        catch (OperationCanceledException) when (CancellationContext.Instance.IsManualStop)
+        {
+            await EmitAsync(taskId, "cancelled", null);
         }
         catch (Exception ex)
         {

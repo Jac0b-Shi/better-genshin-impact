@@ -2140,6 +2140,7 @@ final class AppState: ObservableObject {
     /// Callers should NOT check the gate a second time.
     @discardableResult
     func dispatchInput(_ action: InputAction, source: ActionSource = .manual) -> InputSafetyGate.GateResult {
+        let isReleaseAll = action == .releaseAll
         let requiresForegroundCheck =
             source == .runtimeTrigger
             && !safetyGate.dryRun
@@ -2152,7 +2153,7 @@ final class AppState: ObservableObject {
         let result = safetyGate.check(
             window: selectedWindow,
             isAppRunning: source == .runtimeTrigger
-                ? runtimeLifecycle == .running
+                ? runtimeLifecycle == .running || (isReleaseAll && runtimeLifecycle == .stopping)
                 : appStatus == .running,
             source: source,
             allowRuntimeRealInput: allowRuntimeRealInput,

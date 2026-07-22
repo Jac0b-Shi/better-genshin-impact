@@ -99,6 +99,37 @@ struct BetterGICoreInputAcknowledgementTests {
         #expect(result.reason == "Automation runtime is not running")
     }
 
+    @MainActor
+    @Test("Stopping runtime permits only release-all trigger input")
+    func stoppingRuntimePermitsReleaseAll() {
+        let dispatcher = RecordingInputDispatcher()
+        let appState = AppState(
+            resourceStore: temporaryStore("runtime-stopping"),
+            inputDispatcher: dispatcher,
+            isTargetWindowFrontmost: { _ in true }
+        )
+        appState.selectedWindow = WindowInfo(
+            id: 42,
+            ownerPID: 42,
+            ownerName: "wine64-preloader",
+            title: "Genshin Impact",
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            layer: 0,
+            isOnScreen: true,
+            scaleFactor: 1
+        )
+        appState.appStatus = .running
+        appState.runtimeLifecycle = .stopping
+
+        let release = appState.dispatchInput(.releaseAll, source: .runtimeTrigger)
+        let key = appState.dispatchInput(.keyPress(key: .a), source: .runtimeTrigger)
+
+        #expect(release.allowed)
+        #expect(dispatcher.actions == [.releaseAll])
+        #expect(key.isBlocked)
+        #expect(key.reason == "Automation runtime is not running")
+    }
+
 }
 
 private func temporaryStore(_ name: String) -> BGIRuntimeResourceStore {
@@ -110,5 +141,14 @@ private func temporaryStore(_ name: String) -> BGIRuntimeResourceStore {
 private struct RejectingInputDispatcher: InputDispatching {
     func perform(_ action: InputAction, targetWindow: WindowInfo) throws -> CGEventDispatchReport {
         throw CGEventInputDispatchError.eventCreationFailed("verification")
+    }
+}
+
+private final class RecordingInputDispatcher: InputDispatching {
+    private(set) var actions: [InputAction] = []
+
+    func perform(_ action: InputAction, targetWindow: WindowInfo) throws -> CGEventDispatchReport {
+        actions.append(action)
+        return CGEventDispatchReport(eventCount: 1, detail: action.displayName)
     }
 }
