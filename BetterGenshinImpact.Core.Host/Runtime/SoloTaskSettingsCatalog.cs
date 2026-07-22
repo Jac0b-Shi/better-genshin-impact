@@ -51,6 +51,15 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
+    public AutoMusicGameConfig BuildAutoMusicGameConfig()
+    {
+        lock (_lock)
+        {
+            return LoadConfig<AutoMusicGameConfig>(
+                LoadRoot(), "autoMusicGameConfig");
+        }
+    }
+
     public string GetTcgStrategy()
     {
         lock (_lock)
@@ -113,8 +122,8 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
                 "AutoFishing" => Describe(
                     LoadConfig<AutoFishingConfig>(root, "autoFishingConfig")),
                 "AutoWood" => Describe(LoadConfig<AutoWoodConfig>(root, "autoWoodConfig")),
-                "AutoMusicGame" => Describe(
-                    LoadConfig<AutoMusicGameConfig>(root, "autoMusicGameConfig")),
+                "AutoMusicGame" or "AutoAlbum" => Describe(
+                    LoadConfig<AutoMusicGameConfig>(root, "autoMusicGameConfig"), name),
                 "AutoBoss" => Describe(LoadConfig<AutoBossConfig>(root, "autoBossConfig")),
                 "AutoFight" => Describe(LoadConfig<AutoFightConfig>(root, "autoFightConfig")),
                 "AutoDomain" => Describe(
@@ -141,7 +150,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             "AutoCook" => SaveAutoCook(settings),
             "AutoFishing" => SaveAutoFishing(settings),
             "AutoWood" => SaveAutoWood(settings),
-            "AutoMusicGame" => SaveAutoMusicGame(settings),
+            "AutoMusicGame" or "AutoAlbum" => SaveAutoMusicGame(settings, name),
             "AutoBoss" => SaveAutoBoss(settings),
             "AutoFight" => SaveAutoFight(settings),
             "AutoDomain" => SaveAutoDomain(settings),
@@ -249,7 +258,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
-    private object SaveAutoMusicGame(JObject settings)
+    private object SaveAutoMusicGame(JObject settings, string name)
     {
         var musicLevel = RequiredString(settings, "musicLevel");
         if (!MusicLevels.Contains(musicLevel, StringComparer.Ordinal))
@@ -262,7 +271,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         lock (_lock)
         {
             SaveConfig("autoMusicGameConfig", config);
-            return Describe(config);
+            return Describe(config, name);
         }
     }
 
@@ -585,9 +594,9 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         sleepDelay = config.SleepDelay,
     };
 
-    private static object Describe(AutoMusicGameConfig config) => new
+    private static object Describe(AutoMusicGameConfig config, string name) => new
     {
-        name = "AutoMusicGame",
+        name,
         mustCanorusLevel = config.MustCanorusLevel,
         musicLevel = string.IsNullOrEmpty(config.MusicLevel) ? MusicLevels[0] : config.MusicLevel,
         musicLevelOptions = MusicLevels,

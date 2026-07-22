@@ -305,6 +305,7 @@ for descriptor in \
   'Descriptor("AutoDomain", "自动秘境", true, true)' \
   'Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true, true)' \
   'Descriptor("AutoMusicGame", "自动千音雅集", true, true)' \
+  'Descriptor("AutoAlbum", "自动千音雅集（整个专辑）", true, true)' \
   'Descriptor("AutoCook", "自动烹饪", true, true)'; do
   rg -Fq "${descriptor}" BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
     || fail "composed independent-task settings are missing from the truthful catalog: ${descriptor}"
@@ -315,6 +316,13 @@ rg -q 'new AutoGeniusInvokationTask' \
 if rg -n 'GeniusInvokationControl\.GetInstance|TaskContext|App\.GetLogger|SystemControl|ClickExtension|Simulation' \
   BetterGenshinImpact/GameTask/AutoGeniusInvokation; then
   fail "shared AutoGeniusInvokation still resolves process-global or Windows-only dependencies"
+fi
+rg -q 'new AutoAlbumTask' \
+  BetterGenshinImpact.Core.Host/Runtime/MacDispatcherRuntimePlatform.cs \
+  || fail "macOS dispatcher does not execute the upstream AutoAlbum task"
+if rg -n 'TaskContext|Service\.Notification|App\.GetLogger' \
+  BetterGenshinImpact/GameTask/AutoMusicGame/AutoAlbumTask.cs; then
+  fail "shared AutoAlbum still resolves process-global or Windows-only dependencies"
 fi
 rg -q 'solo.settings.save did not preserve AutoBoss model semantics' \
   Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \

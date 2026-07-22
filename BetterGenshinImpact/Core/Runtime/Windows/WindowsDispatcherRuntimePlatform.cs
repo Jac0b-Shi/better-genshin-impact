@@ -81,6 +81,13 @@ public sealed class WindowsDispatcherRuntimePlatform(
                 await new AutoMusicGameTask(new AutoMusicGameParam(), autoMusicGameRuntimePlatform)
                     .Start(cancellationToken);
                 return null;
+            case DispatcherAlbumTaskRequest:
+                await new AutoAlbumTask(
+                        new AutoMusicGameParam(), autoMusicGameRuntimePlatform,
+                        TaskContext.Instance().Config.AutoMusicGameConfig,
+                        new WindowsAutoAlbumRuntimePlatform())
+                    .Start(cancellationToken);
+                return null;
             case DispatcherDomainTaskRequest domain:
                 return await new AutoDomainTask(new AutoDomainParam(0, domain.StrategyPath))
                     .Start(cancellationToken);

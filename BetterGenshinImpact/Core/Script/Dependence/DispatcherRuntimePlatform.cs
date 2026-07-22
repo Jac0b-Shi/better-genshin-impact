@@ -37,6 +37,7 @@ public sealed record DispatcherFishingTaskRequest(
     object? Config, AutoFishingTaskParam? Param = null) : DispatcherSoloTaskRequest("AutoFishing");
 public sealed record DispatcherCookTaskRequest() : DispatcherSoloTaskRequest("AutoCook");
 public sealed record DispatcherMusicGameTaskRequest() : DispatcherSoloTaskRequest("AutoMusicGame");
+public sealed record DispatcherAlbumTaskRequest() : DispatcherSoloTaskRequest("AutoAlbum");
 public sealed record DispatcherArtifactSalvageTaskRequest() : DispatcherSoloTaskRequest("AutoArtifactSalvage");
 public sealed record DispatcherLeyLineTaskRequest(AutoLeyLineOutcropConfig Config) :
     DispatcherSoloTaskRequest("AutoLeyLineOutcrop");

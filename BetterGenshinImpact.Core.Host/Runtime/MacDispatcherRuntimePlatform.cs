@@ -39,6 +39,7 @@ public sealed class MacDispatcherRuntimePlatform(
     IYapAutoPickTextRecognizer yapRecognizer,
     IAutoWoodRuntimePlatform autoWoodRuntimePlatform,
     IAutoMusicGameRuntimePlatform autoMusicGameRuntimePlatform,
+    IAutoAlbumRuntimePlatform autoAlbumRuntimePlatform,
     IAutoDomainRuntimePlatform autoDomainRuntimePlatform,
     IAutoBossRuntimePlatform autoBossRuntimePlatform,
     IAutoBossPathExecutorFactory autoBossPathExecutorFactory,
@@ -148,6 +149,14 @@ public sealed class MacDispatcherRuntimePlatform(
         if (request is DispatcherMusicGameTaskRequest)
         {
             await new AutoMusicGameTask(new AutoMusicGameParam(), autoMusicGameRuntimePlatform)
+                .Start(cancellationToken);
+            return null;
+        }
+        if (request is DispatcherAlbumTaskRequest)
+        {
+            await new AutoAlbumTask(
+                    new AutoMusicGameParam(), autoMusicGameRuntimePlatform,
+                    settings.BuildAutoMusicGameConfig(), autoAlbumRuntimePlatform)
                 .Start(cancellationToken);
             return null;
         }

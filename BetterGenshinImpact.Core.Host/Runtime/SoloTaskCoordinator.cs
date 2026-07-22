@@ -26,13 +26,14 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true, true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", true, true),
         Descriptor("AutoMusicGame", "自动千音雅集", true, true),
+        Descriptor("AutoAlbum", "自动千音雅集（整个专辑）", true, true),
         Descriptor("AutoCook", "自动烹饪", true, true),
         Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true, true),
     };
 
     public object Start(string name)
     {
-        if (name is not ("AutoGeniusInvokation" or "AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop" or "AutoStygianOnslaught"))
+        if (name is not ("AutoGeniusInvokation" or "AutoWood" or "AutoFishing" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoAlbum" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss" or "AutoLeyLineOutcrop" or "AutoStygianOnslaught"))
             throw new CapabilityUnavailableException(
                 $"solo task '{name}' is not composed in the macOS Core yet; no task was executed.");
 
@@ -90,6 +91,7 @@ public sealed class SoloTaskCoordinator(
                 "AutoFight" => new DispatcherFightTaskRequest(null),
                 "AutoCook" => new DispatcherCookTaskRequest(),
                 "AutoMusicGame" => new DispatcherMusicGameTaskRequest(),
+                "AutoAlbum" => new DispatcherAlbumTaskRequest(),
                 "AutoArtifactSalvage" => new DispatcherArtifactSalvageTaskRequest(),
                 "AutoLeyLineOutcrop" => new DispatcherLeyLineTaskRequest(
                     settings.BuildAutoLeyLineOutcropConfig()),

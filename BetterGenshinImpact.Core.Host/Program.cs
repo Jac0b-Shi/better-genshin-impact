@@ -10,6 +10,7 @@ using BetterGenshinImpact.GameTask.AutoPathing;
 using BetterGenshinImpact.GameTask.AutoTrackPath;
 using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.AutoFishing;
+using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoWood;
 using BetterGenshinImpact.GameTask.AutoBoss;
 using BetterGenshinImpact.GameTask.AutoSkip;
@@ -145,6 +146,9 @@ server.SoloTaskSettings.AttachAutoFightConfigUpdated(autoFightRuntimePlatform.Up
 var autoWoodRuntimePlatform = new MacAutoWoodRuntimePlatform();
 var autoMusicGameRuntimePlatform = new MacAutoMusicGameRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo.AssetScale);
+var autoAlbumRuntimePlatform = new MacAutoAlbumRuntimePlatform(
+    () => gameTaskManagerPlatform.SystemInfo,
+    loggerFactory.CreateLogger<AutoAlbumTask>());
 var autoFishingRuntimePlatform = new MacAutoFishingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFishingRuntimePlatform.Configure(autoFishingRuntimePlatform);
@@ -247,7 +251,8 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     shutdown.Token, autoPickRuntimeState, semanticInputBackend,
     () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
     paddleAutoPickRecognizer, yapAutoPickRecognizer, autoWoodRuntimePlatform,
-    autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, autoBossRuntimePlatform,
+    autoMusicGameRuntimePlatform, autoAlbumRuntimePlatform,
+    autoDomainRuntimePlatform, autoBossRuntimePlatform,
     autoBossPathExecutorFactory, autoEatRuntimePlatform,
     autoLeyLineOutcropRuntimePlatform, autoStygianOnslaughtRuntimePlatform,
     autoGeniusInvokationRuntimePlatform,

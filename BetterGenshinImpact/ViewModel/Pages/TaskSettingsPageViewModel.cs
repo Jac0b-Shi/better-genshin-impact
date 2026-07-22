@@ -656,7 +656,9 @@ public partial class TaskSettingsPageViewModel : ViewModel
         SwitchAutoAlbumEnabled = true;
         await new TaskRunner()
             .RunSoloTaskAsync(new AutoAlbumTask(
-                new AutoMusicGameParam(), _autoMusicGameRuntimePlatform));
+                new AutoMusicGameParam(), _autoMusicGameRuntimePlatform,
+                Config.AutoMusicGameConfig,
+                new Core.Runtime.Windows.WindowsAutoAlbumRuntimePlatform()));
         SwitchAutoAlbumEnabled = false;
     }
 

@@ -196,7 +196,7 @@ struct SoloTasksPage: View {
         case "AutoFishing": autoFishingSettings
         case "AutoCook": autoCookSettings
         case "AutoWood": autoWoodSettings
-        case "AutoMusicGame": autoMusicGameSettings
+        case "AutoMusicGame", "AutoAlbum": autoMusicGameSettings
         case "AutoBoss": autoBossSettings
         case "AutoLeyLineOutcrop": autoLeyLineOutcropSettings
         case "AutoStygianOnslaught": autoStygianOnslaughtSettings

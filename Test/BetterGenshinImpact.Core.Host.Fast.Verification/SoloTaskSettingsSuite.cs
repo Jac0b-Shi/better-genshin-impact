@@ -23,6 +23,10 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                     "sleepDelay": 25,
                     "activeCharacterCardSpace": 55
                   },
+                  "autoMusicGameConfig": {
+                    "mustCanorusLevel": false,
+                    "musicLevel": "大师"
+                  },
                   "autoLeyLineOutcropConfig": {
                     "leyLineOutcropType": "启示之花",
                     "country": "蒙德",
@@ -76,6 +80,32 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
                             geniusPersisted["autoGeniusInvokationConfig"]?
                                 .Value<int>("activeCharacterCardSpace") == 55,
                 "AutoGeniusInvokation did not preserve hidden config or dispatch the selected strategy.");
+
+            _ = catalog.Save("AutoAlbum", JObject.FromObject(new
+            {
+                mustCanorusLevel = true,
+                musicLevel = "所有",
+            }));
+            var albumSettings = JObject.FromObject(catalog.Get("AutoAlbum"));
+            var musicSettings = JObject.FromObject(catalog.Get("AutoMusicGame"));
+            context.Require(albumSettings.Value<string>("name") == "AutoAlbum" &&
+                            albumSettings.Value<bool>("mustCanorusLevel") &&
+                            albumSettings.Value<string>("musicLevel") == "所有" &&
+                            musicSettings.Value<bool>("mustCanorusLevel") &&
+                            musicSettings.Value<string>("musicLevel") == "所有",
+                "AutoAlbum did not share the Core-owned AutoMusicGame settings.");
+            platform.Reset();
+            descriptors = JArray.FromObject(coordinator.List());
+            descriptor = descriptors.Single(item =>
+                item.Value<string>("name") == "AutoAlbum");
+            context.Require(descriptor.Value<bool>("available") &&
+                            descriptor.Value<bool>("settingsAvailable"),
+                "AutoAlbum was not exposed as a composed configurable solo task.");
+            _ = coordinator.Start("AutoAlbum");
+            for (var retry = 0; retry < 20 && platform.Request is null; retry++)
+                await Task.Delay(10, cancellationToken);
+            context.Require(platform.Request is DispatcherAlbumTaskRequest,
+                "SoloTaskCoordinator did not dispatch the upstream AutoAlbum task.");
 
             var initial = JObject.FromObject(catalog.Get("AutoLeyLineOutcrop"));
             context.Require(initial.Value<string>("leyLineOutcropType") == "启示之花" &&
