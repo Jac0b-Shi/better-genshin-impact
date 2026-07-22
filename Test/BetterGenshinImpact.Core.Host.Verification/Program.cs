@@ -2815,7 +2815,7 @@ try
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
     var settingsTaskNames = new[]
-        { "AutoCook", "AutoWood", "AutoMusicGame", "AutoBoss", "AutoDomain" };
+        { "AutoCook", "AutoWood", "AutoMusicGame", "AutoBoss", "AutoDomain", "AutoArtifactSalvage" };
     Require(soloItems.Where(item => settingsTaskNames.Contains(item.Value<string>("name")))
                 .All(item => item.Value<bool>("settingsAvailable")) &&
             soloItems.Where(item => !settingsTaskNames.Contains(item.Value<string>("name")))
@@ -2998,6 +2998,81 @@ try
         invalidDomainSettingsDocument, cancellation.Token);
     Require(invalidDomainSettings.Error?.Code == "ArgumentException",
         "solo.settings.save accepted a domain absent from the upstream domain catalog");
+    persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    persistedConfig["autoArtifactSalvageConfig"]!["regularExpression"] =
+        "verification-hidden-regex";
+    await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"),
+        persistedConfig.ToString(), cancellation.Token);
+    var artifactSettings = await ExchangeAsync(
+        connection, "artifact-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoArtifactSalvage",
+            settings = new
+            {
+                javaScript = "Output = ArtifactStat.Level < 20;",
+                artifactSetFilter = "角斗士的留恋,乐团的晨光",
+                maxArtifactStar = "2",
+                maxNumToCheck = 321,
+                recognitionFailurePolicy = "Abort"
+            }
+        }), cancellation.Token);
+    persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    Require(artifactSettings.Error is null &&
+            artifactSettings.Result is JObject artifactSettingsJson &&
+            artifactSettingsJson.Value<string>("javaScript") ==
+                "Output = ArtifactStat.Level < 20;" &&
+            artifactSettingsJson.Value<string>("artifactSetFilter") ==
+                "角斗士的留恋,乐团的晨光" &&
+            artifactSettingsJson.Value<string>("maxArtifactStar") == "2" &&
+            artifactSettingsJson.Value<int>("maxNumToCheck") == 321 &&
+            artifactSettingsJson.Value<string>("recognitionFailurePolicy") == "Abort" &&
+            artifactSettingsJson["recognitionFailurePolicyOptions"] is JArray policyOptions &&
+            policyOptions.Count == 2 &&
+            policyOptions[0]?.Value<string>("value") == "Skip" &&
+            policyOptions[0]?.Value<string>("displayName") == "跳过" &&
+            policyOptions[1]?.Value<string>("value") == "Abort" &&
+            policyOptions[1]?.Value<string>("displayName") == "终止" &&
+            persistedConfig.SelectToken("autoArtifactSalvageConfig.regularExpression")?
+                .Value<string>() == "verification-hidden-regex",
+        artifactSettings.Error?.Message ??
+        "solo.settings.save did not preserve upstream AutoArtifactSalvage settings");
+    foreach (var invalidArtifactSettingsDocument in new[]
+             {
+                 JObject.FromObject(new
+                 {
+                     name = "AutoArtifactSalvage", settings = new
+                     {
+                         javaScript = "", artifactSetFilter = "", maxArtifactStar = "5",
+                         maxNumToCheck = 1, recognitionFailurePolicy = "Skip"
+                     }
+                 }),
+                 JObject.FromObject(new
+                 {
+                     name = "AutoArtifactSalvage", settings = new
+                     {
+                         javaScript = "", artifactSetFilter = "", maxArtifactStar = "4",
+                         maxNumToCheck = 0, recognitionFailurePolicy = "Skip"
+                     }
+                 }),
+                 JObject.FromObject(new
+                 {
+                     name = "AutoArtifactSalvage", settings = new
+                     {
+                         javaScript = "", artifactSetFilter = "", maxArtifactStar = "4",
+                         maxNumToCheck = 1, recognitionFailurePolicy = "Continue"
+                     }
+                 })
+             })
+    {
+        var invalidArtifactSettings = await ExchangeAsync(
+            connection, $"artifact-settings-invalid-{Guid.NewGuid():N}", "solo.settings.save",
+            sessionToken, invalidArtifactSettingsDocument, cancellation.Token);
+        Require(invalidArtifactSettings.Error is not null,
+            "solo.settings.save accepted invalid AutoArtifactSalvage settings");
+    }
     var unavailableFightSettings = await ExchangeAsync(
         connection, "fight-settings-unavailable", "solo.settings.get", sessionToken,
         JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);

@@ -27,7 +27,7 @@ public sealed class SoloTaskCoordinator(
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", false),
         Descriptor("AutoMusicGame", "自动千音雅集", true, true),
         Descriptor("AutoCook", "自动烹饪", true, true),
-        Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true),
+        Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true, true),
     };
 
     public object Start(string name)

@@ -58,6 +58,7 @@ struct SoloTasksPage: View {
         case "AutoMusicGame": autoMusicGameSettings
         case "AutoBoss": autoBossSettings
         case "AutoDomain": autoDomainSettings
+        case "AutoArtifactSalvage": autoArtifactSalvageSettings
         default:
             BGISettingLine(title: "设置", subtitle: "Core 未返回该任务的设置模型") {
                 BGIStatusBadge(text: "不可用", tint: BGIColors.muted)
@@ -353,6 +354,13 @@ struct SoloTasksPage: View {
         } else { settingsLoading }
     }
 
+    @ViewBuilder
+    private var autoArtifactSalvageSettings: some View {
+        if let settings = appState.autoArtifactSalvageSettings {
+            AutoArtifactSalvageSettingsEditor(settings: settings)
+        } else { settingsLoading }
+    }
+
     private func domainCountLine(_ title: String, value: Binding<Int>) -> some View {
         BGISettingLine(title: title, subtitle: "最小 0 次") {
             Stepper(value: value, in: 0...999) {
@@ -380,5 +388,71 @@ struct SoloTasksPage: View {
         name == "AutoFishing"
             ? "在出现钓鱼交互提示的位置启动；识别、抛竿和收杆均由共享 C# 任务执行。"
             : "BetterGI C# Core 独立任务。"
+    }
+}
+
+private struct AutoArtifactSalvageSettingsEditor: View {
+    @EnvironmentObject private var appState: AppState
+    let settings: BetterGICoreAutoArtifactSalvageSettings
+    @State private var javaScript: String
+    @State private var artifactSetFilter: String
+
+    init(settings: BetterGICoreAutoArtifactSalvageSettings) {
+        self.settings = settings
+        _javaScript = State(initialValue: settings.javaScript)
+        _artifactSetFilter = State(initialValue: settings.artifactSetFilter)
+    }
+
+    var body: some View {
+        BGISettingLine(title: "JavaScript", subtitle: "只要满足脚本条件的五星圣遗物都会被选中") {
+            Button("保存脚本") {
+                appState.saveAutoArtifactSalvageSettings(
+                    javaScript: javaScript, artifactSetFilter: artifactSetFilter)
+            }
+            .buttonStyle(.bordered)
+        }
+        TextEditor(text: $javaScript)
+            .font(.system(.body, design: .monospaced))
+            .frame(minHeight: 130)
+            .padding(8)
+            .background(BGIColors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        BGISettingLine(
+            title: "按套装筛选",
+            subtitle: "一般填写套装内生之花名，可填入多个名称；留空则不用"
+        ) {
+            TextField("套装名称", text: $artifactSetFilter)
+                .frame(width: 260)
+                .onSubmit {
+                    appState.saveAutoArtifactSalvageSettings(
+                        javaScript: javaScript, artifactSetFilter: artifactSetFilter)
+                }
+        }
+        BGISettingLine(title: "需要快速分解圣遗物的最高星级", subtitle: "先会进行一次快速分解选择") {
+            Picker("", selection: Binding(
+                get: { settings.maxArtifactStar },
+                set: { appState.saveAutoArtifactSalvageSettings(maxArtifactStar: $0) })) {
+                ForEach(settings.maxArtifactStarOptions, id: \.self) { Text($0).tag($0) }
+            }
+            .labelsHidden().frame(width: 80)
+        }
+        BGISettingLine(title: "最大检查数量", subtitle: "达到最大检查数量后也会停止") {
+            Stepper(value: Binding(
+                get: { settings.maxNumToCheck },
+                set: { appState.saveAutoArtifactSalvageSettings(maxNumToCheck: $0) }),
+                    in: 1...9999) {
+                Text("\(settings.maxNumToCheck)").frame(minWidth: 48, alignment: .trailing)
+            }
+        }
+        BGISettingLine(title: "识别失败策略", subtitle: "识别单个圣遗物面板信息失败时，是跳过还是终止") {
+            Picker("", selection: Binding(
+                get: { settings.recognitionFailurePolicy },
+                set: { appState.saveAutoArtifactSalvageSettings(recognitionFailurePolicy: $0) })) {
+                ForEach(settings.recognitionFailurePolicyOptions) { option in
+                    Text(option.displayName).tag(option.value)
+                }
+            }
+            .labelsHidden().frame(width: 100)
+        }
     }
 }

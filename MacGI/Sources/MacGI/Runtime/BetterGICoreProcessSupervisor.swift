@@ -76,6 +76,22 @@ struct BetterGICoreAutoDomainSettings: Sendable, Equatable {
     let reviveRetryCount: Int
 }
 
+struct BetterGICoreNamedOption: Sendable, Equatable, Identifiable {
+    let value: String
+    let displayName: String
+    var id: String { value }
+}
+
+struct BetterGICoreAutoArtifactSalvageSettings: Sendable, Equatable {
+    let javaScript: String
+    let artifactSetFilter: String
+    let maxArtifactStar: String
+    let maxArtifactStarOptions: [String]
+    let maxNumToCheck: Int
+    let recognitionFailurePolicy: String
+    let recognitionFailurePolicyOptions: [BetterGICoreNamedOption]
+}
+
 struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
     let taskID: String?
     let name: String?
@@ -470,6 +486,26 @@ actor BetterGICoreProcessSupervisor {
         ))
     }
 
+    func autoArtifactSalvageSettings() throws -> BetterGICoreAutoArtifactSalvageSettings {
+        try decodeAutoArtifactSalvageSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoArtifactSalvage"]
+        ))
+    }
+
+    func saveAutoArtifactSalvageSettings(_ settings: BetterGICoreAutoArtifactSalvageSettings) throws
+        -> BetterGICoreAutoArtifactSalvageSettings {
+        try decodeAutoArtifactSalvageSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoArtifactSalvage", "settings": [
+                "javaScript": settings.javaScript,
+                "artifactSetFilter": settings.artifactSetFilter,
+                "maxArtifactStar": settings.maxArtifactStar,
+                "maxNumToCheck": settings.maxNumToCheck,
+                "recognitionFailurePolicy": settings.recognitionFailurePolicy,
+            ]]
+        ))
+    }
+
     private func requestSoloSettings(method: String, parameters: [String: Any]) throws -> Any {
         guard case .running = state, let client else {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
@@ -578,6 +614,35 @@ actor BetterGICoreProcessSupervisor {
                      walkToF: walkToF, leftRightMoveTimes: moveTimes, autoEat: autoEat,
                      rewardRecognitionEnabled: rewardRecognition,
                      reviveRetryCount: reviveRetryCount)
+    }
+
+    private func decodeAutoArtifactSalvageSettings(_ value: Any) throws
+        -> BetterGICoreAutoArtifactSalvageSettings {
+        guard let value = value as? [String: Any],
+              value["name"] as? String == "AutoArtifactSalvage",
+              let javaScript = value["javaScript"] as? String,
+              let artifactSetFilter = value["artifactSetFilter"] as? String,
+              let maxArtifactStar = value["maxArtifactStar"] as? String,
+              let maxArtifactStarOptions = value["maxArtifactStarOptions"] as? [String],
+              let maxNumToCheck = value["maxNumToCheck"] as? Int,
+              let recognitionFailurePolicy = value["recognitionFailurePolicy"] as? String,
+              let rawOptions = value["recognitionFailurePolicyOptions"] as? [[String: Any]] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoArtifactSalvage settings.")
+        }
+        let options = try rawOptions.map { option -> BetterGICoreNamedOption in
+            guard let optionValue = option["value"] as? String,
+                  let displayName = option["displayName"] as? String else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid AutoArtifactSalvage recognition policy option.")
+            }
+            return .init(value: optionValue, displayName: displayName)
+        }
+        return .init(javaScript: javaScript, artifactSetFilter: artifactSetFilter,
+                     maxArtifactStar: maxArtifactStar,
+                     maxArtifactStarOptions: maxArtifactStarOptions,
+                     maxNumToCheck: maxNumToCheck,
+                     recognitionFailurePolicy: recognitionFailurePolicy,
+                     recognitionFailurePolicyOptions: options)
     }
 
     func startSoloTask(name: String) throws -> BetterGICoreSoloTaskStatus {

@@ -35,6 +35,8 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
                     LoadConfig<AutoDomainConfig>(root, "autoDomainConfig"),
                     LoadConfig<AutoFightConfig>(root, "autoFightConfig"),
                     LoadConfig<AutoArtifactSalvageConfig>(root, "autoArtifactSalvageConfig")),
+                "AutoArtifactSalvage" => Describe(
+                    LoadConfig<AutoArtifactSalvageConfig>(root, "autoArtifactSalvageConfig")),
                 _ => throw Unavailable(name),
             };
         }
@@ -49,6 +51,7 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
             "AutoMusicGame" => SaveAutoMusicGame(settings),
             "AutoBoss" => SaveAutoBoss(settings),
             "AutoDomain" => SaveAutoDomain(settings),
+            "AutoArtifactSalvage" => SaveAutoArtifactSalvage(settings),
             _ => throw Unavailable(name),
         };
     }
@@ -195,6 +198,37 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         }
     }
 
+    private object SaveAutoArtifactSalvage(JObject settings)
+    {
+        var maxArtifactStar = RequiredString(settings, "maxArtifactStar");
+        if (maxArtifactStar is not ("1" or "2" or "3" or "4"))
+            throw new ArgumentException($"Unsupported maxArtifactStar: {maxArtifactStar}");
+        var maxNumToCheck = RequiredInt(settings, "maxNumToCheck");
+        if (maxNumToCheck < 1)
+            throw new ArgumentOutOfRangeException(
+                "maxNumToCheck", maxNumToCheck, "maxNumToCheck must be positive.");
+        var policyName = RequiredString(settings, "recognitionFailurePolicy");
+        if (!Enum.TryParse<RecognitionFailurePolicy>(policyName, out var policy) ||
+            !Enum.IsDefined(policy))
+            throw new ArgumentException($"Unsupported recognitionFailurePolicy: {policyName}");
+
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var config = LoadConfig<AutoArtifactSalvageConfig>(
+                root, "autoArtifactSalvageConfig");
+            config.JavaScript = RequiredString(settings, "javaScript");
+            config.ArtifactSetFilter = RequiredString(settings, "artifactSetFilter");
+            config.MaxArtifactStar = maxArtifactStar;
+            config.MaxNumToCheck = maxNumToCheck;
+            config.RecognitionFailurePolicy = policy;
+            root["autoArtifactSalvageConfig"] = JsonSerializer.SerializeToNode(
+                config, ConfigJson.Options);
+            SaveRoot(root);
+            return Describe(config);
+        }
+    }
+
     private static object Describe(AutoCookConfig config) => new
     {
         name = "AutoCook",
@@ -264,6 +298,22 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
         autoEat = config.AutoEat,
         rewardRecognitionEnabled = config.RewardRecognitionEnabled,
         reviveRetryCount = config.ReviveRetryCount,
+    };
+
+    private static object Describe(AutoArtifactSalvageConfig config) => new
+    {
+        name = "AutoArtifactSalvage",
+        javaScript = config.JavaScript,
+        artifactSetFilter = config.ArtifactSetFilter,
+        maxArtifactStar = config.MaxArtifactStar,
+        maxArtifactStarOptions = new[] { "4", "3", "2", "1" },
+        maxNumToCheck = config.MaxNumToCheck,
+        recognitionFailurePolicy = config.RecognitionFailurePolicy.ToString(),
+        recognitionFailurePolicyOptions = new[]
+        {
+            new { value = RecognitionFailurePolicy.Skip.ToString(), displayName = "跳过" },
+            new { value = RecognitionFailurePolicy.Abort.ToString(), displayName = "终止" },
+        },
     };
 
     private string[] StrategyOptions()

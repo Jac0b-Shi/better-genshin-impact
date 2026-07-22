@@ -301,6 +301,7 @@ for descriptor in \
   'Descriptor("AutoWood", "自动伐木", true, true)' \
   'Descriptor("AutoBoss", "自动首领讨伐", true, true)' \
   'Descriptor("AutoDomain", "自动秘境", true, true)' \
+  'Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true, true)' \
   'Descriptor("AutoMusicGame", "自动千音雅集", true, true)' \
   'Descriptor("AutoCook", "自动烹饪", true, true)'; do
   rg -Fq "${descriptor}" BetterGenshinImpact.Core.Host/Runtime/SoloTaskCoordinator.cs \
@@ -320,6 +321,12 @@ for config_section in autoDomainConfig autoFightConfig autoArtifactSalvageConfig
     BetterGenshinImpact.Core.Host/Runtime/SoloTaskSettingsCatalog.cs \
     || fail "AutoDomain settings do not atomically update ${config_section}"
 done
+rg -q 'solo.settings.save did not preserve upstream AutoArtifactSalvage settings' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not cover AutoArtifactSalvage settings persistence"
+rg -q 'autoArtifactSalvageConfig\.regularExpression' \
+  Test/BetterGenshinImpact.Core.Host.Verification/Program.cs \
+  || fail "Core Host verification does not preserve hidden AutoArtifactSalvage fields"
 rg -q 'settingsAvailable: item\["settingsAvailable"\]' \
   MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
   || fail "Swift does not consume Core-owned independent-task settings capability"

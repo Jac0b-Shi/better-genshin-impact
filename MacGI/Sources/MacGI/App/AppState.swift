@@ -345,6 +345,7 @@ final class AppState: ObservableObject {
     @Published private(set) var autoMusicGameSettings: BetterGICoreAutoMusicGameSettings?
     @Published private(set) var autoBossSettings: BetterGICoreAutoBossSettings?
     @Published private(set) var autoDomainSettings: BetterGICoreAutoDomainSettings?
+    @Published private(set) var autoArtifactSalvageSettings: BetterGICoreAutoArtifactSalvageSettings?
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -971,6 +972,7 @@ final class AppState: ObservableObject {
             autoMusicGameSettings = try await supervisor.autoMusicGameSettings()
             autoBossSettings = try await supervisor.autoBossSettings()
             autoDomainSettings = try await supervisor.autoDomainSettings()
+            autoArtifactSalvageSettings = try await supervisor.autoArtifactSalvageSettings()
         } catch {
             soloTasks = []
             autoCookSettings = nil
@@ -978,6 +980,7 @@ final class AppState: ObservableObject {
             autoMusicGameSettings = nil
             autoBossSettings = nil
             autoDomainSettings = nil
+            autoArtifactSalvageSettings = nil
             addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
         }
     }
@@ -1091,6 +1094,33 @@ final class AppState: ObservableObject {
         Task { [weak self] in
             do { self?.autoDomainSettings = try await supervisor.saveAutoDomainSettings(next) }
             catch { self?.addLog(.error, "AutoDomain settings save failed: \(error.localizedDescription)") }
+        }
+    }
+
+    func saveAutoArtifactSalvageSettings(
+        javaScript: String? = nil, artifactSetFilter: String? = nil,
+        maxArtifactStar: String? = nil, maxNumToCheck: Int? = nil,
+        recognitionFailurePolicy: String? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor,
+              let current = autoArtifactSalvageSettings else { return }
+        let next = BetterGICoreAutoArtifactSalvageSettings(
+            javaScript: javaScript ?? current.javaScript,
+            artifactSetFilter: artifactSetFilter ?? current.artifactSetFilter,
+            maxArtifactStar: maxArtifactStar ?? current.maxArtifactStar,
+            maxArtifactStarOptions: current.maxArtifactStarOptions,
+            maxNumToCheck: maxNumToCheck ?? current.maxNumToCheck,
+            recognitionFailurePolicy:
+                recognitionFailurePolicy ?? current.recognitionFailurePolicy,
+            recognitionFailurePolicyOptions: current.recognitionFailurePolicyOptions)
+        Task { [weak self] in
+            do {
+                self?.autoArtifactSalvageSettings =
+                    try await supervisor.saveAutoArtifactSalvageSettings(next)
+            } catch {
+                self?.addLog(.error,
+                    "AutoArtifactSalvage settings save failed: \(error.localizedDescription)")
+            }
         }
     }
 
