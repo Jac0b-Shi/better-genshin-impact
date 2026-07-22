@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using BetterGenshinImpact.Core.Config;
 using BetterGenshinImpact.GameTask.AutoEat;
+using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.GameTask.MapMask;
 using BetterGenshinImpact.GameTask.QuickTeleport;
 using Newtonsoft.Json.Linq;
@@ -12,11 +13,19 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
 {
     private readonly object _lock = new();
     private Action<AutoEatConfig>? _autoEatUpdated;
+    private Action<AutoPickConfig>? _autoPickUpdated;
+    private Action? _autoPickListsUpdated;
     private Action<QuickTeleportConfig>? _quickTeleportUpdated;
     private Action<MapMaskConfig>? _mapMaskUpdated;
 
     public void AttachAutoEatUpdated(Action<AutoEatConfig> callback) =>
         _autoEatUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
+
+    public void AttachAutoPickUpdated(Action<AutoPickConfig> callback) =>
+        _autoPickUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
+
+    public void AttachAutoPickListsUpdated(Action callback) =>
+        _autoPickListsUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 
     public void AttachQuickTeleportUpdated(Action<QuickTeleportConfig> callback) =>
         _quickTeleportUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
@@ -24,7 +33,8 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     public void AttachMapMaskUpdated(Action<MapMaskConfig> callback) =>
         _mapMaskUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 
-    public bool IsAvailable(string name) => name is "AutoFish" or "AutoEat" or "QuickTeleport" or "MapMask";
+    public bool IsAvailable(string name) =>
+        name is "AutoPick" or "AutoFish" or "AutoEat" or "QuickTeleport" or "MapMask";
 
     public object Get(string name)
     {
@@ -33,6 +43,7 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
             var root = LoadRoot();
             return name switch
             {
+                "AutoPick" => Describe(LoadConfig<AutoPickConfig>(root, "autoPickConfig")),
                 "AutoFish" => new { },
                 "AutoEat" => Describe(LoadConfig<AutoEatConfig>(root, "autoEatConfig")),
                 "QuickTeleport" => Describe(
@@ -45,11 +56,44 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
 
     public object Save(string name, JObject settings) => name switch
     {
+        "AutoPick" => SaveAutoPick(settings),
         "AutoEat" => SaveAutoEat(settings),
         "QuickTeleport" => SaveQuickTeleport(settings),
         "MapMask" => SaveMapMask(settings),
         _ => throw Unavailable(name),
     };
+
+    private object SaveAutoPick(JObject settings)
+    {
+        var ocrEngine = RequiredOption(settings, "ocrEngine",
+            nameof(PickOcrEngineEnum.Paddle), nameof(PickOcrEngineEnum.Yap));
+        var pickKey = settings.Value<string>("pickKey")?.Trim().ToUpperInvariant()
+            ?? throw new ArgumentException("pickKey is required.");
+        if (pickKey.Length != 1 || pickKey[0] is < 'A' or > 'Z')
+            throw new ArgumentException("pickKey must be one uppercase Latin letter.");
+        var blackListEnabled = RequiredBoolean(settings, "blackListEnabled");
+        var whiteListEnabled = RequiredBoolean(settings, "whiteListEnabled");
+        var exactBlackList = RequiredString(settings, "exactBlackList");
+        var fuzzyBlackList = RequiredString(settings, "fuzzyBlackList");
+        var whiteList = RequiredString(settings, "whiteList");
+
+        lock (_lock)
+        {
+            var root = LoadRoot();
+            var config = LoadConfig<AutoPickConfig>(root, "autoPickConfig");
+            config.OcrEngine = ocrEngine;
+            config.PickKey = pickKey;
+            config.BlackListEnabled = blackListEnabled;
+            config.WhiteListEnabled = whiteListEnabled;
+            SaveConfig(root, "autoPickConfig", config);
+            WriteUserText("pick_black_lists.txt", exactBlackList);
+            WriteUserText("pick_fuzzy_black_lists.txt", fuzzyBlackList);
+            WriteUserText("pick_white_lists.txt", whiteList);
+            _autoPickUpdated?.Invoke(config);
+            _autoPickListsUpdated?.Invoke();
+            return Describe(config);
+        }
+    }
 
     public void SaveEnabled(string name, bool enabled)
     {
@@ -132,6 +176,26 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
         eatInterval = config.EatInterval,
     };
 
+    private object Describe(AutoPickConfig config)
+    {
+        var pickKeyOptions = new List<string> { "F", "E", "G" };
+        if (config.PickKey.Length == 1 && char.IsUpper(config.PickKey[0])
+            && !pickKeyOptions.Contains(config.PickKey))
+            pickKeyOptions.Add(config.PickKey);
+        return new
+        {
+            ocrEngine = config.OcrEngine,
+            ocrEngineOptions = new[] { nameof(PickOcrEngineEnum.Paddle), nameof(PickOcrEngineEnum.Yap) },
+            blackListEnabled = config.BlackListEnabled,
+            exactBlackList = ReadUserText("pick_black_lists.txt"),
+            fuzzyBlackList = ReadUserText("pick_fuzzy_black_lists.txt"),
+            whiteListEnabled = config.WhiteListEnabled,
+            whiteList = ReadUserText("pick_white_lists.txt"),
+            pickKey = config.PickKey,
+            pickKeyOptions,
+        };
+    }
+
     private static object Describe(QuickTeleportConfig config) => new
     {
         teleportListClickDelay = config.TeleportListClickDelay,
@@ -148,6 +212,35 @@ public sealed class TriggerSettingsCatalog(RuntimeLayout layout)
     {
         var value = settings.Value<int?>(name) ?? throw new ArgumentException($"{name} is required.");
         return value >= 0 ? value : throw new ArgumentOutOfRangeException(name);
+    }
+
+    private static bool RequiredBoolean(JObject settings, string name) =>
+        settings.Value<bool?>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private static string RequiredString(JObject settings, string name) =>
+        settings.Value<string>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private static string RequiredOption(JObject settings, string name, params string[] options)
+    {
+        var value = RequiredString(settings, name);
+        return options.Contains(value, StringComparer.Ordinal)
+            ? value
+            : throw new ArgumentException($"{name} has an unsupported value '{value}'.");
+    }
+
+    private string ReadUserText(string fileName)
+    {
+        var path = Path.Combine(layout.UserPath, fileName);
+        return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+    }
+
+    private void WriteUserText(string fileName, string content)
+    {
+        Directory.CreateDirectory(layout.UserPath);
+        var path = Path.Combine(layout.UserPath, fileName);
+        var temporaryPath = path + ".tmp";
+        File.WriteAllText(temporaryPath, content);
+        File.Move(temporaryPath, path, true);
     }
 
     private static T LoadConfig<T>(JsonObject root, string propertyName) where T : class, new() =>

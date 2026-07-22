@@ -16,6 +16,18 @@ struct BetterGICoreAutoEatTriggerSettings: Sendable, Equatable {
     let eatInterval: Int
 }
 
+struct BetterGICoreAutoPickTriggerSettings: Sendable, Equatable {
+    let ocrEngine: String
+    let ocrEngineOptions: [String]
+    let blackListEnabled: Bool
+    let exactBlackList: String
+    let fuzzyBlackList: String
+    let whiteListEnabled: Bool
+    let whiteList: String
+    let pickKey: String
+    let pickKeyOptions: [String]
+}
+
 struct BetterGICoreQuickTeleportTriggerSettings: Sendable, Equatable {
     let teleportListClickDelay: Int
     let waitTeleportPanelDelay: Int
@@ -403,6 +415,25 @@ actor BetterGICoreProcessSupervisor {
         return .init(checkInterval: checkInterval, eatInterval: eatInterval)
     }
 
+    func autoPickTriggerSettings() throws -> BetterGICoreAutoPickTriggerSettings {
+        try decodeAutoPickTriggerSettings(requestTriggerSettings(
+            method: "trigger.settings.get", name: "AutoPick"))
+    }
+
+    func saveAutoPickTriggerSettings(_ settings: BetterGICoreAutoPickTriggerSettings) throws
+        -> BetterGICoreAutoPickTriggerSettings {
+        try decodeAutoPickTriggerSettings(requestTriggerSettings(
+            method: "trigger.settings.save", name: "AutoPick", settings: [
+                "ocrEngine": settings.ocrEngine,
+                "blackListEnabled": settings.blackListEnabled,
+                "exactBlackList": settings.exactBlackList,
+                "fuzzyBlackList": settings.fuzzyBlackList,
+                "whiteListEnabled": settings.whiteListEnabled,
+                "whiteList": settings.whiteList,
+                "pickKey": settings.pickKey,
+            ]))
+    }
+
     func saveAutoEatTriggerSettings(_ settings: BetterGICoreAutoEatTriggerSettings) throws
         -> BetterGICoreAutoEatTriggerSettings {
         let value = try requestTriggerSettings(method: "trigger.settings.save", name: "AutoEat", settings: [
@@ -468,6 +499,26 @@ actor BetterGICoreProcessSupervisor {
         return .init(teleportListClickDelay: listDelay,
                      waitTeleportPanelDelay: panelDelay,
                      hotkeyTpEnabled: hotkeyEnabled)
+    }
+
+    private func decodeAutoPickTriggerSettings(_ value: [String: Any]) throws
+        -> BetterGICoreAutoPickTriggerSettings {
+        guard let ocrEngine = value["ocrEngine"] as? String,
+              let ocrEngineOptions = value["ocrEngineOptions"] as? [String],
+              let blackListEnabled = value["blackListEnabled"] as? Bool,
+              let exactBlackList = value["exactBlackList"] as? String,
+              let fuzzyBlackList = value["fuzzyBlackList"] as? String,
+              let whiteListEnabled = value["whiteListEnabled"] as? Bool,
+              let whiteList = value["whiteList"] as? String,
+              let pickKey = value["pickKey"] as? String,
+              let pickKeyOptions = value["pickKeyOptions"] as? [String] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoPick trigger settings.")
+        }
+        return .init(
+            ocrEngine: ocrEngine, ocrEngineOptions: ocrEngineOptions,
+            blackListEnabled: blackListEnabled, exactBlackList: exactBlackList,
+            fuzzyBlackList: fuzzyBlackList, whiteListEnabled: whiteListEnabled,
+            whiteList: whiteList, pickKey: pickKey, pickKeyOptions: pickKeyOptions)
     }
 
     private func decodeMapMaskTriggerSettings(_ value: [String: Any]) throws

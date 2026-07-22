@@ -352,6 +352,10 @@ final class AppState: ObservableObject {
     @Published private(set) var autoArtifactSalvageSettings: BetterGICoreAutoArtifactSalvageSettings?
     @Published private(set) var autoFightSettings: BetterGICoreAutoFightSettings?
     @Published private(set) var autoEatTriggerSettings: BetterGICoreAutoEatTriggerSettings?
+    @Published private(set) var autoPickTriggerSettings: BetterGICoreAutoPickTriggerSettings?
+    @Published var autoPickExactBlackListDraft = ""
+    @Published var autoPickFuzzyBlackListDraft = ""
+    @Published var autoPickWhiteListDraft = ""
     @Published private(set) var quickTeleportTriggerSettings: BetterGICoreQuickTeleportTriggerSettings?
     @Published private(set) var mapMaskTriggerSettings: BetterGICoreMapMaskTriggerSettings?
     @Published var recentLogs: [LogEntry] = []
@@ -1004,15 +1008,84 @@ final class AppState: ObservableObject {
                     settingsAvailable: state.settingsAvailable
                 )
             }
+            let autoPickSettings = try await supervisor.autoPickTriggerSettings()
+            autoPickTriggerSettings = autoPickSettings
+            autoPickExactBlackListDraft = autoPickSettings.exactBlackList
+            autoPickFuzzyBlackListDraft = autoPickSettings.fuzzyBlackList
+            autoPickWhiteListDraft = autoPickSettings.whiteList
             autoEatTriggerSettings = try await supervisor.autoEatTriggerSettings()
             quickTeleportTriggerSettings = try await supervisor.quickTeleportTriggerSettings()
             mapMaskTriggerSettings = try await supervisor.mapMaskTriggerSettings()
         } catch {
             features = []
+            autoPickTriggerSettings = nil
             autoEatTriggerSettings = nil
             quickTeleportTriggerSettings = nil
             mapMaskTriggerSettings = nil
             addLog(.error, "BetterGI Core trigger catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    func saveAutoPickTriggerConfiguration(
+        ocrEngine: String? = nil,
+        blackListEnabled: Bool? = nil,
+        whiteListEnabled: Bool? = nil,
+        pickKey: String? = nil
+    ) {
+        guard let current = autoPickTriggerSettings else { return }
+        saveAutoPickTriggerSettings(.init(
+            ocrEngine: ocrEngine ?? current.ocrEngine,
+            ocrEngineOptions: current.ocrEngineOptions,
+            blackListEnabled: blackListEnabled ?? current.blackListEnabled,
+            exactBlackList: current.exactBlackList,
+            fuzzyBlackList: current.fuzzyBlackList,
+            whiteListEnabled: whiteListEnabled ?? current.whiteListEnabled,
+            whiteList: current.whiteList,
+            pickKey: pickKey ?? current.pickKey,
+            pickKeyOptions: current.pickKeyOptions))
+    }
+
+    func saveAutoPickBlackLists() {
+        guard let current = autoPickTriggerSettings else { return }
+        let exactDraft = autoPickExactBlackListDraft
+        let fuzzyDraft = autoPickFuzzyBlackListDraft
+        saveAutoPickTriggerSettings(.init(
+            ocrEngine: current.ocrEngine, ocrEngineOptions: current.ocrEngineOptions,
+            blackListEnabled: current.blackListEnabled,
+            exactBlackList: exactDraft, fuzzyBlackList: fuzzyDraft,
+            whiteListEnabled: current.whiteListEnabled, whiteList: current.whiteList,
+            pickKey: current.pickKey, pickKeyOptions: current.pickKeyOptions)) { [weak self] saved in
+                self?.autoPickExactBlackListDraft = saved.exactBlackList
+                self?.autoPickFuzzyBlackListDraft = saved.fuzzyBlackList
+            }
+    }
+
+    func saveAutoPickWhiteList() {
+        guard let current = autoPickTriggerSettings else { return }
+        let whiteDraft = autoPickWhiteListDraft
+        saveAutoPickTriggerSettings(.init(
+            ocrEngine: current.ocrEngine, ocrEngineOptions: current.ocrEngineOptions,
+            blackListEnabled: current.blackListEnabled,
+            exactBlackList: current.exactBlackList, fuzzyBlackList: current.fuzzyBlackList,
+            whiteListEnabled: current.whiteListEnabled, whiteList: whiteDraft,
+            pickKey: current.pickKey, pickKeyOptions: current.pickKeyOptions)) { [weak self] saved in
+                self?.autoPickWhiteListDraft = saved.whiteList
+            }
+    }
+
+    private func saveAutoPickTriggerSettings(
+        _ settings: BetterGICoreAutoPickTriggerSettings,
+        afterSave: ((BetterGICoreAutoPickTriggerSettings) -> Void)? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            do {
+                let saved = try await supervisor.saveAutoPickTriggerSettings(settings)
+                self?.autoPickTriggerSettings = saved
+                afterSave?(saved)
+            } catch {
+                self?.addLog(.error, "Core failed to save AutoPick settings: \(error.localizedDescription)")
+            }
         }
     }
 

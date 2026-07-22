@@ -33,6 +33,20 @@ public sealed class MacCoreRuntimeAdapter : IAutoPickConfigProvider, IOcrRuntime
     // IAutoPickConfigProvider
     public AutoPickConfig AutoPickConfig => _autoPickConfig;
 
+    public void UpdateAutoPickConfig(AutoPickConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        _autoPickConfig.Enabled = config.Enabled;
+        _autoPickConfig.ItemIconLeftOffset = config.ItemIconLeftOffset;
+        _autoPickConfig.ItemTextLeftOffset = config.ItemTextLeftOffset;
+        _autoPickConfig.ItemTextRightOffset = config.ItemTextRightOffset;
+        _autoPickConfig.OcrEngine = config.OcrEngine;
+        _autoPickConfig.FastModeEnabled = config.FastModeEnabled;
+        _autoPickConfig.PickKey = config.PickKey;
+        _autoPickConfig.BlackListEnabled = config.BlackListEnabled;
+        _autoPickConfig.WhiteListEnabled = config.WhiteListEnabled;
+    }
+
     // IOcrRuntimeConfigProvider
     public PaddleOcrModelConfig PaddleModel => _paddleModel;
     public string GameCultureInfoName => _gameCultureInfoName;

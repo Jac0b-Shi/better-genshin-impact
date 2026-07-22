@@ -116,6 +116,8 @@ var imageRegionOcrService = new MacImageRegionOcrService(
     layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
 var autoPickConfigProvider = new BetterGenshinImpact.Core.Adapters.MacCoreRuntimeAdapter(
     bvSimpleOperationPlatform.AutoPickConfig, PaddleOcrModelConfig.V5Auto, "zh-Hans");
+server.TriggerSettings.AttachAutoPickUpdated(autoPickConfigProvider.UpdateAutoPickConfig);
+server.TriggerSettings.AttachAutoPickListsUpdated(() => GameTaskManager.RefreshTriggerConfig("AutoPick"));
 var autoPickRuntimeState = new BetterGenshinImpact.Core.Adapters.MacAutoPickRuntimeState(
     () => RunnerContext.Instance.AutoPickTriggerStopCount);
 var semanticInputBackend = new MacSemanticInputBackend(

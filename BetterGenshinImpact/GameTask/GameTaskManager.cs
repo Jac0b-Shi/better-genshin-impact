@@ -72,6 +72,13 @@ public static class GameTaskManager
         GameTaskManagerPlatform.Current.ReloadAssets();
     }
 
+    public static void RefreshTriggerConfig(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        TriggerDictionary?.GetValueOrDefault(name)?.Init();
+        GameTaskManagerPlatform.Current.ReloadAssets();
+    }
+
     public static void ReloadAssets() => GameTaskManagerPlatform.Current.ReloadAssets();
 
     public static Mat LoadAssetImage(string featureName, string assetName, ImreadModes flags = ImreadModes.Color) =>
