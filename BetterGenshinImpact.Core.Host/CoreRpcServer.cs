@@ -36,6 +36,7 @@ public sealed class CoreRpcServer(
     private int _platformAssetsInitialized;
     private readonly SemaphoreSlim _runtimeMutationLock = new(1, 1);
     public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
+    public SoloTaskSettingsCatalog SoloTaskSettings => _soloTaskSettings;
 
     private SchedulerCoordinator Scheduler => _scheduler ??= new SchedulerCoordinator(
         layout, _platformCallbacks, sessionToken, _shutdown.Token);

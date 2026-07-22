@@ -218,7 +218,7 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     autoBossPathExecutorFactory, imageRegionOcrService, layout, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
-    dispatcherRuntimePlatform, shutdown.Token));
+    dispatcherRuntimePlatform, server.SoloTaskSettings, shutdown.Token));
 DesktopRegionInputPlatform.Configure(semanticInputBackend);
 TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token,

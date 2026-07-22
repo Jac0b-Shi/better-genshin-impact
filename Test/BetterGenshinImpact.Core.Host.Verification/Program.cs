@@ -1024,7 +1024,8 @@ try
     GlobalMethod.Configure(globalRuntime);
     var dispatcherRuntime = new VerificationDispatcherRuntimePlatform(cancellation.Token);
     DispatcherRuntimePlatform.Configure(dispatcherRuntime);
-    server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(dispatcherRuntime, cancellation.Token));
+    server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
+        dispatcherRuntime, server.SoloTaskSettings, cancellation.Token));
     ScriptProjectHost.Configure(new MacScriptProjectHostInitializer(scriptGroupExecutionServices));
     using (var hostSurfaceEngine = new V8ScriptEngine(
                V8ScriptEngineFlags.UseCaseInsensitiveMemberBinding |
@@ -2813,9 +2814,10 @@ try
             soloItems.Where(item => item.Value<string>("name") is not ("AutoFishing" or "AutoWood" or "AutoFight" or "AutoCook" or "AutoMusicGame" or "AutoArtifactSalvage" or "AutoDomain" or "AutoBoss"))
                 .All(item => !item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
-    Require(soloItems!.Single(item => item.Value<string>("name") == "AutoCook")
-                .Value<bool>("settingsAvailable") &&
-            soloItems.Where(item => item.Value<string>("name") != "AutoCook")
+    var settingsTaskNames = new[] { "AutoCook", "AutoWood", "AutoMusicGame", "AutoBoss" };
+    Require(soloItems.Where(item => settingsTaskNames.Contains(item.Value<string>("name")))
+                .All(item => item.Value<bool>("settingsAvailable")) &&
+            soloItems.Where(item => !settingsTaskNames.Contains(item.Value<string>("name")))
                 .All(item => !item.Value<bool>("settingsAvailable")),
         "solo.list advertised settings without a composed Core settings boundary");
     var cookSettings = await ExchangeAsync(
@@ -2857,10 +2859,79 @@ try
         }), cancellation.Token);
     Require(invalidCookSettings.Error?.Code == "ArgumentOutOfRangeException",
         "solo.settings.save accepted an AutoCook interval rejected by the upstream UI");
-    var unavailableWoodSettings = await ExchangeAsync(
-        connection, "wood-settings-unavailable", "solo.settings.get", sessionToken,
-        JObject.FromObject(new { name = "AutoWood" }), cancellation.Token);
-    Require(unavailableWoodSettings.Error?.Code == "CapabilityUnavailable",
+    var woodSettings = await ExchangeAsync(
+        connection, "wood-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoWood",
+            settings = new
+            {
+                roundNum = 4,
+                dailyMaxCount = 1500,
+                useWonderlandRefresh = false,
+                woodCountOcrEnabled = true,
+                afterZSleepDelay = 321
+            }
+        }), cancellation.Token);
+    persistedConfig = JObject.Parse(await File.ReadAllTextAsync(
+        Path.Combine(layout.UserPath, "config.json"), cancellation.Token));
+    Require(woodSettings.Error is null && woodSettings.Result is JObject woodSettingsJson &&
+            woodSettingsJson.Value<int>("roundNum") == 4 &&
+            woodSettingsJson.Value<int>("dailyMaxCount") == 1500 &&
+            !woodSettingsJson.Value<bool>("useWonderlandRefresh") &&
+            woodSettingsJson.Value<bool>("woodCountOcrEnabled") &&
+            woodSettingsJson.Value<int>("afterZSleepDelay") == 321 &&
+            persistedConfig.SelectToken("autoWoodConfig.afterZSleepDelay")?.Value<int>() == 321,
+        woodSettings.Error?.Message ?? "solo.settings.save did not preserve upstream AutoWood settings");
+    var musicSettings = await ExchangeAsync(
+        connection, "music-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoMusicGame",
+            settings = new { mustCanorusLevel = true, musicLevel = "大师" }
+        }), cancellation.Token);
+    Require(musicSettings.Error is null && musicSettings.Result is JObject musicSettingsJson &&
+            musicSettingsJson.Value<bool>("mustCanorusLevel") &&
+            musicSettingsJson.Value<string>("musicLevel") == "大师" &&
+            musicSettingsJson["musicLevelOptions"]?.Values<string>()
+                .SequenceEqual(new[] { "传说", "大师", "困难", "普通", "所有" }) == true,
+        musicSettings.Error?.Message ?? "solo.settings.save did not preserve upstream music settings");
+    var strategyFolder = Path.Combine(layout.UserPath, "AutoFight", "nested");
+    Directory.CreateDirectory(strategyFolder);
+    await File.WriteAllTextAsync(Path.Combine(strategyFolder, "boss.txt"), "钟离 attack(1)", cancellation.Token);
+    var bossSettings = await ExchangeAsync(
+        connection, "boss-settings-save", "solo.settings.save", sessionToken,
+        JObject.FromObject(new
+        {
+            name = "AutoBoss",
+            settings = new
+            {
+                bossName = "急冻树",
+                strategyName = Path.Combine("nested", "boss"),
+                teamName = "首领队",
+                specifyRunCount = false,
+                runCount = 0,
+                useTransientResin = true,
+                useFragileResin = true,
+                returnToStatueAfterEachRound = true,
+                rewardRecognitionEnabled = true,
+                reviveRetryCount = -1
+            }
+        }), cancellation.Token);
+    Require(bossSettings.Error is null && bossSettings.Result is JObject bossSettingsJson &&
+            bossSettingsJson.Value<string>("bossName") == "急冻树" &&
+            bossSettingsJson["bossOptions"]?.Values<string>().Contains("急冻树") == true &&
+            bossSettingsJson["strategyOptions"]?.Values<string>()
+                .Contains(Path.Combine("nested", "boss")) == true &&
+            bossSettingsJson.Value<int>("runCount") == 1 &&
+            bossSettingsJson.Value<int>("reviveRetryCount") == 0 &&
+            !bossSettingsJson.Value<bool>("useTransientResin") &&
+            !bossSettingsJson.Value<bool>("useFragileResin"),
+        bossSettings.Error?.Message ?? "solo.settings.save did not preserve AutoBoss model semantics");
+    var unavailableFightSettings = await ExchangeAsync(
+        connection, "fight-settings-unavailable", "solo.settings.get", sessionToken,
+        JObject.FromObject(new { name = "AutoFight" }), cancellation.Token);
+    Require(unavailableFightSettings.Error?.Code == "CapabilityUnavailable",
         "solo.settings.get returned placeholder settings for an uncomposed task");
     var soloStart = await ExchangeAsync(connection, "solo-start", "solo.start", sessionToken,
         JObject.FromObject(new { name = "AutoFishing" }), cancellation.Token);
@@ -2896,9 +2967,9 @@ try
     var woodTaskId = (woodStart.Result as JObject)?.Value<string>("taskId");
     Require(woodStart.Error is null && !string.IsNullOrEmpty(woodTaskId) &&
             dispatcherRuntime.WoodStartCount == 1 &&
-            dispatcherRuntime.LastWoodRoundNum == 0 &&
-            dispatcherRuntime.LastWoodDailyMaxCount == 2000,
-        "solo.start did not execute the shared AutoWood dispatcher request with upstream defaults");
+            dispatcherRuntime.LastWoodRoundNum == 4 &&
+            dispatcherRuntime.LastWoodDailyMaxCount == 1500,
+        "solo.start did not execute AutoWood with the Core-owned upstream UI settings");
     var woodStop = await ExchangeAsync(connection, "wood-stop", "solo.stop", sessionToken,
         JObject.FromObject(new { taskId = woodTaskId }), cancellation.Token);
     Require(woodStop.Error is null, woodStop.Error?.Message ?? "solo.stop AutoWood failed");

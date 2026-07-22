@@ -341,6 +341,9 @@ final class AppState: ObservableObject {
     @Published private(set) var soloTaskStatus = BetterGICoreSoloTaskStatus(
         taskID: nil, name: nil, state: "idle", error: nil)
     @Published private(set) var autoCookSettings: BetterGICoreAutoCookSettings?
+    @Published private(set) var autoWoodSettings: BetterGICoreAutoWoodSettings?
+    @Published private(set) var autoMusicGameSettings: BetterGICoreAutoMusicGameSettings?
+    @Published private(set) var autoBossSettings: BetterGICoreAutoBossSettings?
     @Published var recentLogs: [LogEntry] = []
 
     var onHUDVisibilityChanged: ((Bool) -> Void)?
@@ -963,9 +966,15 @@ final class AppState: ObservableObject {
             soloTasks = try await supervisor.listSoloTasks()
             soloTaskStatus = try await supervisor.soloTaskStatus()
             autoCookSettings = try await supervisor.autoCookSettings()
+            autoWoodSettings = try await supervisor.autoWoodSettings()
+            autoMusicGameSettings = try await supervisor.autoMusicGameSettings()
+            autoBossSettings = try await supervisor.autoBossSettings()
         } catch {
             soloTasks = []
             autoCookSettings = nil
+            autoWoodSettings = nil
+            autoMusicGameSettings = nil
+            autoBossSettings = nil
             addLog(.error, "BetterGI Core solo task catalog failed: \(error.localizedDescription)")
         }
     }
@@ -984,6 +993,63 @@ final class AppState: ObservableObject {
             } catch {
                 self.addLog(.error, "AutoCook settings save failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    func saveAutoWoodSettings(
+        roundNum: Int? = nil, dailyMaxCount: Int? = nil,
+        useWonderlandRefresh: Bool? = nil, woodCountOcrEnabled: Bool? = nil,
+        afterZSleepDelay: Int? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoWoodSettings else { return }
+        let next = BetterGICoreAutoWoodSettings(
+            roundNum: roundNum ?? current.roundNum,
+            dailyMaxCount: dailyMaxCount ?? current.dailyMaxCount,
+            useWonderlandRefresh: useWonderlandRefresh ?? current.useWonderlandRefresh,
+            woodCountOcrEnabled: woodCountOcrEnabled ?? current.woodCountOcrEnabled,
+            afterZSleepDelay: afterZSleepDelay ?? current.afterZSleepDelay)
+        Task { [weak self] in
+            do { self?.autoWoodSettings = try await supervisor.saveAutoWoodSettings(next) }
+            catch { self?.addLog(.error, "AutoWood settings save failed: \(error.localizedDescription)") }
+        }
+    }
+
+    func saveAutoMusicGameSettings(mustCanorusLevel: Bool? = nil, musicLevel: String? = nil) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoMusicGameSettings else { return }
+        let next = BetterGICoreAutoMusicGameSettings(
+            mustCanorusLevel: mustCanorusLevel ?? current.mustCanorusLevel,
+            musicLevel: musicLevel ?? current.musicLevel,
+            musicLevelOptions: current.musicLevelOptions)
+        Task { [weak self] in
+            do { self?.autoMusicGameSettings = try await supervisor.saveAutoMusicGameSettings(next) }
+            catch { self?.addLog(.error, "AutoMusicGame settings save failed: \(error.localizedDescription)") }
+        }
+    }
+
+    func saveAutoBossSettings(
+        bossName: String? = nil, strategyName: String? = nil, teamName: String? = nil,
+        specifyRunCount: Bool? = nil, runCount: Int? = nil,
+        useTransientResin: Bool? = nil, useFragileResin: Bool? = nil,
+        returnToStatueAfterEachRound: Bool? = nil,
+        rewardRecognitionEnabled: Bool? = nil, reviveRetryCount: Int? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor, let current = autoBossSettings else { return }
+        let next = BetterGICoreAutoBossSettings(
+            bossName: bossName ?? current.bossName, bossOptions: current.bossOptions,
+            strategyName: strategyName ?? current.strategyName,
+            strategyOptions: current.strategyOptions, teamName: teamName ?? current.teamName,
+            specifyRunCount: specifyRunCount ?? current.specifyRunCount,
+            runCount: runCount ?? current.runCount,
+            useTransientResin: useTransientResin ?? current.useTransientResin,
+            useFragileResin: useFragileResin ?? current.useFragileResin,
+            returnToStatueAfterEachRound:
+                returnToStatueAfterEachRound ?? current.returnToStatueAfterEachRound,
+            rewardRecognitionEnabled:
+                rewardRecognitionEnabled ?? current.rewardRecognitionEnabled,
+            reviveRetryCount: reviveRetryCount ?? current.reviveRetryCount)
+        Task { [weak self] in
+            do { self?.autoBossSettings = try await supervisor.saveAutoBossSettings(next) }
+            catch { self?.addLog(.error, "AutoBoss settings save failed: \(error.localizedDescription)") }
         }
     }
 

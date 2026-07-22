@@ -24,6 +24,35 @@ struct BetterGICoreAutoCookSettings: Sendable, Equatable {
     let stopTaskWhenRecoverButtonDetected: Bool
 }
 
+struct BetterGICoreAutoWoodSettings: Sendable, Equatable {
+    let roundNum: Int
+    let dailyMaxCount: Int
+    let useWonderlandRefresh: Bool
+    let woodCountOcrEnabled: Bool
+    let afterZSleepDelay: Int
+}
+
+struct BetterGICoreAutoMusicGameSettings: Sendable, Equatable {
+    let mustCanorusLevel: Bool
+    let musicLevel: String
+    let musicLevelOptions: [String]
+}
+
+struct BetterGICoreAutoBossSettings: Sendable, Equatable {
+    let bossName: String
+    let bossOptions: [String]
+    let strategyName: String
+    let strategyOptions: [String]
+    let teamName: String
+    let specifyRunCount: Bool
+    let runCount: Int
+    let useTransientResin: Bool
+    let useFragileResin: Bool
+    let returnToStatueAfterEachRound: Bool
+    let rewardRecognitionEnabled: Bool
+    let reviveRetryCount: Int
+}
+
 struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
     let taskID: String?
     let name: String?
@@ -324,6 +353,68 @@ actor BetterGICoreProcessSupervisor {
         ))
     }
 
+    func autoWoodSettings() throws -> BetterGICoreAutoWoodSettings {
+        try decodeAutoWoodSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoWood"]
+        ))
+    }
+
+    func saveAutoWoodSettings(_ settings: BetterGICoreAutoWoodSettings) throws
+        -> BetterGICoreAutoWoodSettings {
+        try decodeAutoWoodSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoWood", "settings": [
+                "roundNum": settings.roundNum,
+                "dailyMaxCount": settings.dailyMaxCount,
+                "useWonderlandRefresh": settings.useWonderlandRefresh,
+                "woodCountOcrEnabled": settings.woodCountOcrEnabled,
+                "afterZSleepDelay": settings.afterZSleepDelay,
+            ]]
+        ))
+    }
+
+    func autoMusicGameSettings() throws -> BetterGICoreAutoMusicGameSettings {
+        try decodeAutoMusicGameSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoMusicGame"]
+        ))
+    }
+
+    func saveAutoMusicGameSettings(_ settings: BetterGICoreAutoMusicGameSettings) throws
+        -> BetterGICoreAutoMusicGameSettings {
+        try decodeAutoMusicGameSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoMusicGame", "settings": [
+                "mustCanorusLevel": settings.mustCanorusLevel,
+                "musicLevel": settings.musicLevel,
+            ]]
+        ))
+    }
+
+    func autoBossSettings() throws -> BetterGICoreAutoBossSettings {
+        try decodeAutoBossSettings(requestSoloSettings(
+            method: "solo.settings.get", parameters: ["name": "AutoBoss"]
+        ))
+    }
+
+    func saveAutoBossSettings(_ settings: BetterGICoreAutoBossSettings) throws
+        -> BetterGICoreAutoBossSettings {
+        try decodeAutoBossSettings(requestSoloSettings(
+            method: "solo.settings.save",
+            parameters: ["name": "AutoBoss", "settings": [
+                "bossName": settings.bossName,
+                "strategyName": settings.strategyName,
+                "teamName": settings.teamName,
+                "specifyRunCount": settings.specifyRunCount,
+                "runCount": settings.runCount,
+                "useTransientResin": settings.useTransientResin,
+                "useFragileResin": settings.useFragileResin,
+                "returnToStatueAfterEachRound": settings.returnToStatueAfterEachRound,
+                "rewardRecognitionEnabled": settings.rewardRecognitionEnabled,
+                "reviveRetryCount": settings.reviveRetryCount,
+            ]]
+        ))
+    }
+
     private func requestSoloSettings(method: String, parameters: [String: Any]) throws -> Any {
         guard case .running = state, let client else {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")
@@ -342,6 +433,60 @@ actor BetterGICoreProcessSupervisor {
             checkIntervalMs: interval,
             stopTaskWhenRecoverButtonDetected: stopWhenDetected
         )
+    }
+
+    private func decodeAutoWoodSettings(_ value: Any) throws -> BetterGICoreAutoWoodSettings {
+        guard let value = value as? [String: Any], value["name"] as? String == "AutoWood",
+              let roundNum = value["roundNum"] as? Int,
+              let dailyMaxCount = value["dailyMaxCount"] as? Int,
+              let useWonderlandRefresh = value["useWonderlandRefresh"] as? Bool,
+              let woodCountOcrEnabled = value["woodCountOcrEnabled"] as? Bool,
+              let afterZSleepDelay = value["afterZSleepDelay"] as? Int else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoWood settings.")
+        }
+        return .init(roundNum: roundNum, dailyMaxCount: dailyMaxCount,
+                     useWonderlandRefresh: useWonderlandRefresh,
+                     woodCountOcrEnabled: woodCountOcrEnabled,
+                     afterZSleepDelay: afterZSleepDelay)
+    }
+
+    private func decodeAutoMusicGameSettings(_ value: Any) throws
+        -> BetterGICoreAutoMusicGameSettings {
+        guard let value = value as? [String: Any],
+              value["name"] as? String == "AutoMusicGame",
+              let mustCanorusLevel = value["mustCanorusLevel"] as? Bool,
+              let musicLevel = value["musicLevel"] as? String,
+              let options = value["musicLevelOptions"] as? [String] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoMusicGame settings.")
+        }
+        return .init(mustCanorusLevel: mustCanorusLevel, musicLevel: musicLevel,
+                     musicLevelOptions: options)
+    }
+
+    private func decodeAutoBossSettings(_ value: Any) throws -> BetterGICoreAutoBossSettings {
+        guard let value = value as? [String: Any], value["name"] as? String == "AutoBoss",
+              let bossName = value["bossName"] as? String,
+              let bossOptions = value["bossOptions"] as? [String],
+              let strategyName = value["strategyName"] as? String,
+              let strategyOptions = value["strategyOptions"] as? [String],
+              let teamName = value["teamName"] as? String,
+              let specifyRunCount = value["specifyRunCount"] as? Bool,
+              let runCount = value["runCount"] as? Int,
+              let useTransientResin = value["useTransientResin"] as? Bool,
+              let useFragileResin = value["useFragileResin"] as? Bool,
+              let returnToStatue = value["returnToStatueAfterEachRound"] as? Bool,
+              let rewardRecognition = value["rewardRecognitionEnabled"] as? Bool,
+              let reviveRetryCount = value["reviveRetryCount"] as? Int else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid AutoBoss settings.")
+        }
+        return .init(bossName: bossName, bossOptions: bossOptions,
+                     strategyName: strategyName, strategyOptions: strategyOptions,
+                     teamName: teamName, specifyRunCount: specifyRunCount,
+                     runCount: runCount, useTransientResin: useTransientResin,
+                     useFragileResin: useFragileResin,
+                     returnToStatueAfterEachRound: returnToStatue,
+                     rewardRecognitionEnabled: rewardRecognition,
+                     reviveRetryCount: reviveRetryCount)
     }
 
     func startSoloTask(name: String) throws -> BetterGICoreSoloTaskStatus {

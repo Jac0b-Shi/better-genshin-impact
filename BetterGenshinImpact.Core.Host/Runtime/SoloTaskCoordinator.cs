@@ -4,6 +4,7 @@ namespace BetterGenshinImpact.Core.Host.Runtime;
 
 public sealed class SoloTaskCoordinator(
     IDispatcherRuntimePlatform platform,
+    SoloTaskSettingsCatalog settings,
     CancellationToken shutdownToken)
 {
     private readonly object _lock = new();
@@ -17,14 +18,14 @@ public sealed class SoloTaskCoordinator(
     public object List() => new[]
     {
         Descriptor("AutoGeniusInvokation", "自动七圣召唤", false),
-        Descriptor("AutoWood", "自动伐木", true),
+        Descriptor("AutoWood", "自动伐木", true, true),
         Descriptor("AutoFight", "自动战斗", true),
         Descriptor("AutoDomain", "自动秘境", true),
-        Descriptor("AutoBoss", "自动首领讨伐", true),
+        Descriptor("AutoBoss", "自动首领讨伐", true, true),
         Descriptor("AutoStygianOnslaught", "自动幽境危战", false),
         Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true),
         Descriptor("AutoLeyLineOutcrop", "自动地脉花", false),
-        Descriptor("AutoMusicGame", "自动千音雅集", true),
+        Descriptor("AutoMusicGame", "自动千音雅集", true, true),
         Descriptor("AutoCook", "自动烹饪", true, true),
         Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true),
     };
@@ -82,7 +83,7 @@ public sealed class SoloTaskCoordinator(
             {
                 "AutoFishing" => (DispatcherSoloTaskRequest)new DispatcherFishingTaskRequest(null),
                 "AutoWood" => new DispatcherWoodTaskRequest(
-                    platform.AutoWoodRoundNum, platform.AutoWoodDailyMaxCount),
+                    settings.AutoWoodRoundNum, settings.AutoWoodDailyMaxCount),
                 "AutoFight" => new DispatcherFightTaskRequest(null),
                 "AutoCook" => new DispatcherCookTaskRequest(),
                 "AutoMusicGame" => new DispatcherMusicGameTaskRequest(),
