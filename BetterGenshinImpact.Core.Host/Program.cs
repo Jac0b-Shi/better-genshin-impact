@@ -173,7 +173,8 @@ BetterGenshinImpact.GameTask.Common.Reward.RewardResultRuntimePlatform.Configure
 BvSimpleOperationPlatform.Configure(bvSimpleOperationPlatform);
 TpTaskRuntimePlatform.Configure(new MacTpTaskRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo));
-AutoEatRuntimePlatform.Configure(new MacAutoEatRuntimePlatform(layout, loggerFactory));
+var autoEatRuntimePlatform = new MacAutoEatRuntimePlatform(layout, loggerFactory);
+AutoEatRuntimePlatform.Configure(autoEatRuntimePlatform);
 GameLoadingRuntimePlatform.Configure(new MacGameLoadingRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, loggerFactory,
     server.PlatformCallbacks, sessionToken, shutdown.Token, foregroundInputCoordinator));
@@ -227,7 +228,7 @@ var dispatcherRuntimePlatform = new MacDispatcherRuntimePlatform(
     () => gameTaskManagerPlatform.SystemInfo, autoPickConfigProvider,
     paddleAutoPickRecognizer, yapAutoPickRecognizer, autoWoodRuntimePlatform,
     autoMusicGameRuntimePlatform, autoDomainRuntimePlatform, autoBossRuntimePlatform,
-    autoBossPathExecutorFactory, imageRegionOcrService, layout, loggerFactory);
+    autoBossPathExecutorFactory, autoEatRuntimePlatform, imageRegionOcrService, layout, loggerFactory);
 DispatcherRuntimePlatform.Configure(dispatcherRuntimePlatform);
 server.AttachSoloTaskCoordinator(new SoloTaskCoordinator(
     dispatcherRuntimePlatform, server.SoloTaskSettings, shutdown.Token));

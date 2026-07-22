@@ -352,6 +352,8 @@
     <Compile Include="../BetterGenshinImpact/GameTask/AutoBoss/*.cs" Link="GameTask/AutoBoss/%(Filename)%(Extension)" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatRuntimePlatform.cs" Link="GameTask/AutoEat/AutoEatRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTrigger.cs" Link="GameTask/AutoEat/AutoEatTrigger.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatParam.cs" Link="GameTask/AutoEat/AutoEatParam.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/AutoEat/AutoEatTask.cs" Link="GameTask/AutoEat/AutoEatTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/BaseTaskParam.cs" Link="GameTask/Model/BaseTaskParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/TaskParameterPlatform.cs" Link="GameTask/Model/TaskParameterPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Model/GameUI/GridScreenExtensions.cs" Link="GameTask/Model/GameUI/GridScreenExtensions.cs" />

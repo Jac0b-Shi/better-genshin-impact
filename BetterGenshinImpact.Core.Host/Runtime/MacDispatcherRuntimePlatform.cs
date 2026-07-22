@@ -13,6 +13,7 @@ using BetterGenshinImpact.GameTask.AutoMusicGame;
 using BetterGenshinImpact.GameTask.AutoArtifactSalvage;
 using BetterGenshinImpact.GameTask.AutoDomain;
 using BetterGenshinImpact.GameTask.AutoBoss;
+using BetterGenshinImpact.GameTask.AutoEat;
 using BetterGenshinImpact.GameTask.AutoPick;
 using BetterGenshinImpact.Core.Recognition.OCR;
 using BetterGenshinImpact.Core.Config;
@@ -35,6 +36,7 @@ public sealed class MacDispatcherRuntimePlatform(
     IAutoDomainRuntimePlatform autoDomainRuntimePlatform,
     IAutoBossRuntimePlatform autoBossRuntimePlatform,
     IAutoBossPathExecutorFactory autoBossPathExecutorFactory,
+    IAutoEatRuntimePlatform autoEatRuntimePlatform,
     IOcrService ocrService,
     RuntimeLayout layout,
     ILoggerFactory loggerFactory) : IDispatcherRuntimePlatform
@@ -44,7 +46,15 @@ public sealed class MacDispatcherRuntimePlatform(
     public int AutoWoodDailyMaxCount => 2000;
     public string AutoBossStrategyName =>
         LoadUserConfig<AutoBossConfig>(layout, "autoBossConfig").StrategyName;
-    public DispatcherAutoEatSettings AutoEatSettings => throw Unavailable("AutoEat");
+    public DispatcherAutoEatSettings AutoEatSettings
+    {
+        get
+        {
+            var config = LoadUserConfig<AutoEatConfig>(layout, "autoEatConfig");
+            return new DispatcherAutoEatSettings(
+                config.CheckInterval, config.EatInterval, config.ShowNotification);
+        }
+    }
 
     public void ClearTriggers() => GameTaskManager.ClearTriggers();
 
@@ -131,6 +141,24 @@ public sealed class MacDispatcherRuntimePlatform(
                     loggerFactory.CreateLogger<AutoArtifactSalvageTask>())
                 .Start(cancellationToken);
             return null;
+        }
+        if (request is DispatcherEatTaskRequest eat)
+        {
+            var config = LoadUserConfig<AutoEatConfig>(layout, "autoEatConfig");
+            return await new AutoEatTask(
+                    new AutoEatParam
+                    {
+                        CheckInterval = eat.Settings.CheckInterval,
+                        EatInterval = eat.Settings.EatInterval,
+                        ShowNotification = eat.Settings.ShowNotification,
+                        FoodName = eat.FoodName
+                    },
+                    config,
+                    systemInfo(),
+                    ocrService,
+                    autoEatRuntimePlatform,
+                    loggerFactory.CreateLogger<AutoEatTask>())
+                .Start(cancellationToken);
         }
         if (request is DispatcherDomainTaskRequest domain)
         {
