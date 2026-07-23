@@ -114,7 +114,9 @@ public class KeyMouseMacroPlayer
         "left" => "left",
         "right" => "right",
         "middle" => "middle",
-        "none" or "xbutton1" or "xbutton2" => throw new NotSupportedException(
+        "xbutton1" => "side1",
+        "xbutton2" => "side2",
+        "none" => throw new NotSupportedException(
             $"Mouse button '{button}' is not supported by BetterGI macro playback."),
         _ => throw new InvalidDataException($"Invalid mouse button '{button}'.")
     };

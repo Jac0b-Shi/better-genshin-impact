@@ -259,20 +259,24 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
             switch query {
             case "isGameActionDown":
                 guard let rawAction = parameters["gameAction"] as? String,
-                      let gameAction = GIAction(rawValue: rawAction) else {
+                      GIAction(rawValue: rawAction) != nil else {
                     throw BetterGICorePlatformAdapterError.invalidParameters(
                         "isGameActionDown requires a BetterGI gameAction."
                     )
                 }
-                let key = KeyBindingsConfig.bgiDefault.key(for: gameAction)
-                if let keyCode = key.keyCode, let virtualKey = keyCode.cgKeyCode {
+                if let windowsVirtualKey = parameters["windowsVirtualKey"] as? Int,
+                   let keyCode = BetterGICoreInputKeyMapper.keyCode(
+                    fromWindowsVirtualKey: windowsVirtualKey),
+                   let virtualKey = keyCode.cgKeyCode {
                     return ["isDown": CGEventSource.keyState(.combinedSessionState, key: virtualKey)]
                 }
-                if let mouseButton = key.mouseButton {
+                if let mouseButton = mouseButton(parameters["mouseButton"] as? String) {
                     let button: CGMouseButton = switch mouseButton {
                     case .left: .left
                     case .right: .right
                     case .middle: .center
+                    case .side1: CGMouseButton(rawValue: 3)!
+                    case .side2: CGMouseButton(rawValue: 4)!
                     }
                     return ["isDown": CGEventSource.buttonState(.combinedSessionState, button: button)]
                 }
@@ -304,6 +308,10 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
                 throw BetterGICorePlatformAdapterError.invalidParameters(
                     "notification.emit requires kind and non-empty message."
                 )
+            }
+            guard appState.notificationSettings?.macOSNotificationEnabled == true else {
+                appState.addLog(.debug, "Core notification suppressed: \(message)")
+                return ["acknowledged": true]
             }
             let content = UNMutableNotificationContent()
             content.title = kind == "error" ? "BetterGI 脚本错误" : "BetterGI 脚本通知"
@@ -390,14 +398,23 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
         switch action {
         case "gameAction":
             guard let rawAction = parameters["gameAction"] as? String,
-                  let gameAction = GIAction(rawValue: rawAction),
+                  GIAction(rawValue: rawAction) != nil,
                   let rawType = parameters["keyType"] as? String,
-                  let keyType = GIKeyType(rawValue: rawType),
-                  let input = KeyBindingsConfig.bgiDefault.inputAction(for: gameAction, type: keyType)
+                  let keyType = GIKeyType(rawValue: rawType)
             else {
                 throw BetterGICorePlatformAdapterError.invalidParameters("Unsupported BetterGI game action.")
             }
-            return input
+            if let windowsVirtualKey = parameters["windowsVirtualKey"] as? Int,
+               let key = BetterGICoreInputKeyMapper.keyCode(
+                fromWindowsVirtualKey: windowsVirtualKey) {
+                return inputAction(for: key, type: keyType)
+            }
+            if let button = mouseButton(parameters["mouseButton"] as? String) {
+                return inputAction(for: button, type: keyType)
+            }
+            throw BetterGICorePlatformAdapterError.invalidParameters(
+                "BetterGI game action is missing its Core-resolved physical key."
+            )
         case "keyDown", "keyUp", "keyPress":
             let key: KeyCode?
             if let rawKey = parameters["key"] as? String {
@@ -501,7 +518,30 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
         case "left": .left
         case "right": .right
         case "middle": .middle
+        case "side1": .side1
+        case "side2": .side2
         default: nil
+        }
+    }
+
+    private func inputAction(for key: KeyCode, type: GIKeyType) -> InputAction {
+        switch type {
+        case .keyPress: .keyPress(key: key)
+        case .keyDown: .keyDown(key: key)
+        case .keyUp: .keyUp(key: key)
+        case .hold: .keyHold(key: key, durationMs: 1_000)
+        }
+    }
+
+    private func inputAction(
+        for button: InputMouseButton,
+        type: GIKeyType
+    ) -> InputAction {
+        switch type {
+        case .keyPress: .mouseClick(button: button)
+        case .keyDown: .mouseButtonDown(button: button)
+        case .keyUp: .mouseButtonUp(button: button)
+        case .hold: .mouseButtonHold(button: button, durationMs: 1_000)
         }
     }
 }

@@ -93,8 +93,11 @@ using var loggerFactory = LoggerFactory.Create(builder => builder.AddSimpleConso
     options.SingleLine = true;
     options.TimestampFormat = "HH:mm:ss.fff ";
 }));
-var scriptHostServices = new MacScriptHostServices(
-    loggerFactory, server.PlatformCallbacks, sessionToken, shutdown.Token);
+var scriptHostServices = new MacScriptHostServices(loggerFactory);
+var notificationSettings = new NotificationSettingsCatalog(
+    layout, server.PlatformCallbacks, sessionToken, shutdown.Token);
+notificationSettings.AttachScriptHostServices(scriptHostServices);
+server.AttachNotificationSettings(notificationSettings);
 ScriptHostServices.Configure(scriptHostServices);
 ServerTimeHelper.Initialize(new ServerTimeProvider(TimeProvider.System, () => scriptHostServices.ServerTimeZoneOffset));
 server.AttachScriptHostServices(scriptHostServices);
@@ -140,7 +143,7 @@ BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageR
 TaskControlPlatform.Configure(new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing,
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl"),
-    foregroundInputCoordinator));
+    foregroundInputCoordinator, new GameActionKeyResolver(layout)));
 var autoFightRuntimePlatform = new MacAutoFightRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);
 AutoFightRuntimePlatform.Configure(autoFightRuntimePlatform);
@@ -231,6 +234,8 @@ KeyMouseMacroPlatform.Configure(new MacKeyMouseMacroPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token,
     loggerFactory.CreateLogger("BetterGenshinImpact.Core.Recorder.KeyMouseMacroPlayer"),
     foregroundInputCoordinator));
+server.AttachKeyMouseScriptCoordinator(new KeyMouseScriptCoordinator(
+    layout, loggerFactory.CreateLogger<KeyMouseScriptCoordinator>(), shutdown.Token));
 var scriptGroupExecutionServices = new MacScriptGroupExecutionServices(
     layout, autoPickRuntimeState, semanticInputBackend, () => gameTaskManagerPlatform.SystemInfo,
     autoPickConfigProvider, paddleAutoPickRecognizer, yapAutoPickRecognizer);

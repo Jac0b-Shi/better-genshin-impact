@@ -15,7 +15,8 @@ public sealed class MacTaskControlPlatform(
     CancellationToken cancellationToken,
     SharedCaptureRingReader captureRing,
     ILogger logger,
-    ForegroundInputCoordinator inputCoordinator) : ITaskControlPlatform
+    ForegroundInputCoordinator inputCoordinator,
+    GameActionKeyResolver keyResolver) : ITaskControlPlatform
 {
     public ILogger Logger { get; } = logger;
     public bool IsHdrCapture => false;
@@ -24,18 +25,23 @@ public sealed class MacTaskControlPlatform(
 
     public void EnsureGameActive() => inputCoordinator.WaitForGameFocus(cancellationToken);
     public void ReleasePressedInputs() => inputCoordinator.ReleaseAllWhenFocused(cancellationToken);
-    public void SimulateAction(GIActions action, KeyType keyType) => Dispatch(new
+    public void SimulateAction(GIActions action, KeyType keyType)
     {
-        action = "gameAction",
-        gameAction = LowerCamel(action.ToString()),
-        keyType = LowerCamel(keyType.ToString())
-    });
-    public bool IsActionKeyDown(GIActions action) => Invoke(
-        "input.query", JObject.FromObject(new
+        var resolvedKey = keyResolver.Resolve(action);
+        if (resolvedKey.WindowsVirtualKey is null && resolvedKey.MouseButton is null)
+            return;
+        var parameters = new JObject
         {
-            action = "isGameActionDown",
-            gameAction = LowerCamel(action.ToString())
-        })).Value<bool?>("isDown")
+            ["action"] = "gameAction",
+            ["gameAction"] = LowerCamel(action.ToString()),
+            ["keyType"] = LowerCamel(keyType.ToString())
+        };
+        AddResolvedKey(parameters, resolvedKey);
+        Dispatch(parameters);
+    }
+
+    public bool IsActionKeyDown(GIActions action) => Invoke(
+        "input.query", CreateActionQuery(action)).Value<bool?>("isDown")
         ?? throw new InvalidDataException("input.query did not return isDown.");
     public void MoveMouseBy(int x, int y) => Dispatch(new { action = "moveMouseBy", x, y });
     public void LeftButtonDown() => Dispatch(new { action = "mouseDown", button = "left" });
@@ -62,6 +68,28 @@ public sealed class MacTaskControlPlatform(
     {
         var response = Invoke("capture.request", JObject.FromObject(new { forceNew }));
         return captureRing.Read(response).DeriveTo1080P();
+    }
+
+    private JObject CreateActionQuery(GIActions action)
+    {
+        var parameters = new JObject
+        {
+            ["action"] = "isGameActionDown",
+            ["gameAction"] = LowerCamel(action.ToString())
+        };
+        AddResolvedKey(parameters, keyResolver.Resolve(action));
+        return parameters;
+    }
+
+    private static void AddResolvedKey(
+        JObject parameters,
+        ResolvedGameActionKey resolvedKey)
+    {
+        if (resolvedKey.MouseButton is null)
+            parameters["windowsVirtualKey"] = resolvedKey.WindowsVirtualKey
+                ?? throw new InvalidOperationException("Game action does not have a physical key binding.");
+        else
+            parameters["mouseButton"] = resolvedKey.MouseButton;
     }
 
     private void Dispatch(object value) =>

@@ -369,7 +369,6 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
     func initialize(
         runtimeRoot: URL,
         serverTimeZoneOffsetHours: Double,
-        jsNotificationEnabled: Bool,
         mapMatchingMethod: String
     ) throws -> [String: Any] {
         guard let result = try request(
@@ -377,7 +376,6 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
             parameters: [
                 "runtimeRoot": runtimeRoot.path,
                 "serverTimeZoneOffsetHours": serverTimeZoneOffsetHours,
-                "jsNotificationEnabled": jsNotificationEnabled,
                 "mapMatchingMethod": mapMatchingMethod,
             ]
         ) as? [String: Any] else {

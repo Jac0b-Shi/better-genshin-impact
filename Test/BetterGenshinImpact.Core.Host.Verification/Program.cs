@@ -266,8 +266,7 @@ server.AttachRuntimeArtifactInitializer(() =>
     artifactInitializationCount++;
     return new RuntimeArtifactStatus(0, 34, "verification-source-lock.json");
 });
-var scriptHostServices = new MacScriptHostServices(
-    loggerFactory, server.PlatformCallbacks, sessionToken, cancellation.Token);
+var scriptHostServices = new MacScriptHostServices(loggerFactory);
 scriptHostServices.SetJsNotificationEnabled(true);
 scriptHostServices.SetServerTimeZoneOffset(TimeSpan.FromHours(8));
 ServerTimeHelper.Initialize(new ServerTimeProvider(
@@ -347,7 +346,7 @@ TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
 TaskControlPlatform.Configure(new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl"),
-    foregroundInputCoordinator));
+    foregroundInputCoordinator, new GameActionKeyResolver(layout)));
 var imageRegionOcrService = new MacImageRegionOcrService(
     layout, loggerFactory.CreateLogger<BetterGenshinImpact.Core.Recognition.ONNX.BgiOnnxFactory>());
 BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageRegionOcrService);

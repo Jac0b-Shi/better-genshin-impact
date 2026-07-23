@@ -438,6 +438,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Recorder/Model/KeyMouseScriptInfo.cs" Link="Core/Recorder/Model/KeyMouseScriptInfo.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recorder/KeyMouseMacroPlatform.cs" Link="Core/Recorder/KeyMouseMacroPlatform.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Recorder/KeyMouseMacroPlayer.cs" Link="Core/Recorder/KeyMouseMacroPlayer.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Recorder/KeyMouseScriptBuilder.cs" Link="Core/Recorder/KeyMouseScriptBuilder.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Shell/ShellTaskParam.cs" Link="GameTask/Shell/ShellTaskParam.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Shell/ShellTask.cs" Link="GameTask/Shell/ShellTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Shell/ShellTaskPlatform.cs" Link="GameTask/Shell/ShellTaskPlatform.cs" />

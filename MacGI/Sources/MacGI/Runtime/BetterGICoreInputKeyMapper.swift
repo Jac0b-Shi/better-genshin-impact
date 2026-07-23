@@ -4,6 +4,41 @@ import CoreGraphics
 /// Translates BetterGI Core's semantic key payloads into macOS input codes.
 /// This is a platform adapter only; key/mouse execution semantics remain in C# Core.
 enum BetterGICoreInputKeyMapper {
+    static func windowsVirtualKey(fromCGKeyCode cgKeyCode: CGKeyCode) -> Int? {
+        guard let key = KeyCode.allCases.first(where: { $0.cgKeyCode == cgKeyCode }) else {
+            return nil
+        }
+        return windowsVirtualKey(from: key)
+    }
+
+    static func windowsVirtualKey(from key: KeyCode) -> Int? {
+        if key.rawValue.count == 1, let scalar = key.rawValue.uppercased().unicodeScalars.first {
+            return Int(scalar.value)
+        }
+        if key.rawValue.hasPrefix("digit"), let digit = Int(key.rawValue.dropFirst(5)) {
+            return 0x30 + digit
+        }
+        if key.rawValue.hasPrefix("f"), let number = Int(key.rawValue.dropFirst()),
+           (1...12).contains(number) {
+            return 0x6F + number
+        }
+        return switch key {
+        case .backspace: 0x08; case .tab: 0x09; case .return: 0x0D
+        case .leftShift: 0xA0; case .leftControl: 0xA2; case .leftOption: 0xA4
+        case .capsLock: 0x14; case .escape: 0x1B; case .space: 0x20
+        case .pageUp: 0x21; case .pageDown: 0x22; case .end: 0x23; case .home: 0x24
+        case .leftArrow: 0x25; case .upArrow: 0x26
+        case .rightArrow: 0x27; case .downArrow: 0x28
+        case .delete: 0x2E
+        case .semicolon: 0xBA; case .equal: 0xBB; case .comma: 0xBC; case .minus: 0xBD
+        case .period: 0xBE; case .slash: 0xBF; case .grave: 0xC0
+        case .leftBracket: 0xDB; case .backslash: 0xDC
+        case .rightBracket: 0xDD; case .apostrophe: 0xDE
+        case .rightCommand: nil
+        default: nil
+        }
+    }
+
     static func keyCode(fromWindowsVirtualKey virtualKey: Int) -> KeyCode? {
         if (0x30...0x39).contains(virtualKey) {
             return KeyCode(rawValue: "digit\(virtualKey - 0x30)")

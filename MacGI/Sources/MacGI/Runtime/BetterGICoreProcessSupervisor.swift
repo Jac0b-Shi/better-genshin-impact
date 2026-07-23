@@ -13,6 +13,33 @@ struct BetterGICoreTriggerState: Sendable, Equatable {
     let autoHangoutEventEnabled: Bool?
 }
 
+struct BetterGIKeyMouseScript: Sendable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let createdAt: String
+}
+
+struct BetterGIKeyMousePlaybackStatus: Sendable, Equatable {
+    let taskID: String?
+    let scriptID: String?
+    let state: String
+    let error: String?
+}
+
+struct BetterGINotificationSettings: Sendable, Equatable {
+    let jsNotificationEnabled: Bool
+    let macOSNotificationEnabled: Bool
+}
+
+struct BetterGIMacroSettings: Sendable, Equatable {
+    let fPressHoldToContinuationEnabled: Bool
+    let fFireInterval: Int
+    let spacePressHoldToContinuationEnabled: Bool
+    let spaceFireInterval: Int
+    let pickUpOrInteractKey: KeyCode
+    let jumpKey: KeyCode
+}
+
 struct BetterGICoreAutoEatTriggerSettings: Sendable, Equatable {
     let checkInterval: Int
     let eatInterval: Int
@@ -378,7 +405,6 @@ actor BetterGICoreProcessSupervisor {
                 let initialized = try client.initialize(
                     runtimeRoot: store.rootURL,
                     serverTimeZoneOffsetHours: 8,
-                    jsNotificationEnabled: false,
                     mapMatchingMethod: "TemplateMatch"
                 )
                 if initialized["platformCallbackAttached"] as? Bool == true {
@@ -464,6 +490,180 @@ actor BetterGICoreProcessSupervisor {
 
     func listPathingEntries() throws -> [BetterGIPathingEntry] {
         try runningClient().listPathingEntries()
+    }
+
+    func listKeyMouseScripts() throws -> [BetterGIKeyMouseScript] {
+        guard let values = try runningClient().request(method: "keyMouse.list") as? [[String: Any]]
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid keyMouse.list result.")
+        }
+        return try values.map { value in
+            guard let id = value["id"] as? String,
+                  let name = value["name"] as? String,
+                  let createdAt = value["createdAt"] as? String
+            else {
+                throw BetterGICoreRPCError.protocolViolation("Invalid key/mouse script descriptor.")
+            }
+            return BetterGIKeyMouseScript(id: id, name: name, createdAt: createdAt)
+        }
+    }
+
+    func saveKeyMouseRecording(_ recording: MacKeyMouseRecording) throws {
+        guard let result = try runningClient().request(
+            method: "keyMouse.saveRecording",
+            parameters: [
+                "events": recording.events.map(\.rpcPayload),
+                "info": recording.infoPayload,
+            ]
+        ) as? [String: Any], result["id"] as? String != nil
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid keyMouse.saveRecording result.")
+        }
+    }
+
+    func renameKeyMouseScript(id: String, name: String) throws {
+        guard let result = try runningClient().request(
+            method: "keyMouse.rename",
+            parameters: ["id": id, "name": name]
+        ) as? [String: Any], result["id"] as? String != nil
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid keyMouse.rename result.")
+        }
+    }
+
+    func deleteKeyMouseScript(id: String) throws {
+        guard let result = try runningClient().request(
+            method: "keyMouse.delete",
+            parameters: ["id": id]
+        ) as? [String: Any], result["deleted"] as? Bool == true
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid keyMouse.delete result.")
+        }
+    }
+
+    func keyMouseScriptRootLocation() throws -> String {
+        guard let result = try runningClient().request(
+            method: "keyMouse.rootLocation") as? [String: Any],
+              let path = result["path"] as? String
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid keyMouse.rootLocation result.")
+        }
+        return path
+    }
+
+    func playKeyMouseScript(id: String) throws -> BetterGIKeyMousePlaybackStatus {
+        try parseKeyMousePlaybackStatus(runningClient().request(
+            method: "keyMouse.play", parameters: ["id": id]))
+    }
+
+    func stopKeyMouseScript() throws -> BetterGIKeyMousePlaybackStatus {
+        try parseKeyMousePlaybackStatus(runningClient().request(method: "keyMouse.stop"))
+    }
+
+    func keyMousePlaybackStatus() throws -> BetterGIKeyMousePlaybackStatus {
+        try parseKeyMousePlaybackStatus(runningClient().request(method: "keyMouse.status"))
+    }
+
+    func notificationSettings() throws -> BetterGINotificationSettings {
+        try parseNotificationSettings(runningClient().request(method: "notification.settings.get"))
+    }
+
+    func saveNotificationSettings(
+        _ settings: BetterGINotificationSettings
+    ) throws -> BetterGINotificationSettings {
+        try parseNotificationSettings(runningClient().request(
+            method: "notification.settings.save",
+            parameters: [
+                "settings": [
+                    "jsNotificationEnabled": settings.jsNotificationEnabled,
+                    "macOSNotificationEnabled": settings.macOSNotificationEnabled,
+                ],
+            ]))
+    }
+
+    func testNotification() throws {
+        guard let result = try runningClient().request(
+            method: "notification.test") as? [String: Any],
+              result["sent"] as? Bool == true
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid notification.test result.")
+        }
+    }
+
+    func macroSettings() throws -> BetterGIMacroSettings {
+        try parseMacroSettings(runningClient().request(method: "macro.settings.get"))
+    }
+
+    func saveMacroSettings(_ settings: BetterGIMacroSettings) throws
+        -> BetterGIMacroSettings
+    {
+        try parseMacroSettings(runningClient().request(
+            method: "macro.settings.save",
+            parameters: [
+                "settings": [
+                    "fPressHoldToContinuationEnabled":
+                        settings.fPressHoldToContinuationEnabled,
+                    "fFireInterval": settings.fFireInterval,
+                    "spacePressHoldToContinuationEnabled":
+                        settings.spacePressHoldToContinuationEnabled,
+                    "spaceFireInterval": settings.spaceFireInterval,
+                ],
+            ]))
+    }
+
+    private func parseMacroSettings(_ value: Any) throws -> BetterGIMacroSettings {
+        guard let result = value as? [String: Any],
+              let fEnabled = result["fPressHoldToContinuationEnabled"] as? Bool,
+              let fInterval = result["fFireInterval"] as? Int,
+              let spaceEnabled = result["spacePressHoldToContinuationEnabled"] as? Bool,
+              let spaceInterval = result["spaceFireInterval"] as? Int,
+              let pickUpOrInteractVirtualKey =
+                result["pickUpOrInteractKeyCode"] as? Int,
+              let jumpVirtualKey = result["jumpKeyCode"] as? Int,
+              let pickUpOrInteractKey = BetterGICoreInputKeyMapper.keyCode(
+                fromWindowsVirtualKey: pickUpOrInteractVirtualKey),
+              let jumpKey = BetterGICoreInputKeyMapper.keyCode(
+                fromWindowsVirtualKey: jumpVirtualKey)
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid macro settings.")
+        }
+        return BetterGIMacroSettings(
+            fPressHoldToContinuationEnabled: fEnabled,
+            fFireInterval: fInterval,
+            spacePressHoldToContinuationEnabled: spaceEnabled,
+            spaceFireInterval: spaceInterval,
+            pickUpOrInteractKey: pickUpOrInteractKey,
+            jumpKey: jumpKey)
+    }
+
+    private func parseNotificationSettings(_ value: Any) throws
+        -> BetterGINotificationSettings
+    {
+        guard let result = value as? [String: Any],
+              let jsEnabled = result["jsNotificationEnabled"] as? Bool,
+              let nativeEnabled = result["macOSNotificationEnabled"] as? Bool
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid notification settings.")
+        }
+        return BetterGINotificationSettings(
+            jsNotificationEnabled: jsEnabled,
+            macOSNotificationEnabled: nativeEnabled)
+    }
+
+    private func parseKeyMousePlaybackStatus(_ value: Any) throws
+        -> BetterGIKeyMousePlaybackStatus
+    {
+        guard let result = value as? [String: Any],
+              let state = result["state"] as? String
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid key/mouse playback status.")
+        }
+        return BetterGIKeyMousePlaybackStatus(
+            taskID: result["taskId"] as? String,
+            scriptID: result["scriptId"] as? String,
+            state: state,
+            error: result["error"] as? String
+        )
     }
 
     func pathingDetail(id: String) throws -> BetterGIPathingDetail {

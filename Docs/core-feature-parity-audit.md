@@ -83,6 +83,41 @@ continuous-group flag, two-second group interval, one task lifecycle and the
 upstream `TaskProgress` document. Normal UI execution of one selected group
 continues to use `scheduler.run`.
 
+## Supporting workflows
+
+### Key/mouse recording and playback
+
+The production recording page no longer contains sample scripts or unavailable
+actions. AppKit owns the macOS event tap and forwards physical keyboard, mouse,
+drag and wheel events only while the selected game process is frontmost. Core
+owns the `User/KeyMouseScript` catalog, upstream filename convention, ordering,
+negative-time filtering, 20 ms mouse-move merging, JSON serialization and
+shared `KeyMouseMacroPlayer` playback. List, save, rename, delete, play, stop
+and status operations are exposed through authenticated RPC.
+
+### Notifications
+
+Core owns `notificationConfig.jsNotificationEnabled` and maps the upstream
+native-notification switch to the macOS notification center. Script
+notifications still pass through `IScriptHostServices`, then cross the platform
+callback boundary to `UNUserNotificationCenter`; Swift does not decide whether
+a script may emit. The production page exposes only JS permission, native
+notification permission and a real test action. Webhook, Feishu, OneBot and
+other upstream notifier channels remain unexposed until their shared Core
+notifier implementations are extracted.
+
+### Auxiliary controls
+
+The production page currently exposes the two upstream hold-continuation
+controls that have a complete macOS path. Core reads and writes
+`macroConfig`, supplies the configured `KeyBindingsConfig` pickup and jump
+virtual keys, and owns the 200/300 ms thresholds and configured repeat
+intervals. AppKit observes physical key state only while the game is frontmost;
+all generated presses still pass through the normal input safety gate and carry
+an injection marker so neither recording nor hold monitoring can feed back on
+BetterGI-generated events. Other upstream macro actions remain absent from the
+page rather than appearing as clickable placeholders.
+
 ## Verification tiers
 
 Use the smallest tier that owns the changed behavior:
@@ -125,3 +160,8 @@ shared-Core checks in about 7.5 seconds including up-to-date builds. The runtime
 pathing verifier completed its isolated warm loop in under 9 seconds. The
 expensive full gate is therefore reserved for model, recognition, artifact,
 native-runtime and phase-completion changes.
+
+The `runtime-settings` Fast suite additionally starts the real Unix-domain RPC
+server and verifies macro settings, notification settings and key/mouse
+recording CRUD through framed authenticated requests. This prevents direct
+catalog tests from masking RPC method or payload drift.

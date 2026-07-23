@@ -9,4 +9,5 @@ return await VerificationRunner.RunAsync(args,
     new PathingCatalogSuite(),
     new ScriptRepositorySuite(),
     new RuntimeCancellationSuite(),
+    new RuntimeSettingsSuite(),
 ]);

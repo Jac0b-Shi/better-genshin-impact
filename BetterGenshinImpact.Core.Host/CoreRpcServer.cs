@@ -25,6 +25,8 @@ public sealed class CoreRpcServer(
     private readonly PathingCatalog _pathingCatalog = new(layout);
     private readonly SoloTaskSettingsCatalog _soloTaskSettings = new(layout);
     private readonly TriggerSettingsCatalog _triggerSettings = new(layout);
+    private readonly MacroSettingsCatalog _macroSettings = new(layout);
+    private NotificationSettingsCatalog? _notificationSettings;
     private readonly PlatformCallbackChannel _platformCallbacks = new();
     private SchedulerCoordinator? _scheduler;
     private readonly CancellationTokenSource _shutdown = new();
@@ -39,6 +41,7 @@ public sealed class CoreRpcServer(
     private Action? _platformAssetInitializer;
     private MacTriggerDispatcher? _triggerDispatcher;
     private SoloTaskCoordinator? _soloTasks;
+    private KeyMouseScriptCoordinator? _keyMouseScripts;
     private int _platformAssetsInitialized;
     private readonly SemaphoreSlim _runtimeMutationLock = new(1, 1);
     public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
@@ -49,6 +52,12 @@ public sealed class CoreRpcServer(
         layout, _platformCallbacks, sessionToken, _shutdown.Token);
     private SoloTaskCoordinator SoloTasks => _soloTasks ?? throw new CapabilityUnavailableException(
         "Solo task coordinator is unavailable until Core composition completes.");
+    private KeyMouseScriptCoordinator KeyMouseScripts => _keyMouseScripts
+        ?? throw new CapabilityUnavailableException(
+            "Key/mouse script coordinator is unavailable until Core composition completes.");
+    private NotificationSettingsCatalog NotificationSettings => _notificationSettings
+        ?? throw new CapabilityUnavailableException(
+            "Notification settings are unavailable until Core composition completes.");
 
     public void AttachScriptHostServices(MacScriptHostServices services)
     {
@@ -83,6 +92,20 @@ public sealed class CoreRpcServer(
         ArgumentNullException.ThrowIfNull(coordinator);
         if (Interlocked.CompareExchange(ref _soloTasks, coordinator, null) is not null)
             throw new InvalidOperationException("Solo task coordinator has already been attached.");
+    }
+
+    public void AttachKeyMouseScriptCoordinator(KeyMouseScriptCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        if (Interlocked.CompareExchange(ref _keyMouseScripts, coordinator, null) is not null)
+            throw new InvalidOperationException("Key/mouse script coordinator has already been attached.");
+    }
+
+    public void AttachNotificationSettings(NotificationSettingsCatalog settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        if (Interlocked.CompareExchange(ref _notificationSettings, settings, null) is not null)
+            throw new InvalidOperationException("Notification settings have already been attached.");
     }
 
     public void AttachRuntimeArtifactInitializer(Func<RuntimeArtifactStatus> initializer)
@@ -208,6 +231,10 @@ public sealed class CoreRpcServer(
                     await MapMaskRuntimePlatform.SavePointSelectionAsync(
                         selectedIds.Select(id => id!).ToArray(), _shutdown.Token));
             }
+            if (request.Method == "keyMouse.stop")
+                return RpcResponse.Success(request.Id, await KeyMouseScripts.StopAsync());
+            if (request.Method == "notification.test")
+                return RpcResponse.Success(request.Id, NotificationSettings.Test());
             object? result = request.Method switch
             {
                 "core.handshake" => Handshake(),
@@ -315,6 +342,29 @@ public sealed class CoreRpcServer(
                     RequiredString(request.Params, "name"),
                     request.Params?["settings"] as JObject
                     ?? throw new ArgumentException("settings is required.")),
+                "keyMouse.list" => KeyMouseScripts.List(),
+                "keyMouse.rootLocation" => KeyMouseScripts.RootLocation(),
+                "keyMouse.saveRecording" => KeyMouseScripts.SaveRecording(
+                    request.Params?["events"] as JArray
+                    ?? throw new ArgumentException("events is required."),
+                    request.Params?["info"] as JObject
+                    ?? throw new ArgumentException("info is required.")),
+                "keyMouse.rename" => KeyMouseScripts.Rename(
+                    RequiredString(request.Params, "id"),
+                    RequiredString(request.Params, "name")),
+                "keyMouse.delete" => KeyMouseScripts.Delete(
+                    RequiredString(request.Params, "id")),
+                "keyMouse.play" => KeyMouseScripts.Start(
+                    RequiredString(request.Params, "id")),
+                "keyMouse.status" => KeyMouseScripts.Status(),
+                "notification.settings.get" => NotificationSettings.Get(),
+                "notification.settings.save" => NotificationSettings.Save(
+                    request.Params?["settings"] as JObject
+                    ?? throw new ArgumentException("settings is required.")),
+                "macro.settings.get" => _macroSettings.Get(),
+                "macro.settings.save" => _macroSettings.Save(
+                    request.Params?["settings"] as JObject
+                    ?? throw new ArgumentException("settings is required.")),
                 "runtime.status" => RuntimeStatus(),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.runGroups" => Scheduler.RunGroups(
@@ -373,7 +423,11 @@ public sealed class CoreRpcServer(
                 "runtime-control",
                 "runtime.geometry-refresh",
                 "scheduler.run",
-                "scheduler.runGroups"
+                "scheduler.runGroups",
+                "keyMouse.recording",
+                "keyMouse.playback",
+                "notification.native",
+                "macro.hold-continuation"
             }
         };
     }
@@ -457,6 +511,8 @@ public sealed class CoreRpcServer(
                 await _scheduler.StopActiveAsync(cancellationToken);
             if (_soloTasks is not null)
                 await _soloTasks.StopActiveAsync(cancellationToken);
+            if (_keyMouseScripts is not null)
+                await _keyMouseScripts.StopAsync();
             await RequiredTriggerDispatcher().StopAsync();
             return RuntimeStatus();
         }

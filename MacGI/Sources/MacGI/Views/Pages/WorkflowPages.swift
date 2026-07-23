@@ -431,78 +431,258 @@ struct JSScriptPage: View {
 }
 
 struct RecordReplayPage: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var showingRepository = false
+    @State private var renameCandidate: BetterGIKeyMouseScript?
+    @State private var renameDraft = ""
+    @State private var deleteCandidate: BetterGIKeyMouseScript?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             BGIPageTitle(title: "键鼠录制回放功能（实验功能）")
             HStack(spacing: 8) {
-                BGIUnavailableAction("打开脚本目录", systemImage: "folder")
-                BGIUnavailableAction("脚本仓库", systemImage: "archivebox")
-                BGIUnavailableAction("开始录制", systemImage: "record.circle")
-                BGIUnavailableAction("停止录制", systemImage: "stop.fill")
+                Button {
+                    appState.openKeyMouseScriptDirectory()
+                } label: {
+                    Label("打开脚本目录", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    showingRepository = true
+                } label: {
+                    Label("脚本仓库", systemImage: "archivebox")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    appState.startKeyMouseRecording()
+                } label: {
+                    Label("开始录制", systemImage: "record.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(
+                    appState.keyMouseRecordingState == "starting" ||
+                    appState.keyMouseRecordingState == "recording" ||
+                    appState.keyMouseRecordingState == "saving")
+
+                Button {
+                    appState.stopKeyMouseRecording()
+                } label: {
+                    Label("停止录制", systemImage: "stop.fill")
+                }
+                .buttonStyle(.bordered)
+                .disabled(
+                    appState.keyMouseRecordingState != "starting" &&
+                    appState.keyMouseRecordingState != "recording")
+
+                Text(recordingStatusText)
+                    .font(BGIFonts.caption)
+                    .foregroundStyle(recordingStatusColor)
                 Spacer()
             }
 
-            BGISectionCard("录制脚本", subtitle: "原页面按名称、创建时间、操作展示，右键可改名或删除。", symbolName: "record.circle") {
-                BGIDataTable(
-                    headers: ["名称", "创建时间", "操作"],
-                    rows: [
-                        ["每日登录领取", "2026-06-29 17:30", "播放脚本"],
-                        ["背包整理流程", "2026-06-28 21:12", "播放脚本"],
-                        ["测试点击轨迹", "2026-06-27 10:05", "播放脚本"]
-                    ]
-                )
+            BGISectionCard(
+                "录制脚本",
+                subtitle: "脚本按创建时间排列，可播放、停止、重命名或删除。",
+                symbolName: "record.circle"
+            ) {
+                if appState.keyMouseScripts.isEmpty {
+                    Text("键鼠脚本目录为空。")
+                        .font(BGIFonts.body)
+                        .foregroundStyle(BGIColors.mutedText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(appState.keyMouseScripts) { script in
+                            keyMouseScriptRow(script)
+                            if script.id != appState.keyMouseScripts.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
             }
         }
+        .task {
+            appState.refreshKeyMouseScripts()
+        }
+        .sheet(isPresented: $showingRepository) {
+            ScriptRepositorySheet()
+        }
+        .alert("重命名键鼠脚本", isPresented: Binding(
+            get: { renameCandidate != nil },
+            set: { if !$0 { renameCandidate = nil } }
+        )) {
+            TextField("脚本名称", text: $renameDraft)
+            Button("取消", role: .cancel) {
+                renameCandidate = nil
+            }
+            Button("重命名") {
+                if let renameCandidate {
+                    appState.renameKeyMouseScript(id: renameCandidate.id, name: renameDraft)
+                }
+                renameCandidate = nil
+            }
+            .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .alert("删除键鼠脚本？", isPresented: Binding(
+            get: { deleteCandidate != nil },
+            set: { if !$0 { deleteCandidate = nil } }
+        )) {
+            Button("取消", role: .cancel) {
+                deleteCandidate = nil
+            }
+            Button("删除", role: .destructive) {
+                if let deleteCandidate {
+                    appState.deleteKeyMouseScript(id: deleteCandidate.id)
+                }
+                deleteCandidate = nil
+            }
+        }
+    }
+
+    private var recordingStatusText: String {
+        switch appState.keyMouseRecordingState {
+        case "starting": "等待录制"
+        case "recording": "正在录制"
+        case "saving": "正在保存"
+        case "failed": "录制失败"
+        default: ""
+        }
+    }
+
+    private var recordingStatusColor: Color {
+        switch appState.keyMouseRecordingState {
+        case "recording": BGIColors.danger
+        case "failed": BGIColors.warning
+        default: BGIColors.secondaryText
+        }
+    }
+
+    private func keyMouseScriptRow(_ script: BetterGIKeyMouseScript) -> some View {
+        let isPlaying = appState.keyMousePlaybackStatus.scriptID == script.id &&
+            (appState.keyMousePlaybackStatus.state == "running" ||
+             appState.keyMousePlaybackStatus.state == "stopping")
+        return HStack(spacing: 12) {
+            Image(systemName: "doc.badge.gearshape")
+                .foregroundStyle(BGIColors.accent)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(script.name)
+                    .font(BGIFonts.bodyStrong)
+                    .lineLimit(1)
+                Text(script.createdAt)
+                    .font(BGIFonts.caption)
+                    .foregroundStyle(BGIColors.mutedText)
+            }
+            Spacer()
+            Button {
+                if isPlaying {
+                    appState.stopKeyMousePlayback()
+                } else {
+                    appState.playKeyMouseScript(script.id)
+                }
+            } label: {
+                Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+            }
+            .buttonStyle(.borderless)
+            .help(isPlaying ? "停止脚本" : "播放脚本")
+            .disabled(
+                appState.runtimeLifecycle != .running ||
+                (appState.keyMousePlaybackStatus.state == "running" && !isPlaying))
+
+            Menu {
+                Button("重命名") {
+                    renameCandidate = script
+                    renameDraft = script.name.replacingOccurrences(
+                        of: ".json", with: "", options: [.caseInsensitive, .anchored], range: nil)
+                }
+                Button("删除", role: .destructive) {
+                    deleteCandidate = script
+                }
+                .disabled(isPlaying)
+            } label: {
+                Image(systemName: "ellipsis")
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 28)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 
 struct MacroPage: View {
+    @EnvironmentObject private var appState: AppState
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             BGIPageTitle(title: "辅助操控设置")
 
-            BGIOriginalCard(icon: .symbol("applescript"), title: "一键宏（按角色）", subtitle: "触发后识别当前出战角色，并根据配置执行对应宏。") {
-                BGIUnavailableToggle(isOn: false)
+            BGIOriginalCard(
+                icon: .symbol("keyboard"),
+                title: "长按 \(appState.macroSettings?.jumpKey.displayName ?? "空格")等于连续按下",
+                subtitle: "轻松解除冻结；水下存在需要长按空格的场景，不推荐长期启用。"
+            ) {
+                Toggle("", isOn: Binding(
+                    get: {
+                        appState.macroSettings?.spacePressHoldToContinuationEnabled ?? false
+                    },
+                    set: { appState.saveMacroSettings(spaceEnabled: $0) }
+                ))
+                .labelsHidden()
+                .disabled(appState.macroSettings == nil)
             } content: {
-                BGISettingLine(title: "快捷键触发方式", subtitle: "按住时重复；触发：按下启动再按关闭。") {
-                    BGIInlinePicker(value: "按住时重复", width: 140)
-                }
-                BGISettingLine(title: "宏配置", subtitle: "打开角色宏配置文件。") {
-                    BGIUnavailableAction("前往设置")
-                }
-                BGISettingLine(title: "默认战斗宏编号", subtitle: "当角色 macroPriority 为 0 时使用，范围 1~5。") {
-                    BGINumberField(value: "1", width: 70)
+                BGISettingLine(
+                    title: "\(appState.macroSettings?.jumpKey.displayName ?? "空格")连发间隔",
+                    subtitle: "长按超过 300 毫秒后按该间隔连续触发。"
+                ) {
+                    Stepper(
+                        "\(appState.macroSettings?.spaceFireInterval ?? 100) ms",
+                        value: Binding(
+                            get: { appState.macroSettings?.spaceFireInterval ?? 100 },
+                            set: { appState.saveMacroSettings(spaceInterval: $0) }
+                        ),
+                        in: 10...1000,
+                        step: 10
+                    )
+                    .frame(width: 170)
+                    .disabled(appState.macroSettings == nil)
                 }
             }
 
-            BGIOriginalCard(icon: .symbol("cursorarrow.motionlines"), title: "那维莱特 - 转圈圈", subtitle: "快速水平平移鼠标，需要配置快捷键触发。") {
-                BGIUnavailableAction("绑定快捷键")
+            BGIOriginalCard(
+                icon: .symbol("keyboard"),
+                title: "长按 \(appState.macroSettings?.pickUpOrInteractKey.displayName ?? "F")等于连续按下",
+                subtitle: "快速拾取大量掉落物。"
+            ) {
+                Toggle("", isOn: Binding(
+                    get: {
+                        appState.macroSettings?.fPressHoldToContinuationEnabled ?? false
+                    },
+                    set: { appState.saveMacroSettings(fEnabled: $0) }
+                ))
+                .labelsHidden()
+                .disabled(appState.macroSettings == nil)
             } content: {
-                BGISettingLine(title: "移动鼠标距离", subtitle: "可为负数，绝对值越大移动越快。") {
-                    BGINumberField(value: "120", width: 90)
+                BGISettingLine(
+                    title: "\(appState.macroSettings?.pickUpOrInteractKey.displayName ?? "F")连发间隔",
+                    subtitle: "长按超过 200 毫秒后按该间隔连续触发。"
+                ) {
+                    Stepper(
+                        "\(appState.macroSettings?.fFireInterval ?? 100) ms",
+                        value: Binding(
+                            get: { appState.macroSettings?.fFireInterval ?? 100 },
+                            set: { appState.saveMacroSettings(fInterval: $0) }
+                        ),
+                        in: 10...1000,
+                        step: 10
+                    )
+                    .frame(width: 170)
+                    .disabled(appState.macroSettings == nil)
                 }
-                BGISettingLine(title: "移动鼠标间隔（毫秒）", subtitle: "尽量设置大于 0 的数字。") {
-                    BGINumberField(value: "8", width: 90)
-                }
-            }
-
-            BGIOriginalCard(icon: .symbol("cursorarrow.click"), title: "快速强化圣遗物", subtitle: "快速跳过强化结果展示，需要配置快捷键触发。") {
-                BGIUnavailableAction("绑定快捷键")
-            } content: {
-                BGISettingLine(title: "强化的额外等待时间（毫秒）", subtitle: "高延迟下无法跳过结果显示时延长此配置。") {
-                    BGINumberField(value: "300", width: 90)
-                }
-            }
-
-            BGIOriginalCard(icon: .symbol("keyboard"), title: "长按空格等于连续按下空格", subtitle: "用于解除冻结；水下场景不推荐启用。", expanded: false) {
-                BGIUnavailableToggle(isOn: false)
-            } content: {
-                EmptyView()
-            }
-            BGIOriginalCard(icon: .symbol("keyboard"), title: "长按 F 等于连续按下 F", subtitle: "快速拾取大量掉落物。", expanded: false) {
-                BGIUnavailableToggle(isOn: false)
-            } content: {
-                EmptyView()
             }
         }
     }
@@ -532,33 +712,63 @@ struct HotkeyPage: View {
 }
 
 struct NotificationPage: View {
-    private let providers = [
-        ("全局通知设置", "影响下方所有通知的设置", "bell"),
-        ("启用 Webhook", "Webhook 相关设置", "cloud"),
-        ("启用 WebSocket", "WebSocket 相关设置", "link"),
-        ("启用 macOS 通知", "macOS 通知别与游戏界面重叠，否则易误点通知", "bell.badge"),
-        ("启用飞书通知", "飞书通知相关设置", "paperplane"),
-        ("启用 OneBot 通知", "OneBot 通知相关设置", "ellipsis.message"),
-        ("启用企业微信通知", "企业微信通知相关设置", "bubble.left.and.bubble.right"),
-        ("启用邮箱通知", "邮箱相关设置（账号密码完全保存在本地）", "envelope"),
-        ("启用 Bark 通知", "Bark iOS 推送通知", "bell.circle"),
-        ("启用 Telegram 通知", "Telegram 机器人相关设置", "paperplane.circle"),
-        ("启用钉钉机器人通知", "钉钉机器人通知相关设置", "person.2.wave.2"),
-        ("启用 Discord Webhook 通知", "Discord Webhook 通知相关设置", "bubble.left.and.text.bubble.right")
-    ]
+    @EnvironmentObject private var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             BGIPageTitle(title: "通知设置")
-            ForEach(providers, id: \.0) { provider in
-                BGIOriginalCard(icon: .symbol(provider.2), title: provider.0, subtitle: provider.1, expanded: provider.0 == "全局通知设置") {
-                    BGIUnavailableToggle(isOn: provider.0 == "全局通知设置")
-                } content: {
-                    BGISettingLine(title: "测试通知", subtitle: "发送测试通知，验证当前渠道配置。") {
-                        BGIUnavailableAction("发送测试通知")
-                    }
-                    BGISettingLine(title: "通知模板", subtitle: "任务开始、任务结束、异常退出时的消息模板。") {
-                        BGIInlinePicker(value: "默认", width: 110)
+
+            BGIOriginalCard(
+                icon: .symbol("bell"),
+                title: "全局通知设置",
+                subtitle: "影响脚本和通知渠道的全局权限"
+            ) {
+                EmptyView()
+            } content: {
+                BGISettingLine(
+                    title: "允许 JS 脚本发送通知",
+                    subtitle: "启用后，调度器中获准发送通知的脚本可以调用通知接口。"
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { appState.notificationSettings?.jsNotificationEnabled ?? false },
+                        set: { appState.saveNotificationSettings(jsNotificationEnabled: $0) }
+                    ))
+                    .labelsHidden()
+                    .disabled(appState.notificationSettings == nil)
+                }
+            }
+
+            BGIOriginalCard(
+                icon: .symbol("bell.badge"),
+                title: "macOS 通知",
+                subtitle: "通过系统通知中心显示 BetterGI 消息"
+            ) {
+                Toggle("", isOn: Binding(
+                    get: { appState.notificationSettings?.macOSNotificationEnabled ?? false },
+                    set: { appState.saveNotificationSettings(macOSNotificationEnabled: $0) }
+                ))
+                .labelsHidden()
+                .disabled(appState.notificationSettings == nil)
+            } content: {
+                BGISettingLine(
+                    title: "测试通知",
+                    subtitle: "通过当前配置发送一条系统通知。"
+                ) {
+                    HStack(spacing: 8) {
+                        if !appState.notificationTestStatus.isEmpty {
+                            Text(appState.notificationTestStatus)
+                                .font(BGIFonts.caption)
+                                .foregroundStyle(BGIColors.secondaryText)
+                                .lineLimit(2)
+                        }
+                        Button {
+                            appState.sendTestNotification()
+                        } label: {
+                            Label("发送", systemImage: "paperplane")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(
+                            appState.notificationSettings?.macOSNotificationEnabled != true)
                     }
                 }
             }

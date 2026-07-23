@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import UserNotifications
 
 struct CoreCatalogIssue: Equatable, Sendable {
     let path: String
@@ -300,7 +301,10 @@ final class AppState: ObservableObject {
 
     /// Currently selected game window.
     @Published var selectedWindow: WindowInfo = .unavailable() {
-        didSet { updateGameWindowFocus(frontmostPID: frontmostApplicationPID) }
+        didSet {
+            updateGameWindowFocus(frontmostPID: frontmostApplicationPID)
+            refreshAuxiliaryControlMonitor()
+        }
     }
 
     /// Available game windows from the tracker.
@@ -338,6 +342,19 @@ final class AppState: ObservableObject {
     private var pendingRuntimeGeometryPixelSize: CGSize?
     private var runtimeGeometryRefreshTask: Task<Void, Never>?
     private var mapMaskSelectionSaveTask: Task<Void, Never>?
+    private let keyMouseEventRecorder = MacKeyMouseEventRecorder()
+    private var keyMouseRecordingStartTask: Task<Void, Never>?
+    private var keyMousePlaybackPollTask: Task<Void, Never>?
+    private var notificationSettingsSaveRevision = 0
+    private var macroSettingsSaveRevision = 0
+    private lazy var auxiliaryControlMonitor = MacAuxiliaryControlMonitor {
+        [weak self] key, isDown in
+        MainActor.assumeIsolated {
+            self?.handleAuxiliaryControlKey(key, isDown: isDown)
+        }
+    }
+    private var fContinuationTask: Task<Void, Never>?
+    private var spaceContinuationTask: Task<Void, Never>?
     private var confirmedMapMaskSelectedLabelIDs: Set<String> = []
     private var captureTimestamps: [Date] = []
     @Published private(set) var measuredCaptureFPS = 0
@@ -364,6 +381,13 @@ final class AppState: ObservableObject {
     @Published var soloTaskInputDrafts: [String: String] = [:]
     @Published private(set) var soloTaskStatus = BetterGICoreSoloTaskStatus(
         taskID: nil, name: nil, state: "idle", error: nil)
+    @Published private(set) var keyMouseScripts: [BetterGIKeyMouseScript] = []
+    @Published private(set) var keyMouseRecordingState = "idle"
+    @Published private(set) var keyMousePlaybackStatus = BetterGIKeyMousePlaybackStatus(
+        taskID: nil, scriptID: nil, state: "idle", error: nil)
+    @Published private(set) var notificationSettings: BetterGINotificationSettings?
+    @Published private(set) var notificationTestStatus = ""
+    @Published private(set) var macroSettings: BetterGIMacroSettings?
     @Published private(set) var autoGeniusInvokationSettings:
         BetterGICoreAutoGeniusInvokationSettings?
     @Published private(set) var autoCookSettings: BetterGICoreAutoCookSettings?
@@ -651,6 +675,387 @@ final class AppState: ObservableObject {
         return count
     }
 
+    func refreshKeyMouseScripts() {
+        Task { [weak self] in
+            await self?.loadKeyMouseScriptsFromCore()
+        }
+    }
+
+    private func loadKeyMouseScriptsFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            keyMouseScripts = []
+            return
+        }
+        do {
+            keyMouseScripts = try await supervisor.listKeyMouseScripts()
+            keyMousePlaybackStatus = try await supervisor.keyMousePlaybackStatus()
+        } catch {
+            keyMouseScripts = []
+            addLog(.error, "Key/mouse script catalog failed: \(error.localizedDescription)")
+        }
+    }
+
+    func startKeyMouseRecording() {
+        guard runtimeLifecycle == .running else {
+            addLog(.error, "请先启动运行时再录制键鼠脚本。")
+            return
+        }
+        guard keyMouseRecordingState == "idle" || keyMouseRecordingState == "failed" else {
+            addLog(.warn, "键鼠录制已处于 \(keyMouseRecordingState) 状态。")
+            return
+        }
+        keyMouseRecordingStartTask?.cancel()
+        keyMouseRecordingState = "starting"
+        addLog(.info, "3 秒后启动键鼠录制。")
+        keyMouseRecordingStartTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(3))
+                guard let self else { return }
+                guard self.runtimeLifecycle == .running else {
+                    throw BetterGICoreRPCError.protocolViolation("运行时已停止。")
+                }
+                guard self.isTargetWindowFrontmost(self.selectedWindow) else {
+                    throw BetterGICoreRPCError.protocolViolation(
+                        "原神窗口未处于前台，录制未启动。")
+                }
+                try self.keyMouseEventRecorder.start(targetWindow: self.selectedWindow)
+                self.keyMouseRecordingState = "recording"
+                self.addLog(.info, "键鼠录制已启动。")
+            } catch is CancellationError {
+                self?.keyMouseRecordingState = "idle"
+            } catch {
+                self?.keyMouseRecordingState = "failed"
+                self?.addLog(.error, "键鼠录制启动失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func stopKeyMouseRecording() {
+        if keyMouseRecordingState == "starting" {
+            keyMouseRecordingStartTask?.cancel()
+            keyMouseRecordingStartTask = nil
+            keyMouseRecordingState = "idle"
+            addLog(.info, "已取消键鼠录制启动。")
+            return
+        }
+        guard keyMouseRecordingState == "recording",
+              let supervisor = betterGICoreSupervisor
+        else {
+            addLog(.warn, "当前没有正在运行的键鼠录制。")
+            return
+        }
+        do {
+            let recording = try keyMouseEventRecorder.stop()
+            keyMouseRecordingState = "saving"
+            Task { [weak self] in
+                do {
+                    try await supervisor.saveKeyMouseRecording(recording)
+                    self?.keyMouseRecordingState = "idle"
+                    self?.addLog(.info, "键鼠录制已保存，共 \(recording.events.count) 个原始事件。")
+                    await self?.loadKeyMouseScriptsFromCore()
+                } catch {
+                    self?.keyMouseRecordingState = "failed"
+                    self?.addLog(.error, "键鼠录制保存失败：\(error.localizedDescription)")
+                }
+            }
+        } catch {
+            keyMouseRecordingState = "failed"
+            addLog(.error, "键鼠录制停止失败：\(error.localizedDescription)")
+        }
+    }
+
+    func playKeyMouseScript(_ id: String) {
+        guard runtimeLifecycle == .running, let supervisor = betterGICoreSupervisor else {
+            addLog(.error, "请先启动运行时再播放键鼠脚本。")
+            return
+        }
+        keyMousePlaybackPollTask?.cancel()
+        keyMousePlaybackPollTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                self.keyMousePlaybackStatus = try await supervisor.playKeyMouseScript(id: id)
+                while self.keyMousePlaybackStatus.state == "running" ||
+                        self.keyMousePlaybackStatus.state == "stopping" {
+                    try await Task.sleep(for: .milliseconds(250))
+                    self.keyMousePlaybackStatus = try await supervisor.keyMousePlaybackStatus()
+                }
+                if let error = self.keyMousePlaybackStatus.error {
+                    self.addLog(.error, "键鼠脚本播放失败：\(error)")
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                self.addLog(.error, "键鼠脚本播放失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func stopKeyMousePlayback() {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            do {
+                self?.keyMousePlaybackStatus = try await supervisor.stopKeyMouseScript()
+            } catch {
+                self?.addLog(.error, "停止键鼠脚本失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func renameKeyMouseScript(id: String, name: String) {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            do {
+                try await supervisor.renameKeyMouseScript(id: id, name: name)
+                await self?.loadKeyMouseScriptsFromCore()
+            } catch {
+                self?.addLog(.error, "键鼠脚本重命名失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func deleteKeyMouseScript(id: String) {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            do {
+                try await supervisor.deleteKeyMouseScript(id: id)
+                await self?.loadKeyMouseScriptsFromCore()
+            } catch {
+                self?.addLog(.error, "删除键鼠脚本失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func openKeyMouseScriptDirectory() {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        Task { [weak self] in
+            do {
+                let path = try await supervisor.keyMouseScriptRootLocation()
+                guard NSWorkspace.shared.open(URL(fileURLWithPath: path)) else {
+                    throw BetterGICoreRPCError.socket("Finder 无法打开键鼠脚本目录。")
+                }
+            } catch {
+                self?.addLog(.error, "打开键鼠脚本目录失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func loadNotificationSettingsFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            notificationSettings = nil
+            return
+        }
+        do {
+            notificationSettings = try await supervisor.notificationSettings()
+        } catch {
+            notificationSettings = nil
+            addLog(.error, "通知设置加载失败：\(error.localizedDescription)")
+        }
+    }
+
+    func saveNotificationSettings(
+        jsNotificationEnabled: Bool? = nil,
+        macOSNotificationEnabled: Bool? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor,
+              let current = notificationSettings
+        else {
+            addLog(.error, "通知设置保存失败：BetterGI Core 尚未就绪。")
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let nativeEnabled = macOSNotificationEnabled ?? current.macOSNotificationEnabled
+            if nativeEnabled && !current.macOSNotificationEnabled {
+                do {
+                    let granted = try await UNUserNotificationCenter.current()
+                        .requestAuthorization(options: [.alert, .sound])
+                    guard granted else {
+                        throw BetterGICoreRPCError.protocolViolation("macOS 通知权限未授权。")
+                    }
+                } catch {
+                    self.notificationTestStatus = error.localizedDescription
+                    self.addLog(.error, "macOS 通知授权失败：\(error.localizedDescription)")
+                    return
+                }
+            }
+            let next = BetterGINotificationSettings(
+                jsNotificationEnabled:
+                    jsNotificationEnabled ?? current.jsNotificationEnabled,
+                macOSNotificationEnabled: nativeEnabled)
+            self.notificationSettingsSaveRevision += 1
+            let revision = self.notificationSettingsSaveRevision
+            self.notificationSettings = next
+            do {
+                let saved = try await supervisor.saveNotificationSettings(next)
+                if revision == self.notificationSettingsSaveRevision {
+                    self.notificationSettings = saved
+                    self.notificationTestStatus = ""
+                }
+            } catch {
+                if revision == self.notificationSettingsSaveRevision {
+                    await self.loadNotificationSettingsFromCore()
+                }
+                self.addLog(.error, "通知设置保存失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func sendTestNotification() {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        notificationTestStatus = "正在发送"
+        Task { [weak self] in
+            do {
+                try await supervisor.testNotification()
+                self?.notificationTestStatus = "发送成功"
+            } catch {
+                self?.notificationTestStatus = error.localizedDescription
+                self?.addLog(.error, "测试通知失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func loadMacroSettingsFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            macroSettings = nil
+            return
+        }
+        do {
+            macroSettings = try await supervisor.macroSettings()
+            refreshAuxiliaryControlMonitor()
+        } catch {
+            macroSettings = nil
+            addLog(.error, "辅助操控设置加载失败：\(error.localizedDescription)")
+        }
+    }
+
+    func saveMacroSettings(
+        fEnabled: Bool? = nil,
+        fInterval: Int? = nil,
+        spaceEnabled: Bool? = nil,
+        spaceInterval: Int? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor, let current = macroSettings else {
+            addLog(.error, "辅助操控设置保存失败：BetterGI Core 尚未就绪。")
+            return
+        }
+        let next = BetterGIMacroSettings(
+            fPressHoldToContinuationEnabled:
+                fEnabled ?? current.fPressHoldToContinuationEnabled,
+            fFireInterval: fInterval ?? current.fFireInterval,
+            spacePressHoldToContinuationEnabled:
+                spaceEnabled ?? current.spacePressHoldToContinuationEnabled,
+            spaceFireInterval: spaceInterval ?? current.spaceFireInterval,
+            pickUpOrInteractKey: current.pickUpOrInteractKey,
+            jumpKey: current.jumpKey)
+        macroSettingsSaveRevision += 1
+        let revision = macroSettingsSaveRevision
+        macroSettings = next
+        refreshAuxiliaryControlMonitor()
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let saved = try await supervisor.saveMacroSettings(next)
+                if revision == self.macroSettingsSaveRevision {
+                    self.macroSettings = saved
+                    self.refreshAuxiliaryControlMonitor()
+                }
+            } catch {
+                if revision == self.macroSettingsSaveRevision {
+                    await self.loadMacroSettingsFromCore()
+                }
+                self.addLog(.error, "辅助操控设置保存失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func refreshAuxiliaryControlMonitor() {
+        guard runtimeLifecycle == .running,
+              let settings = macroSettings,
+              settings.fPressHoldToContinuationEnabled ||
+                settings.spacePressHoldToContinuationEnabled,
+              isWindowValid,
+              !selectedWindow.isSynthetic
+        else {
+            stopAuxiliaryControlMonitor()
+            return
+        }
+        do {
+            try auxiliaryControlMonitor.start(targetProcessID: selectedWindow.ownerPID)
+        } catch {
+            addLog(.error, "辅助操控键盘监听启动失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func stopAuxiliaryControlMonitor() {
+        auxiliaryControlMonitor.stop()
+        fContinuationTask?.cancel()
+        fContinuationTask = nil
+        spaceContinuationTask?.cancel()
+        spaceContinuationTask = nil
+    }
+
+    private func handleAuxiliaryControlKey(_ key: KeyCode, isDown: Bool) {
+        guard let settings = macroSettings else { return }
+        if key == settings.pickUpOrInteractKey &&
+            settings.fPressHoldToContinuationEnabled {
+            if isDown {
+                if fContinuationTask == nil {
+                    fContinuationTask = continuationTask(
+                        key: settings.pickUpOrInteractKey,
+                        thresholdMilliseconds: 200,
+                        intervalMilliseconds: settings.fFireInterval,
+                        clear: { [weak self] in self?.fContinuationTask = nil })
+                }
+            } else {
+                fContinuationTask?.cancel()
+                fContinuationTask = nil
+            }
+        }
+        if key == settings.jumpKey &&
+            settings.spacePressHoldToContinuationEnabled {
+            if isDown {
+                if spaceContinuationTask == nil {
+                    spaceContinuationTask = continuationTask(
+                        key: settings.jumpKey,
+                        thresholdMilliseconds: 300,
+                        intervalMilliseconds: settings.spaceFireInterval,
+                        clear: { [weak self] in self?.spaceContinuationTask = nil })
+                }
+            } else {
+                spaceContinuationTask?.cancel()
+                spaceContinuationTask = nil
+            }
+        }
+    }
+
+    private func continuationTask(
+        key: KeyCode,
+        thresholdMilliseconds: Int,
+        intervalMilliseconds: Int,
+        clear: @escaping @MainActor () -> Void
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            defer { clear() }
+            do {
+                try await Task.sleep(for: .milliseconds(thresholdMilliseconds))
+                while !Task.isCancelled {
+                    try await Task.sleep(for: .milliseconds(intervalMilliseconds))
+                    guard let self,
+                          self.runtimeLifecycle == .running,
+                          self.isTargetWindowFrontmost(self.selectedWindow)
+                    else {
+                        return
+                    }
+                    _ = self.dispatchInput(
+                        .keyPress(key: key),
+                        source: .runtimeTrigger)
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
     func exportMergedSchedulerPathing() {
         guard let supervisor = betterGICoreSupervisor, let group = selectedSchedulerGroup else { return }
         Task { [weak self] in
@@ -729,6 +1134,9 @@ final class AppState: ObservableObject {
             await loadSchedulerGroupsFromCore()
             await loadScriptProjectsFromCore()
             await loadPathingEntriesFromCore()
+            await loadKeyMouseScriptsFromCore()
+            await loadNotificationSettingsFromCore()
+            await loadMacroSettingsFromCore()
             attemptAutoStartRuntime()
         } catch {
             NSLog("BetterGI Core startup failed: %@", error.localizedDescription)
@@ -807,6 +1215,7 @@ final class AppState: ObservableObject {
                 self.runtimeLifecycle = .running
                 self.runtimeLifecycleMessage = "运行时已启动，截图器正在持续捕获。"
                 self.appStatus = .running
+                self.refreshAuxiliaryControlMonitor()
                 self.addLog(.info, "BetterGI runtime started with a verified ScreenCaptureKit frame.")
                 self.attemptAutoStartSchedulerGroups()
             } catch {
@@ -950,6 +1359,14 @@ final class AppState: ObservableObject {
 
     func stopRuntime() {
         guard runtimeLifecycle == .running else { return }
+        if keyMouseEventRecorder.isRecording {
+            _ = try? keyMouseEventRecorder.stop()
+            keyMouseRecordingState = "idle"
+            addLog(.warn, "运行时停止，当前未保存的键鼠录制已丢弃。")
+        }
+        keyMouseRecordingStartTask?.cancel()
+        keyMouseRecordingStartTask = nil
+        stopAuxiliaryControlMonitor()
         runtimeLifecycle = .stopping
         runtimeLifecycleMessage = "正在停止 BetterGI 运行时..."
         Task { [weak self] in

@@ -1,6 +1,10 @@
 import CoreGraphics
 import Foundation
 
+enum BetterGIInputEventMarker {
+    static let value: Int64 = 0x4247_494D_4143
+}
+
 // Platform input DTOs used by the Core input.dispatch callback.
 
 // MARK: - InputMouseButton
@@ -9,12 +13,16 @@ enum InputMouseButton: Equatable, Sendable {
     case left
     case right
     case middle
+    case side1
+    case side2
 
     var displayName: String {
         switch self {
         case .left: "LMB"
         case .right: "RMB"
         case .middle: "MMB"
+        case .side1: "Mouse 4"
+        case .side2: "Mouse 5"
         }
     }
 }

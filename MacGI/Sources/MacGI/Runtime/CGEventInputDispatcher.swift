@@ -138,6 +138,7 @@ final class CGEventInputDispatcher: InputDispatching {
             ) else {
                 throw CGEventInputDispatchError.eventCreationFailed("verticalScroll \(clicks)")
             }
+            mark(event)
             event.post(tap: tap)
             return CGEventDispatchReport(eventCount: 1, detail: "verticalScroll \(clicks)")
 
@@ -171,6 +172,7 @@ final class CGEventInputDispatcher: InputDispatching {
             throw CGEventInputDispatchError.eventCreationFailed("\(key.displayName) \(keyDown ? "down" : "up")")
         }
         event.flags = modifiers.cgEventFlags
+        mark(event)
         return event
     }
 
@@ -183,6 +185,7 @@ final class CGEventInputDispatcher: InputDispatching {
         ) else {
             throw CGEventInputDispatchError.eventCreationFailed("\(type.rawValue)")
         }
+        mark(event)
         return event
     }
 
@@ -207,6 +210,7 @@ final class CGEventInputDispatcher: InputDispatching {
             else {
                 continue
             }
+            mark(event)
             event.post(tap: tap)
             count += 1
         }
@@ -214,7 +218,9 @@ final class CGEventInputDispatcher: InputDispatching {
         let mouseUps: [(CGEventType, CGMouseButton)] = [
             (.leftMouseUp, .left),
             (.rightMouseUp, .right),
-            (.otherMouseUp, .center)
+            (.otherMouseUp, .center),
+            (.otherMouseUp, CGMouseButton(rawValue: 3)!),
+            (.otherMouseUp, CGMouseButton(rawValue: 4)!)
         ]
         for mouseUp in mouseUps {
             let event = try makeMouseEvent(type: mouseUp.0, at: mousePoint, button: mouseUp.1)
@@ -223,6 +229,12 @@ final class CGEventInputDispatcher: InputDispatching {
         }
 
         return CGEventDispatchReport(eventCount: count, detail: "releaseAll")
+    }
+
+    private func mark(_ event: CGEvent) {
+        event.setIntegerValueField(
+            .eventSourceUserData,
+            value: BetterGIInputEventMarker.value)
     }
 }
 
@@ -251,6 +263,8 @@ private extension InputMouseButton {
         case .left: .left
         case .right: .right
         case .middle: .center
+        case .side1: CGMouseButton(rawValue: 3)!
+        case .side2: CGMouseButton(rawValue: 4)!
         }
     }
 
@@ -258,7 +272,7 @@ private extension InputMouseButton {
         switch self {
         case .left: .leftMouseDown
         case .right: .rightMouseDown
-        case .middle: .otherMouseDown
+        case .middle, .side1, .side2: .otherMouseDown
         }
     }
 
@@ -266,7 +280,7 @@ private extension InputMouseButton {
         switch self {
         case .left: .leftMouseUp
         case .right: .rightMouseUp
-        case .middle: .otherMouseUp
+        case .middle, .side1, .side2: .otherMouseUp
         }
     }
 }

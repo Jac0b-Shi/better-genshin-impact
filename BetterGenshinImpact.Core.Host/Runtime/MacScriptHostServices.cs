@@ -1,21 +1,16 @@
 using BetterGenshinImpact.Core.Script.Dependence;
 using BetterGenshinImpact.Core.Script.Group;
 using Microsoft.Extensions.Logging;
-using BetterGenshinImpact.Core.Host.Transport;
-using Newtonsoft.Json.Linq;
 
 namespace BetterGenshinImpact.Core.Host.Runtime;
 
 /// <summary>macOS Core Host 的脚本进程上下文；调度器负责设置当前项目。</summary>
-public sealed class MacScriptHostServices(
-    ILoggerFactory loggerFactory,
-    PlatformCallbackChannel callbacks,
-    string sessionToken,
-    CancellationToken cancellationToken) : IScriptHostServices
+public sealed class MacScriptHostServices(ILoggerFactory loggerFactory) : IScriptHostServices
 {
     private ScriptGroupProject? _currentProject;
     private TimeSpan? _serverTimeZoneOffset;
     private bool? _jsNotificationEnabled;
+    private Action<ScriptNotificationKind, string>? _notificationEmitter;
 
     public ILogger CreateLogger(string categoryName) => loggerFactory.CreateLogger(categoryName);
     public ScriptGroupProject? CurrentProject => Volatile.Read(ref _currentProject);
@@ -34,16 +29,13 @@ public sealed class MacScriptHostServices(
     }
 
     public void SetJsNotificationEnabled(bool enabled) => _jsNotificationEnabled = enabled;
+    public void SetNotificationEmitter(Action<ScriptNotificationKind, string> emitter) =>
+        _notificationEmitter = emitter ?? throw new ArgumentNullException(nameof(emitter));
 
     public void EmitNotification(ScriptNotificationKind kind, string message)
     {
-        var response = callbacks.InvokeAsync(
-                "notification.emit",
-                JObject.FromObject(new { kind = kind.ToString().ToLowerInvariant(), message }),
-                sessionToken,
-                cancellationToken)
-            .GetAwaiter().GetResult();
-        if (response?.Value<bool?>("acknowledged") != true)
-            throw new InvalidDataException("notification.emit did not return acknowledged=true.");
+        var emitter = _notificationEmitter
+            ?? throw new InvalidOperationException("Notification emitter has not been initialized.");
+        emitter(kind, message);
     }
 }
