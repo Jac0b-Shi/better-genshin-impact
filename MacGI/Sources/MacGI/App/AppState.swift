@@ -1239,7 +1239,8 @@ final class AppState: ObservableObject {
         spaceEnabled: Bool? = nil,
         spaceInterval: Int? = nil,
         runaroundMouseXInterval: Int? = nil,
-        runaroundInterval: Int? = nil
+        runaroundInterval: Int? = nil,
+        enhanceWaitDelay: Int? = nil
     ) {
         guard let supervisor = betterGICoreSupervisor, let current = macroSettings else {
             addLog(.error, "辅助操控设置保存失败：BetterGI Core 尚未就绪。")
@@ -1256,6 +1257,8 @@ final class AppState: ObservableObject {
                 runaroundMouseXInterval ?? current.runaroundMouseXInterval,
             runaroundInterval:
                 runaroundInterval ?? current.runaroundInterval,
+            enhanceWaitDelay:
+                enhanceWaitDelay ?? current.enhanceWaitDelay,
             pickUpOrInteractKey: current.pickUpOrInteractKey,
             jumpKey: current.jumpKey)
         macroSettingsSaveRevision += 1

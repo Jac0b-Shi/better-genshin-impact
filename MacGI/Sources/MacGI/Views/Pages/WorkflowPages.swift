@@ -737,6 +737,34 @@ struct MacroPage: View {
                     }
                 }
             }
+
+            BGIOriginalCard(
+                icon: .symbol("sparkles"),
+                title: "快速强化圣遗物",
+                subtitle: "快速跳过强化结果展示，需要配置快捷键进行触发。"
+            ) {
+                EmptyView()
+            } content: {
+                BGISettingLine(
+                    title: "强化的额外等待时间",
+                    subtitle: "高延迟下无法跳过强化结果显示时，可延长该等待时间。"
+                ) {
+                    Stepper(
+                        "\(appState.macroSettings?.enhanceWaitDelay ?? 0) ms",
+                        value: Binding(
+                            get: {
+                                appState.macroSettings?.enhanceWaitDelay ?? 0
+                            },
+                            set: {
+                                appState.saveMacroSettings(
+                                    enhanceWaitDelay: $0)
+                            }),
+                        in: 0...1000,
+                        step: 10)
+                    .frame(width: 170)
+                    .disabled(appState.macroSettings == nil)
+                }
+            }
         }
     }
 }

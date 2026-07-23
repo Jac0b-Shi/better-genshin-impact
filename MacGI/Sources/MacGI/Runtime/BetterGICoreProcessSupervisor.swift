@@ -78,6 +78,7 @@ struct BetterGIMacroSettings: Sendable, Equatable {
     let spaceFireInterval: Int
     let runaroundMouseXInterval: Int
     let runaroundInterval: Int
+    let enhanceWaitDelay: Int
     let pickUpOrInteractKey: KeyCode
     let jumpKey: KeyCode
 }
@@ -693,6 +694,7 @@ actor BetterGICoreProcessSupervisor {
                     "runaroundMouseXInterval":
                         settings.runaroundMouseXInterval,
                     "runaroundInterval": settings.runaroundInterval,
+                    "enhanceWaitDelay": settings.enhanceWaitDelay,
                 ],
             ]))
     }
@@ -723,6 +725,7 @@ actor BetterGICoreProcessSupervisor {
               let runaroundMouseXInterval =
                 result["runaroundMouseXInterval"] as? Int,
               let runaroundInterval = result["runaroundInterval"] as? Int,
+              let enhanceWaitDelay = result["enhanceWaitDelay"] as? Int,
               let pickUpOrInteractVirtualKey =
                 result["pickUpOrInteractKeyCode"] as? Int,
               let jumpVirtualKey = result["jumpKeyCode"] as? Int,
@@ -740,6 +743,7 @@ actor BetterGICoreProcessSupervisor {
             spaceFireInterval: spaceInterval,
             runaroundMouseXInterval: runaroundMouseXInterval,
             runaroundInterval: runaroundInterval,
+            enhanceWaitDelay: enhanceWaitDelay,
             pickUpOrInteractKey: pickUpOrInteractKey,
             jumpKey: jumpKey)
     }

@@ -77,6 +77,13 @@ if rg -n 'runaround.*Task|TurnAroundMacro\.Done' \
   MacGI/Sources/MacGI/App/AppState.swift; then
   fail "Swift AppState must not own turn-around macro execution"
 fi
+rg -q 'QuickEnhanceArtifactRuntimePlatform.Configure' \
+  BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -q 'new Core.Runtime.Windows.WindowsQuickEnhanceArtifactRuntimePlatform' \
+    BetterGenshinImpact/App.xaml.cs \
+  && rg -q '"enhanceWaitDelay": settings.enhanceWaitDelay' \
+    MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  || fail "quick-enhance macro or its persisted delay is not composed end to end"
 rg -Fq 'DialogButtonClickMacro.Done(DialogButtonType.Confirm)' \
   BetterGenshinImpact/ViewModel/Pages/HotKeyPageViewModel.cs \
   && rg -q 'CreateDialogButtonAction' \

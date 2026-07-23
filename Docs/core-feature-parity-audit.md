@@ -109,13 +109,16 @@ notifier implementations are extracted.
 ### Auxiliary controls
 
 The production page exposes the two upstream hold-continuation controls, the
-Neuvillette turn-around macro and the upstream confirm/cancel button hold
-actions. Core reads and writes `macroConfig`,
+Neuvillette turn-around macro, quick artifact enhancement and the upstream
+confirm/cancel button hold actions. Core reads and writes `macroConfig`,
 supplies the configured `KeyBindingsConfig` pickup and jump virtual keys, and
 owns the 200/300 ms thresholds, repeat intervals, turn distance and turn
 interval. The shared `TurnAroundMacro` owns the zero-distance normalization,
 mouse movement and wait sequence; Windows and macOS only compose their
-platform input/configuration adapters. The shared `DialogButtonClickMacro`
+platform input/configuration adapters. The shared
+`QuickEnhanceArtifactMacro` preserves the upstream 1920x1080 click sequence
+and reads `EnhanceWaitDelay` from the same Core-owned config on both
+platforms. The shared `DialogButtonClickMacro`
 preserves the upstream black, white and co-op button recognition order; macOS
 reads the current shared-memory frame and routes the recognized click through
 the cancellable foreground input gate.
@@ -148,9 +151,8 @@ live-updated key through the existing physical key-state callback, matching the
 upstream trigger contract.
 
 Only upstream entries whose action has a complete production path are exposed.
-Screenshot, one-key combat/reward, quick enhancement, quick-buy, Serenitea Pot
-and path-recorder hotkeys remain absent until those shared actions are
-extracted.
+Screenshot, one-key combat/reward, quick-buy, Serenitea Pot and path-recorder
+hotkeys remain absent until those shared actions are extracted.
 
 ## Verification tiers
 
