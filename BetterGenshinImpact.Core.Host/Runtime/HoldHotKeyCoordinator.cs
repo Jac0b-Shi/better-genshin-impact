@@ -5,13 +5,19 @@ namespace BetterGenshinImpact.Core.Host.Runtime;
 
 public sealed class HoldHotKeyCoordinator(
     CancellationToken hostCancellationToken,
-    ILogger<HoldHotKeyCoordinator> logger) : IDisposable
+    ILogger<HoldHotKeyCoordinator> logger,
+    IReadOnlyDictionary<string, Action<CancellationToken>> actions)
+    : IDisposable
 {
     public const string TurnAroundHotKey = "TurnAroundHotkey";
+    public const string ConfirmButtonHotKey = "ClickGenshinConfirmButtonHotkey";
+    public const string CancelButtonHotKey = "ClickGenshinCancelButtonHotkey";
 
     private readonly object _lock = new();
-    private CancellationTokenSource? _activeCancellation;
-    private Task _activeTask = Task.CompletedTask;
+    private readonly IReadOnlyDictionary<string, Action<CancellationToken>> _actions =
+        actions ?? throw new ArgumentNullException(nameof(actions));
+    private readonly Dictionary<string, ActiveOperation> _active =
+        new(StringComparer.Ordinal);
     private bool _acceptingInput;
     private int _disposed;
 
@@ -25,11 +31,11 @@ public sealed class HoldHotKeyCoordinator(
     public object HandleKeyEdge(string id, bool isDown)
     {
         ThrowIfDisposed();
-        if (!string.Equals(id, TurnAroundHotKey, StringComparison.Ordinal))
+        if (!_actions.TryGetValue(id, out var action))
             throw new ArgumentException($"Unknown hold hotkey: {id}", nameof(id));
         if (!isDown)
         {
-            Cancel();
+            Cancel(id);
             return new { id, state = "released" };
         }
 
@@ -37,27 +43,30 @@ public sealed class HoldHotKeyCoordinator(
         {
             if (!_acceptingInput)
                 return new { id, state = "stopped" };
-            if (_activeCancellation is not null)
+            if (_active.ContainsKey(id))
                 return new { id, state = "held" };
 
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 hostCancellationToken);
-            _activeCancellation = cancellation;
-            _activeTask = Task.Run(() => RunAsync(cancellation));
+            var operation = new ActiveOperation(cancellation);
+            _active[id] = operation;
+            operation.Task = Task.Run(
+                () => RunAsync(id, action, operation));
         }
         return new { id, state = "armed" };
     }
 
     public async Task StopAsync()
     {
-        Task activeTask;
+        Task[] activeTasks;
         lock (_lock)
         {
             _acceptingInput = false;
-            _activeCancellation?.Cancel();
-            activeTask = _activeTask;
+            foreach (var operation in _active.Values)
+                operation.Cancellation.Cancel();
+            activeTasks = _active.Values.Select(operation => operation.Task).ToArray();
         }
-        await activeTask;
+        await Task.WhenAll(activeTasks);
     }
 
     public void Dispose()
@@ -68,15 +77,18 @@ public sealed class HoldHotKeyCoordinator(
         GC.SuppressFinalize(this);
     }
 
-    private Task RunAsync(CancellationTokenSource cancellation)
+    private Task RunAsync(
+        string id,
+        Action<CancellationToken> action,
+        ActiveOperation operation)
     {
         try
         {
             while (true)
-                TurnAroundMacro.Done(cancellation.Token);
+                action(operation.Cancellation.Token);
         }
         catch (OperationCanceledException)
-            when (cancellation.IsCancellationRequested)
+            when (operation.Cancellation.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -84,32 +96,40 @@ public sealed class HoldHotKeyCoordinator(
             logger.LogWarning(
                 exception,
                 "Hold hotkey {HotKey} stopped after input dispatch failed.",
-                TurnAroundHotKey);
+                id);
         }
         finally
         {
             lock (_lock)
             {
-                if (ReferenceEquals(_activeCancellation, cancellation))
-                {
-                    _activeCancellation = null;
-                    _activeTask = Task.CompletedTask;
-                }
+                if (_active.TryGetValue(id, out var active) &&
+                    ReferenceEquals(active, operation))
+                    _active.Remove(id);
             }
-            cancellation.Dispose();
+            operation.Cancellation.Dispose();
         }
         return Task.CompletedTask;
     }
 
-    private void Cancel()
+    private void Cancel(string id)
     {
         lock (_lock)
-            _activeCancellation?.Cancel();
+        {
+            if (_active.TryGetValue(id, out var operation))
+                operation.Cancellation.Cancel();
+        }
     }
 
     private void ThrowIfDisposed()
     {
         if (Volatile.Read(ref _disposed) != 0)
             throw new ObjectDisposedException(nameof(HoldHotKeyCoordinator));
+    }
+
+    private sealed class ActiveOperation(
+        CancellationTokenSource cancellation)
+    {
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+        public Task Task { get; set; } = Task.CompletedTask;
     }
 }

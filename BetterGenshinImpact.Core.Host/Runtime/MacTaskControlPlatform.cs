@@ -1,6 +1,7 @@
 using BetterGenshinImpact.Core.Host.Transport;
 using BetterGenshinImpact.Core.Simulator.Extensions;
 using BetterGenshinImpact.GameTask.Common;
+using BetterGenshinImpact.GameTask.Macro;
 using BetterGenshinImpact.GameTask.Model.Area;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
@@ -18,6 +19,8 @@ public sealed class MacTaskControlPlatform(
     ForegroundInputCoordinator inputCoordinator,
     GameActionKeyResolver keyResolver) : ITaskControlPlatform
 {
+    private readonly AsyncLocal<CancellationToken?> _operationCancellation = new();
+
     public ILogger Logger { get; } = logger;
     public bool IsHdrCapture => false;
     public double DpiScale => Invoke("window.metrics", null).Value<double?>("dpiScale")
@@ -70,6 +73,29 @@ public sealed class MacTaskControlPlatform(
         return captureRing.Read(response).DeriveTo1080P();
     }
 
+    public Action<CancellationToken> CreateDialogButtonAction(
+        DialogButtonType buttonType) =>
+        cancellationToken => WithCancellation(
+            cancellationToken,
+            () => DialogButtonClickMacro.Done(
+                buttonType, cancellationToken));
+
+    private T WithCancellation<T>(
+        CancellationToken operationCancellation,
+        Func<T> operation)
+    {
+        var previous = _operationCancellation.Value;
+        _operationCancellation.Value = operationCancellation;
+        try
+        {
+            return operation();
+        }
+        finally
+        {
+            _operationCancellation.Value = previous;
+        }
+    }
+
     private JObject CreateActionQuery(GIActions action)
     {
         var parameters = new JObject
@@ -93,7 +119,7 @@ public sealed class MacTaskControlPlatform(
     }
 
     private void Dispatch(object value) =>
-        inputCoordinator.Dispatch(JObject.FromObject(value), cancellationToken);
+        inputCoordinator.Dispatch(JObject.FromObject(value), EffectiveCancellation);
 
     private void RequireAcknowledgement(string method, JObject? parameters)
     {
@@ -102,9 +128,13 @@ public sealed class MacTaskControlPlatform(
     }
 
     private JToken Invoke(string method, JObject? parameters) =>
-        callbacks.InvokeAsync(method, parameters, sessionToken, cancellationToken)
+        callbacks.InvokeAsync(
+                method, parameters, sessionToken, EffectiveCancellation)
             .GetAwaiter().GetResult()
         ?? throw new InvalidDataException($"{method} returned an empty response.");
+
+    private CancellationToken EffectiveCancellation =>
+        _operationCancellation.Value ?? cancellationToken;
 
     private static string LowerCamel(string value) =>
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];

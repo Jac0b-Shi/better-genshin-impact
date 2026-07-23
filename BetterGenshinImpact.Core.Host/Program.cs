@@ -181,7 +181,18 @@ BetterGenshinImpact.GameTask.Macro.TurnAroundRuntimePlatform.Configure(
         server.MacroSettings, foregroundInputCoordinator, shutdown.Token));
 using var holdHotKeys = new HoldHotKeyCoordinator(
     shutdown.Token,
-    loggerFactory.CreateLogger<HoldHotKeyCoordinator>());
+    loggerFactory.CreateLogger<HoldHotKeyCoordinator>(),
+    new Dictionary<string, Action<CancellationToken>>(StringComparer.Ordinal)
+    {
+        [HoldHotKeyCoordinator.TurnAroundHotKey] =
+            BetterGenshinImpact.GameTask.Macro.TurnAroundMacro.Done,
+        [HoldHotKeyCoordinator.ConfirmButtonHotKey] =
+            taskControlPlatform.CreateDialogButtonAction(
+                BetterGenshinImpact.GameTask.Macro.DialogButtonType.Confirm),
+        [HoldHotKeyCoordinator.CancelButtonHotKey] =
+            taskControlPlatform.CreateDialogButtonAction(
+                BetterGenshinImpact.GameTask.Macro.DialogButtonType.Cancel),
+    });
 server.AttachHoldHotKeyCoordinator(holdHotKeys);
 var autoFightRuntimePlatform = new MacAutoFightRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService, loggerFactory);

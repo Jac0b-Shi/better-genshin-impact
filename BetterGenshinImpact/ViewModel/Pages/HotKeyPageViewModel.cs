@@ -617,17 +617,7 @@ public partial class HotKeyPageViewModel : ObservableObject, IViewModel
             nameof(Config.HotKeyConfig.ClickGenshinConfirmButtonHotkey),
             Config.HotKeyConfig.ClickGenshinConfirmButtonHotkey,
             Config.HotKeyConfig.ClickGenshinConfirmButtonHotkeyType,
-            (_, _) =>
-            {
-                if (Bv.ClickConfirmButton(TaskControl.CaptureToRectArea()))
-                {
-                    TaskControl.Logger.LogInformation("触发快捷点击原神内{Btn}按钮：成功", "确认");
-                }
-                else
-                {
-                    TaskControl.Logger.LogInformation("触发快捷点击原神内{Btn}按钮：未找到按钮图片", "确认");
-                }
-            },
+            (_, _) => DialogButtonClickMacro.Done(DialogButtonType.Confirm),
             true
         ));
 
@@ -636,17 +626,7 @@ public partial class HotKeyPageViewModel : ObservableObject, IViewModel
             nameof(Config.HotKeyConfig.ClickGenshinCancelButtonHotkey),
             Config.HotKeyConfig.ClickGenshinCancelButtonHotkey,
             Config.HotKeyConfig.ClickGenshinCancelButtonHotkeyType,
-            (_, _) =>
-            {
-                if (Bv.ClickCancelButton(TaskControl.CaptureToRectArea()))
-                {
-                    TaskControl.Logger.LogInformation("触发快捷点击原神内{Btn}按钮：成功", "取消");
-                }
-                else
-                {
-                    TaskControl.Logger.LogInformation("触发快捷点击原神内{Btn}按钮：未找到按钮图片", "取消");
-                }
-            },
+            (_, _) => DialogButtonClickMacro.Done(DialogButtonType.Cancel),
             true
         ));
 

@@ -77,6 +77,22 @@ if rg -n 'runaround.*Task|TurnAroundMacro\.Done' \
   MacGI/Sources/MacGI/App/AppState.swift; then
   fail "Swift AppState must not own turn-around macro execution"
 fi
+rg -Fq 'DialogButtonClickMacro.Done(DialogButtonType.Confirm)' \
+  BetterGenshinImpact/ViewModel/Pages/HotKeyPageViewModel.cs \
+  && rg -q 'CreateDialogButtonAction' \
+    BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -q 'DialogButtonClickMacro.Done' \
+    BetterGenshinImpact.Core.Host/Runtime/MacTaskControlPlatform.cs \
+  || fail "dialog-button hold hotkeys do not share the upstream C# macro"
+rg -q '"ClickGenshinConfirmButtonHotkey"' \
+  BetterGenshinImpact.Core.Host/Runtime/HotKeySettingsCatalog.cs \
+  && rg -q '"ClickGenshinCancelButtonHotkey"' \
+    BetterGenshinImpact.Core.Host/Runtime/HotKeySettingsCatalog.cs \
+  || fail "upstream dialog-button hold hotkeys are not exposed by Core"
+if rg -n 'dialog.*confirm|dialog.*cancel|ClickGenshin.*Button' \
+  MacGI/Sources/MacGI/App/AppState.swift; then
+  fail "Swift AppState must not own dialog-button recognition or execution"
+fi
 rg -q '\["htmlMask"\]\s*=\s*typeof\(MacHtmlMask\)' \
   Test/BetterGenshinImpact.RealUser.Verification/Program.cs \
   || fail "real User verification does not audit the production htmlMask surface"

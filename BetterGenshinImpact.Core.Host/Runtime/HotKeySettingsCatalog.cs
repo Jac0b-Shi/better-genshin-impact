@@ -116,6 +116,16 @@ public sealed class HotKeySettingsCatalog(RuntimeLayout layout)
             "TurnAroundHotkey", "操控辅助", "长按旋转视角 - 那维莱特转圈",
             "turnAroundHotkey", "macro.turnAround", "core", true, true,
             DispatchOnRelease: true),
+        new(
+            "ClickGenshinConfirmButtonHotkey", "操控辅助",
+            "快捷点击原神内确认按钮",
+            "clickGenshinConfirmButtonHotkey", "macro.dialog.confirm",
+            "core", true, true, DispatchOnRelease: true),
+        new(
+            "ClickGenshinCancelButtonHotkey", "操控辅助",
+            "快捷点击原神内取消按钮",
+            "clickGenshinCancelButtonHotkey", "macro.dialog.cancel",
+            "core", true, true, DispatchOnRelease: true),
     ];
 
     public void AttachUpdated(Action<string, string> callback) =>

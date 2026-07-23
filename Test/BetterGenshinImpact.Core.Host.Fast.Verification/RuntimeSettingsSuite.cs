@@ -186,7 +186,13 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             using (var holdHotKeys = new HoldHotKeyCoordinator(
                        cancellationToken,
-                       loggerFactory.CreateLogger<HoldHotKeyCoordinator>()))
+                       loggerFactory.CreateLogger<HoldHotKeyCoordinator>(),
+                       new Dictionary<string, Action<CancellationToken>>(
+                           StringComparer.Ordinal)
+                       {
+                           [HoldHotKeyCoordinator.TurnAroundHotKey] =
+                               TurnAroundMacro.Done,
+                       }))
             {
                 holdHotKeys.Start();
                 var baselineMoveCount = turnAroundPlatform.MoveCount;
@@ -211,6 +217,69 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     moveCountAfterRelease > baselineMoveCount &&
                     turnAroundPlatform.MoveCount == moveCountAfterRelease,
                     "Turn-around hold hotkey did not preserve the upstream move, interval and release lifecycle.");
+            }
+            var confirmCount = 0;
+            var cancelCount = 0;
+            var dialogActions =
+                new Dictionary<string, Action<CancellationToken>>(
+                    StringComparer.Ordinal)
+                {
+                    [HoldHotKeyCoordinator.ConfirmButtonHotKey] = token =>
+                    {
+                        Interlocked.Increment(ref confirmCount);
+                        if (token.WaitHandle.WaitOne(5))
+                            token.ThrowIfCancellationRequested();
+                    },
+                    [HoldHotKeyCoordinator.CancelButtonHotKey] = token =>
+                    {
+                        Interlocked.Increment(ref cancelCount);
+                        if (token.WaitHandle.WaitOne(5))
+                            token.ThrowIfCancellationRequested();
+                    },
+                };
+            using (var dialogHotKeys = new HoldHotKeyCoordinator(
+                       cancellationToken,
+                       loggerFactory.CreateLogger<HoldHotKeyCoordinator>(),
+                       dialogActions))
+            {
+                dialogHotKeys.Start();
+                _ = dialogHotKeys.HandleKeyEdge(
+                    HoldHotKeyCoordinator.ConfirmButtonHotKey, true);
+                _ = dialogHotKeys.HandleKeyEdge(
+                    HoldHotKeyCoordinator.CancelButtonHotKey, true);
+                for (var retry = 0;
+                     retry < 50 &&
+                     (Volatile.Read(ref confirmCount) == 0 ||
+                      Volatile.Read(ref cancelCount) == 0);
+                     retry++)
+                {
+                    await Task.Delay(10, cancellationToken);
+                }
+                _ = dialogHotKeys.HandleKeyEdge(
+                    HoldHotKeyCoordinator.ConfirmButtonHotKey, false);
+                await Task.Delay(30, cancellationToken);
+                var confirmCountAfterRelease =
+                    Volatile.Read(ref confirmCount);
+                var cancelCountBeforeConfirmCheck =
+                    Volatile.Read(ref cancelCount);
+                await Task.Delay(30, cancellationToken);
+                var cancelCountAfterConfirmCheck =
+                    Volatile.Read(ref cancelCount);
+                _ = dialogHotKeys.HandleKeyEdge(
+                    HoldHotKeyCoordinator.CancelButtonHotKey, false);
+                await Task.Delay(30, cancellationToken);
+                var cancelCountAfterRelease =
+                    Volatile.Read(ref cancelCount);
+                await Task.Delay(30, cancellationToken);
+                context.Require(
+                    confirmCountAfterRelease > 0 &&
+                    Volatile.Read(ref confirmCount) ==
+                        confirmCountAfterRelease &&
+                    cancelCountAfterConfirmCheck >
+                        cancelCountBeforeConfirmCheck &&
+                    Volatile.Read(ref cancelCount) ==
+                        cancelCountAfterRelease,
+                    "Independent dialog-button hold actions did not stop on their own release edges.");
             }
             var blockedInput = new ForegroundInputCoordinator(
                 new PlatformCallbackChannel(),
@@ -342,7 +411,7 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             var hotKeys = JArray.FromObject(hotKeyCatalog.List());
             context.Require(
-                hotKeys.Count == 21 &&
+                hotKeys.Count == 23 &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "AutoPickEnabledHotkey")
                     .Value<string>("hotKey") == "F6" &&
@@ -357,6 +426,18 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     .Value<bool>("dispatchOnPress") == false &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "TurnAroundHotkey")
+                    .Value<bool>("dispatchOnRelease") &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "ClickGenshinConfirmButtonHotkey")
+                    .Value<bool>("isHold") &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "ClickGenshinConfirmButtonHotkey")
+                    .Value<bool>("dispatchOnRelease") &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "ClickGenshinCancelButtonHotkey")
                     .Value<bool>("dispatchOnRelease") &&
                 hotKeyUpdates.Contains(("QuickTeleportTickHotkey", "F6")) &&
                 hotKeyUpdates.Contains(("QuickTeleportTickHotkey", "")) &&
@@ -464,7 +545,25 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
         auxiliaryControls.Start();
         using var holdHotKeys = new HoldHotKeyCoordinator(
             serverCancellation.Token,
-            loggerFactory.CreateLogger<HoldHotKeyCoordinator>());
+            loggerFactory.CreateLogger<HoldHotKeyCoordinator>(),
+            new Dictionary<string, Action<CancellationToken>>(
+                StringComparer.Ordinal)
+            {
+                [HoldHotKeyCoordinator.TurnAroundHotKey] =
+                    TurnAroundMacro.Done,
+                [HoldHotKeyCoordinator.ConfirmButtonHotKey] =
+                    token =>
+                    {
+                        if (token.WaitHandle.WaitOne(5))
+                            token.ThrowIfCancellationRequested();
+                    },
+                [HoldHotKeyCoordinator.CancelButtonHotKey] =
+                    token =>
+                    {
+                        if (token.WaitHandle.WaitOne(5))
+                            token.ThrowIfCancellationRequested();
+                    },
+            });
         server.AttachHoldHotKeyCoordinator(holdHotKeys);
         holdHotKeys.Start();
         var serverTask = server.RunAsync(serverCancellation.Token);
@@ -603,6 +702,39 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 turnAroundDown.Error?.Message ??
                 turnAroundUp.Error?.Message ??
                 "hotKey.invoke did not preserve the hold edge contract.");
+            foreach (var dialogHotKey in new[]
+                     {
+                         HoldHotKeyCoordinator.ConfirmButtonHotKey,
+                         HoldHotKeyCoordinator.CancelButtonHotKey,
+                     })
+            {
+                var down = await ExchangeAsync(
+                    connection, $"hotkey-{dialogHotKey}-down",
+                    "hotKey.invoke", sessionToken,
+                    JObject.FromObject(new
+                    {
+                        id = dialogHotKey,
+                        isDown = true,
+                    }), cancellationToken);
+                var up = await ExchangeAsync(
+                    connection, $"hotkey-{dialogHotKey}-up",
+                    "hotKey.invoke", sessionToken,
+                    JObject.FromObject(new
+                    {
+                        id = dialogHotKey,
+                        isDown = false,
+                    }), cancellationToken);
+                context.Require(
+                    down.Error is null &&
+                    JObject.FromObject(down.Result!)
+                        .Value<string>("state") == "armed" &&
+                    up.Error is null &&
+                    JObject.FromObject(up.Result!)
+                        .Value<string>("state") == "released",
+                    down.Error?.Message ??
+                    up.Error?.Message ??
+                    $"hotKey.invoke did not preserve {dialogHotKey} hold edges.");
+            }
             var suspend = await ExchangeAsync(
                 connection, "hotkey-suspend", "hotKey.invoke",
                 sessionToken, JObject.FromObject(new

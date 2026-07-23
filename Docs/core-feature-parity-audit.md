@@ -108,13 +108,17 @@ notifier implementations are extracted.
 
 ### Auxiliary controls
 
-The production page exposes the two upstream hold-continuation controls and
-the Neuvillette turn-around macro. Core reads and writes `macroConfig`,
+The production page exposes the two upstream hold-continuation controls, the
+Neuvillette turn-around macro and the upstream confirm/cancel button hold
+actions. Core reads and writes `macroConfig`,
 supplies the configured `KeyBindingsConfig` pickup and jump virtual keys, and
 owns the 200/300 ms thresholds, repeat intervals, turn distance and turn
 interval. The shared `TurnAroundMacro` owns the zero-distance normalization,
 mouse movement and wait sequence; Windows and macOS only compose their
-platform input/configuration adapters.
+platform input/configuration adapters. The shared `DialogButtonClickMacro`
+preserves the upstream black, white and co-op button recognition order; macOS
+reads the current shared-memory frame and routes the recognized click through
+the cancellable foreground input gate.
 
 AppKit observes physical key state only while the game is frontmost. Hold
 hotkeys forward both press and release edges, and release remains deliverable
@@ -137,10 +141,11 @@ accepted only while the runtime is active and the selected Wine game process
 is frontmost; `GlobalRegister` bindings remain available for system control.
 Generated BetterGI input is marked and excluded from hotkey observation. Core
 executes cancellation, shared `RunnerContext` suspension, trigger toggles and
-solo-task toggles. Swift owns only runtime capture start/stop, overlay
-presentation and macOS key/mouse recording. The QuickTeleport hold binding is
-not dispatched as an action: Core reads its live-updated key through the
-existing physical key-state callback, matching the upstream trigger contract.
+solo-task toggles, turn-around and dialog-button hold actions. Swift owns only
+runtime capture start/stop, overlay presentation and macOS key/mouse recording.
+The QuickTeleport hold binding is not dispatched as an action: Core reads its
+live-updated key through the existing physical key-state callback, matching the
+upstream trigger contract.
 
 Only upstream entries whose action has a complete production path are exposed.
 Screenshot, one-key combat/reward, quick enhancement, quick-buy, Serenitea Pot
