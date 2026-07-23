@@ -293,6 +293,8 @@ final class AppState: ObservableObject {
     @Published var schedulerExecutionStatus = "Idle"
     @Published var schedulerExecutionError: String?
     @Published var currentSchedulerProjectID: String?
+    @Published private(set) var pathingEntries: [BetterGIPathingEntry] = []
+    @Published private(set) var pathingCatalogStatus = "Core unavailable"
 
     // MARK: Window & capture (typed — not strings)
 
@@ -723,6 +725,7 @@ final class AppState: ObservableObject {
             await loadSoloTasksFromCore()
             await loadSchedulerGroupsFromCore()
             await loadScriptProjectsFromCore()
+            await loadPathingEntriesFromCore()
             attemptAutoStartRuntime()
         } catch {
             NSLog("BetterGI Core startup failed: %@", error.localizedDescription)
@@ -995,9 +998,134 @@ final class AppState: ObservableObject {
         }
     }
 
+    func reloadPathingEntriesFromCore() {
+        Task { [weak self] in
+            await self?.loadPathingEntriesFromCore()
+        }
+    }
+
+    private func loadPathingEntriesFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            pathingEntries = []
+            pathingCatalogStatus = "Core unavailable"
+            return
+        }
+        do {
+            pathingEntries = try await supervisor.listPathingEntries()
+            pathingCatalogStatus = "已加载 \(pathingEntries.filter { !$0.isDirectory }.count) 条路线"
+            addLog(.info, "Pathing catalog loaded \(pathingEntries.count) entries through BetterGI Core")
+        } catch {
+            pathingEntries = []
+            pathingCatalogStatus = "加载失败"
+            addLog(.error, "BetterGI Core pathing catalog load failed: \(error.localizedDescription)")
+        }
+    }
+
+    func loadPathingDetail(id: String) async throws -> BetterGIPathingDetail {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.pathingDetail(id: id)
+    }
+
+    func loadPathingSettings() async throws -> BetterGIPathingSettings {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.pathingSettings()
+    }
+
+    func savePathingSettings(
+        _ settings: BetterGIPathingSettings
+    ) async throws -> BetterGIPathingSettings {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        let saved = try await supervisor.savePathingSettings(settings)
+        addLog(.info, "Core saved map pathing settings.")
+        return saved
+    }
+
+    func openPathingRootLocation() {
+        guard let supervisor = betterGICoreSupervisor else {
+            addLog(.error, "Open pathing directory failed: BetterGI Core is unavailable.")
+            return
+        }
+        Task { [weak self] in
+            do {
+                let path = try await supervisor.pathingRootLocation()
+                guard NSWorkspace.shared.open(URL(fileURLWithPath: path)) else {
+                    throw BetterGICoreRPCError.socket(
+                        "Finder could not open the map pathing directory.")
+                }
+            } catch {
+                self?.addLog(.error, "Open pathing directory failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func deletePathingEntry(id: String) {
+        guard currentSchedulerProjectID == nil else {
+            addLog(.error, "Cannot delete a pathing entry while a task is running.")
+            return
+        }
+        guard let supervisor = betterGICoreSupervisor else {
+            addLog(.error, "Delete pathing entry failed: BetterGI Core is unavailable.")
+            return
+        }
+        Task { [weak self] in
+            do {
+                try await supervisor.deletePathingEntry(id: id)
+                await self?.loadPathingEntriesFromCore()
+                self?.addLog(.info, "Core deleted pathing entry \(id).")
+            } catch {
+                self?.addLog(.error, "Delete pathing entry failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func runPathingEntry(id: String) {
+        guard currentSchedulerProjectID == nil else {
+            addLog(.error, "Cannot run pathing: another task is already active.")
+            return
+        }
+        guard let supervisor = betterGICoreSupervisor, coreStatus == .ok else {
+            addLog(.error, "Cannot run pathing: BetterGI Core is not ready.")
+            return
+        }
+        guard runtimeLifecycle == .running else {
+            addLog(.error, "Cannot run pathing: start the BetterGI runtime first.")
+            return
+        }
+        guard isWindowValid, !selectedWindow.isSynthetic else {
+            addLog(.error, "Cannot run pathing: no real on-screen game window is selected.")
+            return
+        }
+        schedulerExecutionTask?.cancel()
+        schedulerExecutionStatus = "Starting"
+        schedulerExecutionError = nil
+        schedulerExecutionTask = Task { [weak self] in
+            do {
+                let taskID = try await supervisor.runPathingEntry(id: id)
+                guard !Task.isCancelled, let self else { return }
+                self.handleCoreSchedulerRunAccepted(
+                    taskID: taskID,
+                    groupName: "地图追踪:\(id)")
+            } catch {
+                self?.schedulerExecutionStatus = "Failed"
+                self?.schedulerExecutionError = error.localizedDescription
+                self?.currentSchedulerProjectID = nil
+                self?.appStatus = .error
+                self?.addLog(.error, "Core pathing start failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     private func setCoreCatalogUnavailable(_ error: Error) {
         schedulerGroups = []
         scriptProjects = []
+        pathingEntries = []
+        pathingCatalogStatus = "Core unavailable"
         selectedSchedulerGroupName = ""
         schedulerCatalogStatus = "Core unavailable"
         schedulerCatalogIssues = [

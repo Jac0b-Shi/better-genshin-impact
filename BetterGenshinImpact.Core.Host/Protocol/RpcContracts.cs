@@ -65,6 +65,25 @@ public sealed record ScriptGroupAddCandidate(
     [property: JsonProperty("folderName")] string FolderName,
     [property: JsonProperty("type")] string Type);
 
+public sealed record PathingCatalogEntry(
+    [property: JsonProperty("id")] string Id,
+    [property: JsonProperty("parentId")] string? ParentId,
+    [property: JsonProperty("name")] string Name,
+    [property: JsonProperty("isDirectory")] bool IsDirectory);
+
+public sealed record PathingTaskDetail(
+    [property: JsonProperty("id")] string Id,
+    [property: JsonProperty("name")] string Name,
+    [property: JsonProperty("description")] string? Description,
+    [property: JsonProperty("author")] string? Author,
+    [property: JsonProperty("version")] string? Version,
+    [property: JsonProperty("bgiVersion")] string? BgiVersion,
+    [property: JsonProperty("type")] string Type,
+    [property: JsonProperty("mapName")] string MapName,
+    [property: JsonProperty("waypointCount")] int WaypointCount,
+    [property: JsonProperty("tags")] IReadOnlyList<string> Tags,
+    [property: JsonProperty("readme")] string? Readme);
+
 public sealed record ScriptProjectDocument(
     [property: JsonProperty("folderName")] string FolderName,
     [property: JsonProperty("manifest")] object Manifest,

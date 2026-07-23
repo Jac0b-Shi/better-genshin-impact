@@ -355,31 +355,66 @@ private struct SchedulerGroupSettingsSheet: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var values = BetterGIGroupConfigSettings(
-        enabled: true, autoPick: true, autoEat: false, autoSkip: true, autoFight: true, autoRun: true,
-        partyName: "", visitStatue: false, mainAvatar: "", guardianAvatar: "", guardianInterval: "",
-        guardianLongPress: false, gadgetInterval: 0, skipDuring: "", hideOnRepeat: false,
-        enableShellConfig: false, shellDisable: false, shellTimeout: 60, shellNoWindow: true, shellOutput: true)
+        enabled: true,
+        autoPick: true,
+        autoEat: false,
+        autoSkip: true,
+        autoFight: true,
+        autoRun: true,
+        partyName: "",
+        visitStatue: false,
+        mainAvatar: "",
+        guardianAvatar: "",
+        guardianInterval: "",
+        guardianLongPress: false,
+        gadgetInterval: 0,
+        recoverTiming: "AnyWaypoint",
+        skipDuring: "",
+        hideOnRepeat: false,
+        hurryOnAvatar: "",
+        travelMode: "精准靠近",
+        distance: 45,
+        approachStopDistance: 25,
+        switchToWalkEnabled: false,
+        mwkJumpFlyEnabled: true,
+        mwkJumpFlyIntervalSeconds: 1,
+        taskCycleEnabled: false,
+        taskCycleBoundaryTime: 0,
+        taskCycleUsesServerTime: false,
+        taskCycle: 1,
+        taskCycleIndex: 1,
+        completionSkipEnabled: false,
+        completionSkipPolicy: "GroupPhysicalPathSkipPolicy",
+        completionBoundaryTime: 4,
+        completionUsesServerTime: false,
+        completionLastRunGapSeconds: -1,
+        completionReferencePoint: "EndTime",
+        priorityEnabled: false,
+        priorityGroupNames: "",
+        priorityMaxRetryCount: 1,
+        avatarIndexOptions: ["", "1", "2", "3", "4"],
+        hurryOnAvatarOptions: ["", "自动"],
+        travelModeOptions: ["精准靠近", "连续赶路"],
+        recoverTimingOptions: [],
+        completionSkipPolicyOptions: [],
+        completionReferencePointOptions: [],
+        enableShellConfig: false,
+        shellDisable: false,
+        shellTimeout: 60,
+        shellNoWindow: true,
+        shellOutput: true)
     @State private var error: String?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack { Text("配置组设置").font(.title2).bold(); Spacer() }.padding(); Divider()
             ScrollView { VStack(alignment: .leading, spacing: 12) {
-                GroupBox("地图追踪配置") { VStack(alignment: .leading) {
-                    Toggle("启用地图追踪行走配置", isOn: $values.enabled)
-                    Toggle("自动拾取", isOn: $values.autoPick); Toggle("自动吃药", isOn: $values.autoEat)
-                    Toggle("自动剧情跳过", isOn: $values.autoSkip); Toggle("自动战斗", isOn: $values.autoFight); Toggle("自动奔跑", isOn: $values.autoRun)
-                    TextField("切换到队伍的名称", text: $values.partyName); Toggle("切换队伍前前往七天神像", isOn: $values.visitStatue)
-                    TextField("行走位编号", text: $values.mainAvatar); TextField("生存位编号", text: $values.guardianAvatar)
-                    TextField("生存位元素战技间隔", text: $values.guardianInterval); Toggle("生存位元素战技长按", isOn: $values.guardianLongPress)
-                    Stepper("使用小道具间隔：\(values.gadgetInterval) ms", value: $values.gadgetInterval, in: 0...600000, step: 100)
-                    TextField("不在某时执行", text: $values.skipDuring); Toggle("连续执行时隐藏", isOn: $values.hideOnRepeat)
-                }.padding(8) }
-                GroupBox("Shell 执行配置") { VStack(alignment: .leading) {
-                    Toggle("启用配置组 Shell 配置", isOn: $values.enableShellConfig); Toggle("禁用 Shell 任务", isOn: $values.shellDisable)
-                    Stepper("最长等待：\(values.shellTimeout) 秒", value: $values.shellTimeout, in: 0...86400)
-                    Toggle("隐藏命令执行窗口", isOn: $values.shellNoWindow); Toggle("输出写入日志", isOn: $values.shellOutput)
-                }.padding(8) }
+                pathingSettings
+                travelSettings
+                cycleSettings
+                completionSettings
+                prioritySettings
+                shellSettings
                 if let error { Text(error).foregroundStyle(BGIColors.danger) }
             }.padding() }
             Divider(); HStack { Spacer(); Button("取消") { dismiss() }; Button("保存") { save() }.keyboardShortcut(.defaultAction) }.padding()
@@ -394,4 +429,193 @@ private struct SchedulerGroupSettingsSheet: View {
     private func save() { Task { do {
         try await appState.saveSelectedGroupConfig(values); dismiss()
     } catch { self.error = error.localizedDescription } } }
+
+    private var pathingSettings: some View {
+        GroupBox("地图追踪行走配置") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("启用地图追踪行走配置", isOn: $values.enabled)
+                Toggle("自动拾取", isOn: $values.autoPick)
+                Toggle("自动吃药", isOn: $values.autoEat)
+                Toggle("自动战斗", isOn: $values.autoFight)
+                TextField("切换到队伍的名称", text: $values.partyName)
+                Toggle("切换队伍前前往七天神像", isOn: $values.visitStatue)
+                optionPicker(
+                    "行走位编号",
+                    selection: $values.mainAvatar,
+                    options: values.avatarIndexOptions)
+                optionPicker(
+                    "生存位编号",
+                    selection: $values.guardianAvatar,
+                    options: values.avatarIndexOptions)
+                TextField("生存位元素战技间隔（秒）", text: $values.guardianInterval)
+                Toggle("生存位元素战技长按", isOn: $values.guardianLongPress)
+                Stepper(
+                    "使用小道具间隔：\(values.gadgetInterval) 毫秒",
+                    value: $values.gadgetInterval,
+                    in: 0...3_600_000,
+                    step: 100)
+                namedOptionPicker(
+                    "低血量回复时机",
+                    selection: $values.recoverTiming,
+                    options: values.recoverTimingOptions)
+                TextField("不在某时执行", text: $values.skipDuring)
+                Toggle("不在连续任务中显示", isOn: $values.hideOnRepeat)
+            }
+            .padding(8)
+        }
+    }
+
+    private var travelSettings: some View {
+        GroupBox("自动赶路设置") {
+            VStack(alignment: .leading, spacing: 10) {
+                optionPicker(
+                    "赶路角色",
+                    selection: $values.hurryOnAvatar,
+                    options: values.hurryOnAvatarOptions)
+                optionPicker(
+                    "赶路模式",
+                    selection: $values.travelMode,
+                    options: values.travelModeOptions)
+                Stepper(
+                    "赶路启用距离：\(values.distance)",
+                    value: $values.distance,
+                    in: 0...500)
+                Stepper(
+                    "接近停车距离：\(values.approachStopDistance)",
+                    value: $values.approachStopDistance,
+                    in: 0...max(values.distance, 0))
+                Toggle("接近时切人步行", isOn: $values.switchToWalkEnabled)
+                Toggle("启用跳飞赶路", isOn: $values.mwkJumpFlyEnabled)
+                HStack {
+                    Text("跳飞/跳跃间隔（秒）")
+                    Spacer()
+                    TextField(
+                        "",
+                        value: $values.mwkJumpFlyIntervalSeconds,
+                        format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private var cycleSettings: some View {
+        GroupBox("执行周期配置") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("启用执行周期配置", isOn: $values.taskCycleEnabled)
+                Stepper(
+                    "分界时间：\(values.taskCycleBoundaryTime)",
+                    value: $values.taskCycleBoundaryTime,
+                    in: 0...23)
+                Toggle(
+                    "分界时间参考服务器时区",
+                    isOn: $values.taskCycleUsesServerTime)
+                Stepper(
+                    "周期：\(values.taskCycle)",
+                    value: $values.taskCycle,
+                    in: 1...365)
+                Stepper(
+                    "执行序号：\(values.taskCycleIndex)",
+                    value: $values.taskCycleIndex,
+                    in: 1...max(values.taskCycle, 1))
+            }
+            .padding(8)
+        }
+    }
+
+    private var completionSettings: some View {
+        GroupBox("跳过执行配置") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("启用跳过执行", isOn: $values.completionSkipEnabled)
+                namedOptionPicker(
+                    "跳过执行策略",
+                    selection: $values.completionSkipPolicy,
+                    options: values.completionSkipPolicyOptions)
+                Stepper(
+                    "分界时间：\(values.completionBoundaryTime)",
+                    value: $values.completionBoundaryTime,
+                    in: -1...24)
+                Toggle(
+                    "分界时间参考服务器时区",
+                    isOn: $values.completionUsesServerTime)
+                Stepper(
+                    "和上次运行的间隔秒数：\(values.completionLastRunGapSeconds)",
+                    value: $values.completionLastRunGapSeconds,
+                    in: -1...31_536_000)
+                namedOptionPicker(
+                    "间隔时间计算参照",
+                    selection: $values.completionReferencePoint,
+                    options: values.completionReferencePointOptions)
+            }
+            .padding(8)
+        }
+    }
+
+    private var prioritySettings: some View {
+        GroupBox("优先执行其他配置组") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("启用优先执行", isOn: $values.priorityEnabled)
+                TextField("配置组名称，多个用逗号分隔", text: $values.priorityGroupNames)
+                Stepper(
+                    "额外执行次数：\(values.priorityMaxRetryCount)",
+                    value: $values.priorityMaxRetryCount,
+                    in: 0...100)
+            }
+            .padding(8)
+        }
+    }
+
+    private var shellSettings: some View {
+        GroupBox("Shell 执行配置") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("启用配置组 Shell 配置", isOn: $values.enableShellConfig)
+                Toggle("禁用 Shell 任务", isOn: $values.shellDisable)
+                Stepper(
+                    "最长等待：\(values.shellTimeout) 秒",
+                    value: $values.shellTimeout,
+                    in: 0...86_400)
+                Toggle("隐藏命令执行窗口", isOn: $values.shellNoWindow)
+                Toggle("输出写入日志", isOn: $values.shellOutput)
+            }
+            .padding(8)
+        }
+    }
+
+    private func optionPicker(
+        _ title: String,
+        selection: Binding<String>,
+        options: [String]
+    ) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Picker("", selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option.isEmpty ? "未指定" : option).tag(option)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 180)
+        }
+    }
+
+    private func namedOptionPicker(
+        _ title: String,
+        selection: Binding<String>,
+        options: [BetterGICoreNamedOption]
+    ) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Picker("", selection: selection) {
+                ForEach(options, id: \.value) { option in
+                    Text(option.displayName).tag(option.value)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 240)
+        }
+    }
 }

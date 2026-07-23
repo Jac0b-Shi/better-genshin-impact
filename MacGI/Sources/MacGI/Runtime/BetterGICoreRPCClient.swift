@@ -124,6 +124,68 @@ struct BetterGIAddCandidate: Equatable, Sendable, Identifiable {
     let type: String
 }
 
+struct BetterGIPathingEntry: Equatable, Sendable, Identifiable {
+    let id: String
+    let parentID: String?
+    let name: String
+    let isDirectory: Bool
+}
+
+struct BetterGIPathingDetail: Equatable, Sendable {
+    let id: String
+    let name: String
+    let description: String?
+    let author: String?
+    let version: String?
+    let bgiVersion: String?
+    let type: String
+    let mapName: String
+    let waypointCount: Int
+    let tags: [String]
+    let readme: String?
+}
+
+struct BetterGIPathingCondition: Equatable, Sendable, Identifiable {
+    let id: UUID
+    var subject: String
+    var predicate: String
+    var objects: [String]
+    var result: String
+
+    init(
+        id: UUID = UUID(),
+        subject: String,
+        predicate: String = "包含",
+        objects: [String] = [],
+        result: String = ""
+    ) {
+        self.id = id
+        self.subject = subject
+        self.predicate = predicate
+        self.objects = objects
+        self.result = result
+    }
+}
+
+struct BetterGIPathingConditionDefinition: Equatable, Sendable {
+    let predicates: [String]
+    let objects: [String]
+    let results: [String]
+    let description: String?
+}
+
+struct BetterGIPathingSettings: Equatable, Sendable {
+    var partyConditions: [BetterGIPathingCondition]
+    var avatarConditions: [BetterGIPathingCondition]
+    var useGadgetIntervalMs: Int
+    var autoEatEnabled: Bool
+    var recoverTiming: String
+    let partySubjects: [String]
+    let avatarSubjects: [String]
+    let avatarResults: [String]
+    let definitions: [String: BetterGIPathingConditionDefinition]
+}
+
 struct BetterGIScriptRepositoryState: Equatable, Sendable {
     let available: Bool
     let repositoryPath: String
@@ -150,10 +212,54 @@ enum BetterGISchedulerCatalogMutation: Sendable {
 }
 
 struct BetterGIGroupConfigSettings: Equatable, Sendable {
-    var enabled: Bool; var autoPick: Bool; var autoEat: Bool; var autoSkip: Bool; var autoFight: Bool; var autoRun: Bool
-    var partyName: String; var visitStatue: Bool; var mainAvatar: String; var guardianAvatar: String; var guardianInterval: String
-    var guardianLongPress: Bool; var gadgetInterval: Int; var skipDuring: String; var hideOnRepeat: Bool
-    var enableShellConfig: Bool; var shellDisable: Bool; var shellTimeout: Int; var shellNoWindow: Bool; var shellOutput: Bool
+    var enabled: Bool
+    var autoPick: Bool
+    var autoEat: Bool
+    var autoSkip: Bool
+    var autoFight: Bool
+    var autoRun: Bool
+    var partyName: String
+    var visitStatue: Bool
+    var mainAvatar: String
+    var guardianAvatar: String
+    var guardianInterval: String
+    var guardianLongPress: Bool
+    var gadgetInterval: Int
+    var recoverTiming: String
+    var skipDuring: String
+    var hideOnRepeat: Bool
+    var hurryOnAvatar: String
+    var travelMode: String
+    var distance: Int
+    var approachStopDistance: Int
+    var switchToWalkEnabled: Bool
+    var mwkJumpFlyEnabled: Bool
+    var mwkJumpFlyIntervalSeconds: Double
+    var taskCycleEnabled: Bool
+    var taskCycleBoundaryTime: Int
+    var taskCycleUsesServerTime: Bool
+    var taskCycle: Int
+    var taskCycleIndex: Int
+    var completionSkipEnabled: Bool
+    var completionSkipPolicy: String
+    var completionBoundaryTime: Int
+    var completionUsesServerTime: Bool
+    var completionLastRunGapSeconds: Int
+    var completionReferencePoint: String
+    var priorityEnabled: Bool
+    var priorityGroupNames: String
+    var priorityMaxRetryCount: Int
+    let avatarIndexOptions: [String]
+    let hurryOnAvatarOptions: [String]
+    let travelModeOptions: [String]
+    let recoverTimingOptions: [BetterGICoreNamedOption]
+    let completionSkipPolicyOptions: [BetterGICoreNamedOption]
+    let completionReferencePointOptions: [BetterGICoreNamedOption]
+    var enableShellConfig: Bool
+    var shellDisable: Bool
+    var shellTimeout: Int
+    var shellNoWindow: Bool
+    var shellOutput: Bool
 }
 
 struct BetterGIScriptGroupSummary: Equatable, Sendable, Identifiable {
@@ -365,6 +471,142 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
             else { throw BetterGICoreRPCError.protocolViolation("Invalid add candidate.") }
             return BetterGIAddCandidate(id: id, name: name, folderName: folder, type: type)
         }
+    }
+
+    func listPathingEntries() throws -> [BetterGIPathingEntry] {
+        guard let items = try request(method: "pathing.list") as? [[String: Any]] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing catalog result.")
+        }
+        return try items.map { item in
+            guard let id = item["id"] as? String,
+                  let name = item["name"] as? String,
+                  let isDirectory = item["isDirectory"] as? Bool
+            else {
+                throw BetterGICoreRPCError.protocolViolation("Invalid pathing catalog entry.")
+            }
+            return BetterGIPathingEntry(
+                id: id,
+                parentID: item["parentId"] as? String,
+                name: name,
+                isDirectory: isDirectory)
+        }
+    }
+
+    func pathingDetail(id: String) throws -> BetterGIPathingDetail {
+        guard let item = try request(
+            method: "pathing.detail",
+            parameters: ["id": id]
+        ) as? [String: Any],
+              let resultID = item["id"] as? String,
+              let name = item["name"] as? String,
+              let type = item["type"] as? String,
+              let mapName = item["mapName"] as? String,
+              let waypointCount = item["waypointCount"] as? Int,
+              let tags = item["tags"] as? [String]
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing detail result.")
+        }
+        return BetterGIPathingDetail(
+            id: resultID,
+            name: name,
+            description: item["description"] as? String,
+            author: item["author"] as? String,
+            version: item["version"] as? String,
+            bgiVersion: item["bgiVersion"] as? String,
+            type: type,
+            mapName: mapName,
+            waypointCount: waypointCount,
+            tags: tags,
+            readme: item["readme"] as? String)
+    }
+
+    func pathingSettings() throws -> BetterGIPathingSettings {
+        guard let item = try request(method: "pathing.settings.get") as? [String: Any]
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing settings result.")
+        }
+        return try Self.decodePathingSettings(item)
+    }
+
+    func savePathingSettings(_ settings: BetterGIPathingSettings) throws -> BetterGIPathingSettings {
+        let encodeConditions: ([BetterGIPathingCondition]) -> [[String: Any]] = { conditions in
+            conditions.map {
+                [
+                    "subject": $0.subject,
+                    "predicate": $0.predicate,
+                    "objects": $0.objects,
+                    "result": $0.result,
+                ]
+            }
+        }
+        guard let item = try request(
+            method: "pathing.settings.save",
+            parameters: ["settings": [
+                "partyConditions": encodeConditions(settings.partyConditions),
+                "avatarConditions": encodeConditions(settings.avatarConditions),
+                "useGadgetIntervalMs": settings.useGadgetIntervalMs,
+                "autoEatEnabled": settings.autoEatEnabled,
+                "recoverTiming": settings.recoverTiming,
+            ]]
+        ) as? [String: Any] else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid saved pathing settings result.")
+        }
+        return try Self.decodePathingSettings(item)
+    }
+
+    private static func decodePathingSettings(
+        _ item: [String: Any]
+    ) throws -> BetterGIPathingSettings {
+        guard let rawParty = item["partyConditions"] as? [[String: Any]],
+              let rawAvatars = item["avatarConditions"] as? [[String: Any]],
+              let useGadgetIntervalMs = item["useGadgetIntervalMs"] as? Int,
+              let autoEatEnabled = item["autoEatEnabled"] as? Bool,
+              let recoverTiming = item["recoverTiming"] as? String,
+              let partySubjects = item["partySubjects"] as? [String],
+              let avatarSubjects = item["avatarSubjects"] as? [String],
+              let avatarResults = item["avatarResults"] as? [String],
+              let rawDefinitions = item["definitions"] as? [String: [String: Any]]
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing settings fields.")
+        }
+        let decodeCondition: ([String: Any]) throws -> BetterGIPathingCondition = { value in
+            guard let subject = value["subject"] as? String,
+                  let predicate = value["predicate"] as? String,
+                  let objects = value["objects"] as? [String],
+                  let result = value["result"] as? String
+            else {
+                throw BetterGICoreRPCError.protocolViolation("Invalid pathing condition.")
+            }
+            return BetterGIPathingCondition(
+                subject: subject,
+                predicate: predicate,
+                objects: objects,
+                result: result)
+        }
+        let definitions = try rawDefinitions.mapValues { value in
+            guard let predicates = value["predicates"] as? [String],
+                  let objects = value["objects"] as? [String],
+                  let results = value["results"] as? [String]
+            else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid pathing condition definition.")
+            }
+            return BetterGIPathingConditionDefinition(
+                predicates: predicates,
+                objects: objects,
+                results: results,
+                description: value["description"] as? String)
+        }
+        return BetterGIPathingSettings(
+            partyConditions: try rawParty.map(decodeCondition),
+            avatarConditions: try rawAvatars.map(decodeCondition),
+            useGadgetIntervalMs: useGadgetIntervalMs,
+            autoEatEnabled: autoEatEnabled,
+            recoverTiming: recoverTiming,
+            partySubjects: partySubjects,
+            avatarSubjects: avatarSubjects,
+            avatarResults: avatarResults,
+            definitions: definitions)
     }
 
     func listScriptProjects() throws -> [BetterGIScriptProjectSummary] {

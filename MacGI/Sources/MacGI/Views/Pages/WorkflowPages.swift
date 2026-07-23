@@ -430,33 +430,6 @@ struct JSScriptPage: View {
     }
 }
 
-struct MapTrackingPage: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            BGIPageTitle(title: "地图追踪（实验功能）")
-            HStack(spacing: 8) {
-                BGIUnavailableAction("打开任务目录", systemImage: "folder")
-                BGIUnavailableAction("脚本仓库", systemImage: "archivebox")
-                BGIUnavailableAction("设置", systemImage: "gearshape")
-                BGIUnavailableAction("开发者工具")
-                Spacer()
-            }
-
-            BGISectionCard("路径任务", subtitle: "路径解析、定位、识别与执行均由 BetterGI C# Core 负责；此处尚未接入路径目录 DTO。", symbolName: "map") {
-                BGIDataTable(
-                    headers: ["名称", "文件", "执行任务"],
-                    rows: [
-                        ["枫丹晶蝶路线", "fontaine_crystalflies.json", "启动"],
-                        ["璃月矿点路线", "liyue_ore.json", "启动"],
-                        ["须弥材料路线", "sumeru_collect.json", "启动"]
-                    ]
-                )
-            }
-
-        }
-    }
-}
-
 struct RecordReplayPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

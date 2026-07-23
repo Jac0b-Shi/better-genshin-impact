@@ -22,6 +22,7 @@ public sealed class CoreRpcServer(
     private readonly ScriptGroupCatalog _catalog = new(layout);
     private readonly ScriptProjectCatalog _scriptProjectCatalog = new(layout);
     private readonly ScriptRepositoryCatalog _scriptRepositoryCatalog = new(layout);
+    private readonly PathingCatalog _pathingCatalog = new(layout);
     private readonly SoloTaskSettingsCatalog _soloTaskSettings = new(layout);
     private readonly TriggerSettingsCatalog _triggerSettings = new(layout);
     private readonly PlatformCallbackChannel _platformCallbacks = new();
@@ -96,6 +97,7 @@ public sealed class CoreRpcServer(
         ArgumentNullException.ThrowIfNull(platform);
         if (Interlocked.CompareExchange(ref _pathExecutorPlatform, platform, null) is not null)
             throw new InvalidOperationException("PathExecutor platform has already been attached.");
+        _pathingCatalog.AttachSettingsUpdated(platform.UpdateConfig);
     }
 
     public void AttachMapMaskRuntimePlatform(MacMapMaskRuntimePlatform platform)
@@ -254,6 +256,19 @@ public sealed class CoreRpcServer(
                 "catalog.listScriptProjects" => _scriptProjectCatalog.List(),
                 "catalog.getScriptProject" => _scriptProjectCatalog.Get(RequiredString(request.Params, "folderName")),
                 "catalog.getScriptProjectRootLocation" => _scriptProjectCatalog.GetRootLocation(),
+                "pathing.list" => _pathingCatalog.List(),
+                "pathing.detail" => _pathingCatalog.GetDetail(
+                    RequiredString(request.Params, "id")),
+                "pathing.rootLocation" => _pathingCatalog.GetRootLocation(),
+                "pathing.delete" => _pathingCatalog.Delete(
+                    RequiredString(request.Params, "id")),
+                "pathing.settings.get" => _pathingCatalog.GetSettings(),
+                "pathing.settings.save" => _pathingCatalog.SaveSettings(
+                    request.Params?["settings"] as JObject
+                    ?? throw new ArgumentException("settings is required.")),
+                "pathing.run" => Scheduler.RunProject(
+                    _pathingCatalog.BuildProject(RequiredString(request.Params, "id")),
+                    $"地图追踪:{RequiredString(request.Params, "id")}"),
                 "repository.state" => _scriptRepositoryCatalog.GetState(),
                 "repository.update" => await _scriptRepositoryCatalog.UpdateAsync(
                     RequiredString(request.Params, "channel"),
@@ -347,6 +362,7 @@ public sealed class CoreRpcServer(
                 "catalog.script-projects",
                 "catalog.script-group-editing",
                 "catalog.script-repository",
+                "pathing.catalog",
                 "runtime-layout",
                 "runtime-artifacts.source-lock",
                 "opencv",

@@ -17,7 +17,9 @@ public sealed class MacPathExecutorPlatform(
     CancellationToken cancellationToken) : IPathExecutorPlatform
 {
     private string _autoFetchDispatchAdventurersGuildCountry = "无";
-    public PathingConditionConfig PathingConditionConfig { get; } = LoadConfig(layout);
+    private PathingConditionConfig _pathingConditionConfig = LoadConfig(layout);
+    public PathingConditionConfig PathingConditionConfig =>
+        Volatile.Read(ref _pathingConditionConfig);
     public IOcrService OcrService => recognition;
     public (int Width, int Height) GetGameScreenSize()
     {
@@ -47,6 +49,12 @@ public sealed class MacPathExecutorPlatform(
         if (string.IsNullOrWhiteSpace(country))
             throw new ArgumentException("Auto-fetch dispatch country cannot be empty.", nameof(country));
         Volatile.Write(ref _autoFetchDispatchAdventurersGuildCountry, country);
+    }
+
+    public void UpdateConfig(PathingConditionConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        Volatile.Write(ref _pathingConditionConfig, config);
     }
 
     private JObject Invoke(string method, JObject? parameters) =>

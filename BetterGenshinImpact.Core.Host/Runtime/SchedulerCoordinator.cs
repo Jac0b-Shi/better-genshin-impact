@@ -20,13 +20,27 @@ public sealed class SchedulerCoordinator(
 
     public object Run(string groupName)
     {
-        ScriptGroup group;
         var path = ResolveGroup(groupName);
-        group = ScriptGroup.FromJson(File.ReadAllText(path));
+        var group = ScriptGroup.FromJson(File.ReadAllText(path));
         ApplyNextProject(group);
         if (group.Projects.Count == 0)
             throw new InvalidDataException($"Script group '{groupName}' contains no projects.");
+        return Start(group.Projects, group.Name);
+    }
 
+    public object RunProject(ScriptGroupProject project, string displayName)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException("Task display name cannot be empty.", nameof(displayName));
+        return Start([project], displayName);
+    }
+
+    private object Start(IEnumerable<ScriptGroupProject> projects, string displayName)
+    {
+        var projectList = projects.ToArray();
+        if (projectList.Length == 0)
+            throw new InvalidDataException($"Task '{displayName}' contains no projects.");
         lock (_sync)
         {
             if (_execution is { IsCompleted: false })
@@ -34,8 +48,8 @@ public sealed class SchedulerCoordinator(
             RunnerContext.Instance.IsSuspend = false;
             var taskId = Guid.NewGuid().ToString("N");
             _taskId = taskId;
-            _execution = ExecuteAsync(taskId, group);
-            return new { taskId, state = "running", groupName = group.Name };
+            _execution = ExecuteAsync(taskId, projectList, displayName);
+            return new { taskId, state = "running", groupName = displayName };
         }
     }
 
@@ -77,12 +91,15 @@ public sealed class SchedulerCoordinator(
         return true;
     }
 
-    private async Task ExecuteAsync(string taskId, ScriptGroup group)
+    private async Task ExecuteAsync(
+        string taskId,
+        IReadOnlyList<ScriptGroupProject> projects,
+        string displayName)
     {
         try
         {
             await EmitAsync(taskId, "running", null);
-            await new ScriptService().RunMulti(group.Projects, group.Name);
+            await new ScriptService().RunMulti(projects, displayName);
             var state = CancellationContext.Instance.IsManualStop ? "cancelled" : "completed";
             await EmitAsync(taskId, state, null);
         }

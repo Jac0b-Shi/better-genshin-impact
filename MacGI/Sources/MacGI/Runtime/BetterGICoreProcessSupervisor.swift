@@ -463,6 +463,55 @@ actor BetterGICoreProcessSupervisor {
         try runningClient().listAddCandidates(type: type)
     }
 
+    func listPathingEntries() throws -> [BetterGIPathingEntry] {
+        try runningClient().listPathingEntries()
+    }
+
+    func pathingDetail(id: String) throws -> BetterGIPathingDetail {
+        try runningClient().pathingDetail(id: id)
+    }
+
+    func pathingSettings() throws -> BetterGIPathingSettings {
+        try runningClient().pathingSettings()
+    }
+
+    func savePathingSettings(
+        _ settings: BetterGIPathingSettings
+    ) throws -> BetterGIPathingSettings {
+        try runningClient().savePathingSettings(settings)
+    }
+
+    func pathingRootLocation() throws -> String {
+        guard let result = try runningClient().request(
+            method: "pathing.rootLocation") as? [String: Any],
+              let path = result["path"] as? String
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing root location.")
+        }
+        return path
+    }
+
+    func deletePathingEntry(id: String) throws {
+        guard let result = try runningClient().request(
+            method: "pathing.delete",
+            parameters: ["id": id]) as? [String: Any],
+              result["deleted"] as? Bool == true
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing delete result.")
+        }
+    }
+
+    func runPathingEntry(id: String) throws -> String {
+        guard let result = try runningClient().request(
+            method: "pathing.run",
+            parameters: ["id": id]) as? [String: Any],
+              let taskID = result["taskId"] as? String
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid pathing run result.")
+        }
+        return taskID
+    }
+
     @discardableResult
     func catalogMutation(_ method: String, groupName: String, parameters: [String: Any] = [:]) throws -> [String: Any] {
         var payload = parameters
@@ -490,7 +539,31 @@ actor BetterGICoreProcessSupervisor {
             method: "catalog.getScriptGroupConfig", parameters: ["name": groupName]) as? [String: Any]
         else { throw BetterGICoreRPCError.protocolViolation("Invalid group config.") }
         let pathing = result["pathingConfig"] as? [String: Any] ?? [:]
+        let taskCycle = pathing["taskCycleConfig"] as? [String: Any] ?? [:]
+        let completion = pathing["taskCompletionSkipRuleConfig"] as? [String: Any] ?? [:]
+        let priority = pathing["preExecutionPriorityConfig"] as? [String: Any] ?? [:]
         let shell = result["shellConfig"] as? [String: Any] ?? [:]
+        let options = result["pathingOptions"] as? [String: Any] ?? [:]
+        let decodeOptions: (String) throws -> [BetterGICoreNamedOption] = { key in
+            guard let values = options[key] as? [[String: Any]] else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid group pathing option list \(key).")
+            }
+            return try values.map { value in
+                guard let optionValue = value["value"] as? String,
+                      let displayName = value["displayName"] as? String else {
+                    throw BetterGICoreRPCError.protocolViolation(
+                        "Invalid group pathing option in \(key).")
+                }
+                return BetterGICoreNamedOption(
+                    value: optionValue, displayName: displayName)
+            }
+        }
+        let recoverTiming = switch pathing["recoverTiming"] as? Int {
+        case 1: "OnlyTeleport"
+        case 2: "Never"
+        default: "AnyWaypoint"
+        }
         return BetterGIGroupConfigSettings(
             enabled: pathing["enabled"] as? Bool ?? true, autoPick: pathing["autoPickEnabled"] as? Bool ?? true,
             autoEat: pathing["autoEatEnabled"] as? Bool ?? false, autoSkip: pathing["autoSkipEnabled"] as? Bool ?? true,
@@ -499,8 +572,45 @@ actor BetterGICoreProcessSupervisor {
             mainAvatar: pathing["mainAvatarIndex"] as? String ?? "", guardianAvatar: pathing["guardianAvatarIndex"] as? String ?? "",
             guardianInterval: pathing["guardianElementalSkillSecondInterval"] as? String ?? "",
             guardianLongPress: pathing["guardianElementalSkillLongPress"] as? Bool ?? false,
-            gadgetInterval: pathing["useGadgetIntervalMs"] as? Int ?? 0, skipDuring: pathing["skipDuring"] as? String ?? "",
+            gadgetInterval: pathing["useGadgetIntervalMs"] as? Int ?? 0,
+            recoverTiming: recoverTiming,
+            skipDuring: pathing["skipDuring"] as? String ?? "",
             hideOnRepeat: pathing["hideOnRepeat"] as? Bool ?? false,
+            hurryOnAvatar: pathing["hurryOnAvatar"] as? String ?? "",
+            travelMode: pathing["travelMode"] as? String ?? "精准靠近",
+            distance: pathing["distance"] as? Int ?? 45,
+            approachStopDistance: pathing["approachStopDistance"] as? Int ?? 25,
+            switchToWalkEnabled: pathing["switchToWalkEnabled"] as? Bool ?? false,
+            mwkJumpFlyEnabled: pathing["mwkJumpFlyEnabled"] as? Bool ?? true,
+            mwkJumpFlyIntervalSeconds:
+                (pathing["mwkJumpFlyIntervalSeconds"] as? NSNumber)?.doubleValue ?? 1,
+            taskCycleEnabled: taskCycle["enable"] as? Bool ?? false,
+            taskCycleBoundaryTime: taskCycle["boundaryTime"] as? Int ?? 0,
+            taskCycleUsesServerTime:
+                taskCycle["isBoundaryTimeBasedOnServerTime"] as? Bool ?? false,
+            taskCycle: taskCycle["cycle"] as? Int ?? 1,
+            taskCycleIndex: taskCycle["index"] as? Int ?? 1,
+            completionSkipEnabled: completion["enable"] as? Bool ?? false,
+            completionSkipPolicy:
+                completion["skipPolicy"] as? String ?? "GroupPhysicalPathSkipPolicy",
+            completionBoundaryTime: completion["boundaryTime"] as? Int ?? 4,
+            completionUsesServerTime:
+                completion["isBoundaryTimeBasedOnServerTime"] as? Bool ?? false,
+            completionLastRunGapSeconds:
+                completion["lastRunGapSeconds"] as? Int ?? -1,
+            completionReferencePoint:
+                completion["referencePoint"] as? String ?? "EndTime",
+            priorityEnabled: priority["enabled"] as? Bool ?? false,
+            priorityGroupNames: priority["groupNames"] as? String ?? "",
+            priorityMaxRetryCount: priority["maxRetryCount"] as? Int ?? 1,
+            avatarIndexOptions: options["avatarIndexes"] as? [String] ?? [],
+            hurryOnAvatarOptions: options["hurryOnAvatars"] as? [String] ?? [],
+            travelModeOptions: options["travelModes"] as? [String] ?? [],
+            recoverTimingOptions: try decodeOptions("recoverTimings"),
+            completionSkipPolicyOptions: try decodeOptions(
+                "completionSkipPolicies"),
+            completionReferencePointOptions: try decodeOptions(
+                "completionReferencePoints"),
             enableShellConfig: result["enableShellConfig"] as? Bool ?? false, shellDisable: shell["disable"] as? Bool ?? false,
             shellTimeout: shell["timeout"] as? Int ?? 60, shellNoWindow: shell["noWindow"] as? Bool ?? true,
             shellOutput: shell["output"] as? Bool ?? true)
@@ -515,8 +625,40 @@ actor BetterGICoreProcessSupervisor {
                 "mainAvatarIndex": settings.mainAvatar, "guardianAvatarIndex": settings.guardianAvatar,
                 "guardianElementalSkillSecondInterval": settings.guardianInterval,
                 "guardianElementalSkillLongPress": settings.guardianLongPress,
-                "useGadgetIntervalMs": settings.gadgetInterval, "skipDuring": settings.skipDuring,
-                "hideOnRepeat": settings.hideOnRepeat
+                "useGadgetIntervalMs": settings.gadgetInterval,
+                "recoverTiming": [
+                    "AnyWaypoint": 0, "OnlyTeleport": 1, "Never": 2,
+                ][settings.recoverTiming] ?? 0,
+                "skipDuring": settings.skipDuring,
+                "hideOnRepeat": settings.hideOnRepeat,
+                "hurryOnAvatar": settings.hurryOnAvatar,
+                "travelMode": settings.travelMode,
+                "distance": settings.distance,
+                "approachStopDistance": min(
+                    settings.approachStopDistance, settings.distance),
+                "switchToWalkEnabled": settings.switchToWalkEnabled,
+                "mwkJumpFlyEnabled": settings.mwkJumpFlyEnabled,
+                "mwkJumpFlyIntervalSeconds": settings.mwkJumpFlyIntervalSeconds,
+                "taskCycleConfig": [
+                    "enable": settings.taskCycleEnabled,
+                    "boundaryTime": settings.taskCycleBoundaryTime,
+                    "isBoundaryTimeBasedOnServerTime": settings.taskCycleUsesServerTime,
+                    "cycle": settings.taskCycle,
+                    "index": settings.taskCycleIndex,
+                ],
+                "taskCompletionSkipRuleConfig": [
+                    "enable": settings.completionSkipEnabled,
+                    "skipPolicy": settings.completionSkipPolicy,
+                    "boundaryTime": settings.completionBoundaryTime,
+                    "isBoundaryTimeBasedOnServerTime": settings.completionUsesServerTime,
+                    "lastRunGapSeconds": settings.completionLastRunGapSeconds,
+                    "referencePoint": settings.completionReferencePoint,
+                ],
+                "preExecutionPriorityConfig": [
+                    "enabled": settings.priorityEnabled,
+                    "groupNames": settings.priorityGroupNames,
+                    "maxRetryCount": settings.priorityMaxRetryCount,
+                ],
             ],
             "enableShellConfig": settings.enableShellConfig,
             "shellConfig": ["disable": settings.shellDisable, "timeout": settings.shellTimeout,

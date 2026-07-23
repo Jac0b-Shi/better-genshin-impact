@@ -287,7 +287,32 @@ public sealed class ScriptGroupCatalog(RuntimeLayout layout)
     public JObject GetGroupConfig(string name)
     {
         var group = ReadGroup(Resolve(name));
-        return JObject.Parse(System.Text.Json.JsonSerializer.Serialize(group.Config, ConfigJson.Options));
+        var result = JObject.Parse(
+            System.Text.Json.JsonSerializer.Serialize(group.Config, ConfigJson.Options));
+        result["pathingOptions"] = JObject.FromObject(new
+        {
+            avatarIndexes = group.Config.PathingConfig.AvatarIndexList,
+            hurryOnAvatars = group.Config.PathingConfig.HurryOnAvatarList,
+            travelModes = group.Config.PathingConfig.TravelModeList,
+            recoverTimings = new[]
+            {
+                new { value = nameof(RecoverTiming.AnyWaypoint), displayName = "任何路径点" },
+                new { value = nameof(RecoverTiming.OnlyTeleport), displayName = "只在传送点" },
+                new { value = nameof(RecoverTiming.Never), displayName = "不回复" },
+            },
+            completionSkipPolicies = new[]
+            {
+                new { value = "GroupPhysicalPathSkipPolicy", displayName = "配置组且物理路径相同跳过" },
+                new { value = "PhysicalPathSkipPolicy", displayName = "物理路径相同跳过" },
+                new { value = "SameNameSkipPolicy", displayName = "同类型同名跳过" },
+            },
+            completionReferencePoints = new[]
+            {
+                new { value = "StartTime", displayName = "开始时间" },
+                new { value = "EndTime", displayName = "结束时间" },
+            },
+        });
+        return result;
     }
 
     public ScriptGroupSummary SaveGroupConfig(string name, JObject config)
