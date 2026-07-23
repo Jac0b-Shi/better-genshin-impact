@@ -1,4 +1,6 @@
 using BetterGenshinImpact.Service.Notification.Model;
+using System;
+using System.Threading;
 
 namespace BetterGenshinImpact.Service.Notification;
 
