@@ -2847,17 +2847,23 @@ final class AppState: ObservableObject {
     }
 
     func gameApplicationDidTerminate(processID: pid_t) {
-        guard runtimeLifecycle == .running,
-              runtimeTargetProcessID == processID else { return }
+        guard GameRuntimeLifecyclePolicy.shouldStopAfterTermination(
+            runtimeLifecycle: runtimeLifecycle,
+            targetProcessID: runtimeTargetProcessID,
+            terminatedProcessID: processID
+        ) else { return }
         gameWindowStatus = .missing
         stopRuntimeAfterGameExit()
         selectedWindow = .unavailable(title: "Game process exited")
     }
 
     private func stopRuntimeIfGameProcessExited() -> Bool {
-        guard runtimeLifecycle == .running,
-              let targetPID = runtimeTargetProcessID,
-              !Self.isProcessAlive(targetPID) else { return false }
+        let targetProcessAlive = runtimeTargetProcessID.map(Self.isProcessAlive) ?? false
+        guard GameRuntimeLifecyclePolicy.shouldStopWhenWindowUnavailable(
+            runtimeLifecycle: runtimeLifecycle,
+            targetProcessID: runtimeTargetProcessID,
+            targetProcessAlive: targetProcessAlive
+        ) else { return false }
         stopRuntimeAfterGameExit()
         return true
     }
