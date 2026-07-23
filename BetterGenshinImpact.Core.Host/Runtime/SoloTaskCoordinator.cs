@@ -17,21 +17,22 @@ public sealed class SoloTaskCoordinator(
 
     public object List() => new[]
     {
-        Descriptor("AutoGeniusInvokation", "自动七圣召唤", true, true),
-        Descriptor("AutoWood", "自动伐木", true, true),
-        Descriptor("AutoFight", "自动战斗", true, true),
-        Descriptor("AutoDomain", "自动秘境", true, true),
-        Descriptor("AutoBoss", "自动首领讨伐", true, true),
-        Descriptor("AutoStygianOnslaught", "自动幽境危战", true, true),
-        Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true, true),
-        Descriptor("AutoLeyLineOutcrop", "自动地脉花", true, true),
-        Descriptor("AutoMusicGame", "自动千音雅集", true, true),
-        Descriptor("AutoAlbum", "自动千音雅集（整个专辑）", true, true),
-        Descriptor("AutoCook", "自动烹饪", true, true),
-        Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true, true),
+        Descriptor("AutoGeniusInvokation", "自动七圣召唤", true),
+        Descriptor("AutoWood", "自动伐木", true),
+        Descriptor("AutoFight", "自动战斗", true),
+        Descriptor("AutoDomain", "自动秘境", true),
+        Descriptor("AutoBoss", "自动首领讨伐", true),
+        Descriptor("AutoStygianOnslaught", "自动幽境危战", true),
+        Descriptor("AutoFishing", "全自动钓鱼（单个鱼塘）", true),
+        Descriptor("AutoLeyLineOutcrop", "自动地脉花", true),
+        Descriptor("AutoMusicGame", "自动千音雅集", true),
+        Descriptor("AutoAlbum", "自动千音雅集（整个专辑）", true),
+        Descriptor("AutoCook", "自动烹饪", true),
+        Descriptor("AutoArtifactSalvage", "自动分解圣遗物", true),
         Descriptor(
-            "AutoRedeemCode", "自动使用兑换码", true, true,
-            "multilineText", "输入兑换码", "每行一条兑换码"),
+            "AutoRedeemCode", "自动使用兑换码", true,
+            inputKind: "multilineText", inputTitle: "输入兑换码",
+            inputPlaceholder: "每行一条兑换码"),
     };
 
     public object Start(string name, string? inputText = null)
@@ -180,15 +181,15 @@ public sealed class SoloTaskCoordinator(
         }
     }
 
-    private static object Descriptor(
-        string name, string displayName, bool available, bool settingsAvailable = false,
+    private object Descriptor(
+        string name, string displayName, bool available,
         string? inputKind = null, string? inputTitle = null,
         string? inputPlaceholder = null) => new
     {
         name,
         displayName,
         available,
-        settingsAvailable,
+        settingsAvailable = settings.IsAvailable(name),
         inputKind,
         inputTitle,
         inputPlaceholder,

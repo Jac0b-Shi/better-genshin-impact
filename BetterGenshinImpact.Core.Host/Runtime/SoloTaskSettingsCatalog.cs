@@ -26,6 +26,12 @@ public sealed class SoloTaskSettingsCatalog(RuntimeLayout layout)
     public int AutoWoodRoundNum { get; private set; }
     public int AutoWoodDailyMaxCount { get; private set; } = 2000;
 
+    public bool IsAvailable(string name) => name is
+        "AutoGeniusInvokation" or "AutoCook" or "AutoFishing" or "AutoWood" or
+        "AutoMusicGame" or "AutoAlbum" or "AutoBoss" or "AutoFight" or
+        "AutoDomain" or "AutoArtifactSalvage" or "AutoLeyLineOutcrop" or
+        "AutoStygianOnslaught";
+
     public void AttachAutoFightConfigUpdated(Action<AutoFightConfig> callback) =>
         _autoFightConfigUpdated = callback ?? throw new ArgumentNullException(nameof(callback));
 

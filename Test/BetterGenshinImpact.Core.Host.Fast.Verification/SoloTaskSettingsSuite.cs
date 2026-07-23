@@ -64,6 +64,18 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
             var platform = new RecordingDispatcherPlatform();
             var coordinator = new SoloTaskCoordinator(platform, catalog, CancellationToken.None);
             var descriptors = JArray.FromObject(coordinator.List());
+            foreach (var item in descriptors.OfType<JObject>())
+            {
+                var name = item.Value<string>("name")
+                    ?? throw new InvalidDataException("Solo task descriptor has no name.");
+                context.Require(
+                    item.Value<bool>("settingsAvailable") == catalog.IsAvailable(name),
+                    $"Solo task '{name}' settings availability drifted from the Core catalog.");
+            }
+            context.Require(
+                descriptors.Single(item => item.Value<string>("name") == "AutoRedeemCode")
+                    .Value<bool>("settingsAvailable") == false,
+                "AutoRedeemCode exposed a fake expandable settings surface.");
             var descriptor = descriptors.Single(item =>
                 item.Value<string>("name") == "AutoGeniusInvokation");
             context.Require(descriptor.Value<bool>("available") &&
@@ -112,7 +124,7 @@ public sealed class SoloTaskSettingsSuite : IVerificationSuite
             descriptor = descriptors.Single(item =>
                 item.Value<string>("name") == "AutoRedeemCode");
             context.Require(descriptor.Value<bool>("available") &&
-                            descriptor.Value<bool>("settingsAvailable") &&
+                            !descriptor.Value<bool>("settingsAvailable") &&
                             descriptor.Value<string>("inputKind") == "multilineText",
                 "AutoRedeemCode did not expose its Core-owned multiline input contract.");
             _ = coordinator.Start("AutoRedeemCode", " CODE-A \n\nCODE-B\r\n");
