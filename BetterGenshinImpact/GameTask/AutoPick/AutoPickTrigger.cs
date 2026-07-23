@@ -57,6 +57,7 @@ public partial class AutoPickTrigger : ITaskTrigger
     private readonly ISystemInfo _systemInfo;
     private readonly IPaddleAutoPickTextRecognizer _paddleRecognizer;
     private readonly IYapAutoPickTextRecognizer _yapRecognizer;
+    private readonly int _requiredStableInteractionFrames;
 
     private int StopCount => _runtimeState.StopCount;
 
@@ -71,7 +72,8 @@ public partial class AutoPickTrigger : ITaskTrigger
         ISystemInfo systemInfo,
         ILogger<AutoPickTrigger> logger,
         IPaddleAutoPickTextRecognizer paddleRecognizer,
-        IYapAutoPickTextRecognizer yapRecognizer)
+        IYapAutoPickTextRecognizer yapRecognizer,
+        int requiredStableInteractionFrames = 2)
     {
         ArgumentNullException.ThrowIfNull(runtimeState);
         ArgumentNullException.ThrowIfNull(configProvider);
@@ -80,6 +82,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(paddleRecognizer);
         ArgumentNullException.ThrowIfNull(yapRecognizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(requiredStableInteractionFrames, 1);
         _externalConfig = config;
         _runtimeState = runtimeState;
         _configProvider = configProvider;
@@ -88,6 +91,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         _logger = logger;
         _paddleRecognizer = paddleRecognizer;
         _yapRecognizer = yapRecognizer;
+        _requiredStableInteractionFrames = requiredStableInteractionFrames;
     }
 
     public void Init()
@@ -180,6 +184,11 @@ public partial class AutoPickTrigger : ITaskTrigger
     /// </summary>
     private int _prevClickFrameIndex = -1;
 
+    private Rect _pendingInteractionRect;
+    private int _pendingInteractionFrameCount;
+
+    private const int InteractionPositionTolerance = 12;
+
     //private int _fastModePickCount = 0;
 
     public void OnCapture(CaptureContent content)
@@ -197,6 +206,8 @@ public partial class AutoPickTrigger : ITaskTrigger
 
         if (foundRectArea.IsEmpty())
         {
+            ResetPendingInteraction();
+
             // 没有识别到F键，先判断是否有滚轮图标信息
             if (HasScrollIcon(content.CaptureRectArea))
             {
@@ -224,6 +235,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         using var lKeyRa = content.CaptureRectArea.Find(RecognitionAssets.Get("AutoPick", "L", content.CaptureRectArea));
         if (lKeyRa.IsExist())
         {
+            ResetPendingInteraction();
             return;
         }
 
@@ -254,9 +266,19 @@ public partial class AutoPickTrigger : ITaskTrigger
             }
         }
 
+        if (isExcludeIcon)
+        {
+            ResetPendingInteraction();
+        }
+
         if (!config.WhiteListEnabled && isExcludeIcon)
         {
             // 默认不拾取且没有白名单直接放弃OCR
+            return;
+        }
+
+        if (!isExcludeIcon && !HasStableInteractionPrompt(foundRectArea))
+        {
             return;
         }
 
@@ -264,6 +286,7 @@ public partial class AutoPickTrigger : ITaskTrigger
         {
             // 没有黑白名单直接拾取
             _inputBackend.KeyPress(_autoPickAssets.PickVk);
+            ResetPendingInteraction();
             LogPick(content, "黑名单未启用，直接拾取");
         }
 
@@ -332,6 +355,7 @@ public partial class AutoPickTrigger : ITaskTrigger
             {
                 LogPick(content, text);
                 _inputBackend.KeyPress(_autoPickAssets.PickVk);
+                ResetPendingInteraction();
                 return;
             }
 
@@ -363,9 +387,43 @@ public partial class AutoPickTrigger : ITaskTrigger
 
             LogPick(content, text);
             _inputBackend.KeyPress(_autoPickAssets.PickVk);
+            ResetPendingInteraction();
         }
 
         speedTimer.DebugPrint();
+    }
+
+    private bool HasStableInteractionPrompt(Region foundRectArea)
+    {
+        if (_requiredStableInteractionFrames <= 1)
+        {
+            return true;
+        }
+
+        var currentRect = new Rect(
+            foundRectArea.X,
+            foundRectArea.Y,
+            foundRectArea.Width,
+            foundRectArea.Height);
+        if (_pendingInteractionFrameCount > 0
+            && Math.Abs(currentRect.X - _pendingInteractionRect.X) <= InteractionPositionTolerance
+            && Math.Abs(currentRect.Y - _pendingInteractionRect.Y) <= InteractionPositionTolerance)
+        {
+            _pendingInteractionFrameCount++;
+        }
+        else
+        {
+            _pendingInteractionFrameCount = 1;
+        }
+
+        _pendingInteractionRect = currentRect;
+        return _pendingInteractionFrameCount >= _requiredStableInteractionFrames;
+    }
+
+    private void ResetPendingInteraction()
+    {
+        _pendingInteractionRect = default;
+        _pendingInteractionFrameCount = 0;
     }
 
     private bool DoNotPick(string text)
