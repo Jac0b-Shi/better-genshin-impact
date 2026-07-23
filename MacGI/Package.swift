@@ -12,9 +12,14 @@ let package = Package(
     ],
     dependencies: [],
     targets: [
+        .target(
+            name: "MacGIShims",
+            path: "Sources/MacGIShims",
+            publicHeadersPath: "include"
+        ),
         .executableTarget(
             name: "MacGI",
-            dependencies: [],
+            dependencies: ["MacGIShims"],
             path: "Sources/MacGI",
             resources: [
                 .copy("Resources")

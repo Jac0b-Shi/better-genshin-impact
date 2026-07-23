@@ -86,7 +86,7 @@ await using (var ring = new FileStream(captureRingPath, FileMode.Create, FileAcc
     writer.Write(new byte[] { 1, 2, 3, 255, 4, 5, 6, 255 });
 }
 File.SetUnixFileMode(captureRingPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-using (var captured = new SharedCaptureRingReader(layout).Read(JObject.FromObject(new
+using (var captured = new SharedCaptureRingReader(layout, allowFileFixture: true).Read(JObject.FromObject(new
 {
     ringPath = captureRingPath, frameId = 7UL, sequence = 2UL, slot = 1,
     width = 2, height = 1, stride = 8, pixelFormat = "BGRA8"
@@ -283,7 +283,7 @@ GameTaskManagerPlatform.Configure(gameTaskManagerPlatform);
 BvRuntimePlatform.Configure(new MacBvRuntimePlatform(() => gameTaskManagerPlatform.SystemInfo));
 var farmingScriptServicePlatform = new MacScriptServicePlatform(
     layout, loggerFactory.CreateLogger("BetterGenshinImpact.Service.ScriptService"), scriptHostServices,
-    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
+    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout, allowFileFixture: true),
     gameTaskManagerPlatform, foregroundInputCoordinator);
 Require(farmingScriptServicePlatform.FarmingPlanEnabled,
     "macOS scheduler ignored the upstream farming-plan configuration");
@@ -332,7 +332,7 @@ executionConfig["otherConfig"]!["farmingPlanConfig"]!["enabled"] = false;
 await File.WriteAllTextAsync(Path.Combine(layout.UserPath, "config.json"), executionConfig.ToJsonString(ConfigJson.Options));
 var scriptServicePlatform = new MacScriptServicePlatform(
     layout, loggerFactory.CreateLogger("BetterGenshinImpact.Service.ScriptService"), scriptHostServices,
-    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
+    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout, allowFileFixture: true),
     gameTaskManagerPlatform, foregroundInputCoordinator);
 Require(!scriptServicePlatform.FarmingPlanEnabled,
     "Host Shell fixture must not enter the upstream farming-path cap check");
@@ -344,7 +344,7 @@ TaskRunnerPlatform.Configure(new MacTaskRunnerPlatform(
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.RunnerContext"),
     foregroundInputCoordinator));
 TaskControlPlatform.Configure(new MacTaskControlPlatform(
-    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
+    server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout, allowFileFixture: true),
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl"),
     foregroundInputCoordinator, new GameActionKeyResolver(layout)));
 var imageRegionOcrService = new MacImageRegionOcrService(
@@ -892,7 +892,7 @@ try
         }
     }, cancellation.Token);
     var globalRuntime = new MacGlobalMethodRuntime(
-        server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout),
+        server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout, allowFileFixture: true),
         foregroundInputCoordinator);
     globalRuntime.KeyPress("VK_F");
     new BetterGenshinImpact.Core.Script.Dependence.Notification().Send("verification notification");
@@ -2624,7 +2624,7 @@ try
             $"Locked Paddle OCR did not read the party fixture name: '{partyName}'.");
         await WriteCaptureRingFrameAsync(captureRingPath, partyFrame, 10UL);
     }
-    using (var partyRingRegion = new SharedCaptureRingReader(layout).Read(JObject.FromObject(new
+    using (var partyRingRegion = new SharedCaptureRingReader(layout, allowFileFixture: true).Read(JObject.FromObject(new
            {
                ringPath = captureRingPath, frameId = 10UL, sequence = 2UL, slot = 0,
                width = schedulerWidth, height = schedulerHeight, stride = schedulerStride, pixelFormat = "BGRA8"

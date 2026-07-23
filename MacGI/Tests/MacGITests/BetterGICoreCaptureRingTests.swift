@@ -13,7 +13,7 @@ struct BetterGICoreCaptureRingTests {
 
         let ring = BetterGICoreCaptureRing(runURL: root)
         let first = try ring.write(makeFrame())
-        let second = try BetterGICoreCaptureRing(runURL: root).write(makeFrame())
+        let second = try ring.write(makeFrame())
 
         #expect(first["frameId"] as? UInt64 == 1)
         #expect(second["frameId"] as? UInt64 == 2)
@@ -27,13 +27,27 @@ struct BetterGICoreCaptureRingTests {
         #expect(second["captureY"] as? Int == 400)
         #expect(second["captureWidth"] as? Int == 4)
         #expect(second["captureHeight"] as? Int == 4)
+        #expect(second["ringName"] as? String == ring.sharedMemoryName)
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("capture-ring.bin").path))
 
-        let fileURL = root.appendingPathComponent("capture-ring.bin")
-        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
-        let handle = try FileHandle(forReadingFrom: fileURL)
-        defer { try? handle.close() }
-        let header = try #require(try handle.read(upToCount: BetterGICoreCaptureRing.headerSize))
+        let descriptor = openBetterGISharedMemory(
+            named: ring.sharedMemoryName,
+            flags: O_RDONLY)
+        let openError = errno
+        try #require(
+            descriptor >= 0,
+            "shm_open failed: \(String(cString: strerror(openError)))")
+        defer { Darwin.close(descriptor) }
+        let length = BetterGICoreCaptureRing.headerSize +
+            BetterGICoreCaptureRing.slotCount * (second["slotCapacity"] as? Int ?? 0)
+        let mapping = Darwin.mmap(nil, length, PROT_READ, MAP_SHARED, descriptor, 0)
+        let mappingError = errno
+        try #require(
+            mapping != MAP_FAILED,
+            "mmap failed: \(String(cString: strerror(mappingError)))")
+        defer { Darwin.munmap(mapping, length) }
+        let header = Data(bytes: mapping!, count: BetterGICoreCaptureRing.headerSize)
         #expect(Array(header.prefix(8)) == Array("BGIRING1".utf8))
         #expect(readUInt64(header, at: 56) == 2)
         #expect(readInt32(header, at: 64) == 200)
@@ -42,8 +56,11 @@ struct BetterGICoreCaptureRingTests {
         #expect(readUInt32(header, at: 76) == 4)
         #expect(readUInt64(header, at: 80) % 2 == 0)
 
-        try handle.seek(toOffset: UInt64(BetterGICoreCaptureRing.headerSize))
-        let pixels = try #require(try handle.read(upToCount: 16))
+        let slot = second["slot"] as? Int ?? 0
+        let slotCapacity = second["slotCapacity"] as? Int ?? 0
+        let pixelAddress = mapping!.advanced(
+            by: BetterGICoreCaptureRing.headerSize + slot * slotCapacity)
+        let pixels = Data(bytes: pixelAddress, count: 16)
         #expect(Array(pixels) == [
             0, 0, 255, 255, 0, 255, 0, 255,
             255, 0, 0, 255, 255, 255, 255, 255,

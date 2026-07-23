@@ -43,8 +43,13 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
 
     private weak var appState: AppState?
     private var audioCapture: BGIAudioSampleProvider?
+    private let captureRing: BetterGICoreCaptureRing
 
-    init(appState: AppState) { self.appState = appState }
+    @MainActor
+    init(appState: AppState) {
+        self.appState = appState
+        captureRing = BetterGICoreCaptureRing(runURL: appState.betterGICoreRunURL)
+    }
 
     func handle(method: String, parameters: [String: Any]?) throws -> Any {
         if method == "capture.request" { return try handleCaptureRequest() }
@@ -80,8 +85,11 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
                     throw BetterGICorePlatformAdapterError.invalidParameters("AppState is unavailable.")
                 }
                 let frame = try await appState.captureFrameForBetterGICore()
-                let ring = BetterGICoreCaptureRing(runURL: appState.betterGICoreRunURL)
-                transfer.result = .success(try ring.write(frame))
+                guard let self else {
+                    throw BetterGICorePlatformAdapterError.invalidParameters(
+                        "Capture ring is unavailable.")
+                }
+                transfer.result = .success(try self.captureRing.write(frame))
             } catch {
                 transfer.result = .failure(error)
             }
