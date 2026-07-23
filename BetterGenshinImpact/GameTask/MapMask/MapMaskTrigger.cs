@@ -79,11 +79,16 @@ public class MapMaskTrigger : ITaskTrigger
     private long _bigMapMatchSuccesses;
     private long _bigMapMatchFailures;
     private long _bigMapMatchRejected;
+    private long _miniMapMatchAttempts;
+    private long _miniMapMatchSuccesses;
+    private long _miniMapMatchFailures;
     private long _uiApplyCount;
     private long _uiApplyFailures;
     private int _lastCaptureInBigMap;
     private string? _lastBigMapMatchError;
     private string? _lastBigMapRawRect;
+    private string? _lastMiniMapMatchError;
+    private string? _lastMiniMapPoint;
     private string? _lastUiApplyError;
 
     public object GetRuntimeStatus() => new
@@ -96,6 +101,11 @@ public class MapMaskTrigger : ITaskTrigger
         bigMapMatchRejected = Interlocked.Read(ref _bigMapMatchRejected),
         lastBigMapMatchError = Volatile.Read(ref _lastBigMapMatchError),
         lastBigMapRawRect = Volatile.Read(ref _lastBigMapRawRect),
+        miniMapMatchAttempts = Interlocked.Read(ref _miniMapMatchAttempts),
+        miniMapMatchSuccesses = Interlocked.Read(ref _miniMapMatchSuccesses),
+        miniMapMatchFailures = Interlocked.Read(ref _miniMapMatchFailures),
+        lastMiniMapMatchError = Volatile.Read(ref _lastMiniMapMatchError),
+        lastMiniMapPoint = Volatile.Read(ref _lastMiniMapPoint),
         uiApplyScheduled = Volatile.Read(ref _uiApplyScheduled) == 1,
         uiApplyCount = Interlocked.Read(ref _uiApplyCount),
         uiApplyFailures = Interlocked.Read(ref _uiApplyFailures),
@@ -141,7 +151,12 @@ public class MapMaskTrigger : ITaskTrigger
             var region = content.CaptureRectArea;
             var inBigMapUi = content.CurrentGameUiCategory == GameUiCategory.BigMap || Bv.IsInBigMapUi(region);
             Interlocked.Increment(ref _captureCount);
-            Volatile.Write(ref _lastCaptureInBigMap, inBigMapUi ? 1 : 0);
+            var wasInBigMapUi = Interlocked.Exchange(
+                ref _lastCaptureInBigMap, inBigMapUi ? 1 : 0) == 1;
+            if (inBigMapUi && !wasInBigMapUi)
+            {
+                _navigationInstance.Reset();
+            }
             var mapMatchingMethod = _platform.MapMatchingMethod;
             PendingUiUpdate? update = null;
 
@@ -393,10 +408,26 @@ public class MapMaskTrigger : ITaskTrigger
         using var imageRegion = new ImageRegion(workItem.Mat, 0, 0);
         workItem.Mat = null;
 
-        var miniPoint = _navigationInstance.GetPositionStable(imageRegion, nameof(MapTypes.Teyvat), workItem.MapMatchingMethod);
+        Interlocked.Increment(ref _miniMapMatchAttempts);
+        Point2f miniPoint;
+        try
+        {
+            miniPoint = _navigationInstance.GetPositionStable(
+                imageRegion, nameof(MapTypes.Teyvat), workItem.MapMatchingMethod);
+            Volatile.Write(ref _lastMiniMapMatchError, null);
+        }
+        catch (Exception exception)
+        {
+            Interlocked.Increment(ref _miniMapMatchFailures);
+            Volatile.Write(ref _lastMiniMapMatchError, exception.ToString());
+            throw;
+        }
+
         if (miniPoint != default)
         {
-            double viewportSize = MapAssets.MimiMapRect1080P.Width / 3.0 * 10;
+            Interlocked.Increment(ref _miniMapMatchSuccesses);
+            Volatile.Write(ref _lastMiniMapPoint, $"{miniPoint.X:F3},{miniPoint.Y:F3}");
+            double viewportSize = MapAssets.MimiMapRect1080P.Width;
             QueueUiUpdate(new PendingUiUpdate
             {
                 MiniMapViewport = new MapMaskViewport(
@@ -408,6 +439,8 @@ public class MapMaskTrigger : ITaskTrigger
         }
         else
         {
+            Interlocked.Increment(ref _miniMapMatchFailures);
+            Volatile.Write(ref _lastMiniMapPoint, null);
             QueueUiUpdate(new PendingUiUpdate { MiniMapViewport = new MapMaskViewport(0, 0, 0, 0) });
         }
     }

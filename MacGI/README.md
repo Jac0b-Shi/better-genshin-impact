@@ -25,3 +25,7 @@ Run:
 ```bash
 swift run betterGI-mac
 ```
+
+## Known limitations
+
+- The mini-map marker overlay currently inherits the upstream BetterGI mini-map localization coverage. It works in supported regions such as Mondstadt and Liyue Harbor, but may show no markers in some newer map areas even when the game's mini-map shows nearby waypoints. This is an upstream localization-data/algorithm limitation shared with the Windows implementation, not a macOS HUD rendering failure. The full-map marker overlay is not affected.

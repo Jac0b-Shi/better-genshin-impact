@@ -27,6 +27,7 @@ public sealed class MacMapMaskRuntimePlatform : IMapMaskRuntimePlatform
     private int _loadVersion;
     private int _catalogVersion;
     private int _initialized;
+    private long _viewportPublishCount;
     private bool? _lastPublishedBigMapState;
     private IReadOnlyList<MaskMapPointLabel>? _labelCategories;
     private Task<IReadOnlyList<MaskMapPointLabel>>? _labelCatalogLoadTask;
@@ -68,6 +69,8 @@ public sealed class MacMapMaskRuntimePlatform : IMapMaskRuntimePlatform
                 hasDrawCommand = _hasDrawCommand,
                 isInBigMapUi = _latestCommand.IsInBigMapUi,
                 bigMapViewport = DescribeViewport(_latestCommand.BigMapViewport),
+                miniMapViewport = DescribeViewport(_latestCommand.MiniMapViewport),
+                viewportPublishCount = Interlocked.Read(ref _viewportPublishCount),
                 loadVersion = Volatile.Read(ref _loadVersion)
             };
         }
@@ -225,6 +228,7 @@ public sealed class MacMapMaskRuntimePlatform : IMapMaskRuntimePlatform
         if (shouldPublish)
         {
             PublishViewport(latest);
+            Interlocked.Increment(ref _viewportPublishCount);
         }
     }
 

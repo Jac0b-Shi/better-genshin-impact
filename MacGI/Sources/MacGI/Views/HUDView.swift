@@ -217,12 +217,18 @@ private struct CoreOverlayHUDLayer: View {
     private func mapPointCanvas(
         points: [CoreOverlayMapPoint], viewport: CGRect?, diameter: CGFloat
     ) -> some View {
-        let iconURLs = Array(Set(points.compactMap(\.iconURL)))
-            .sorted { $0.absoluteString < $1.absoluteString }
-        return Canvas(rendersAsynchronously: true) { context, canvasSize in
-            guard let viewport, viewport.width > 0, viewport.height > 0 else { return }
+        let visiblePoints: [CoreOverlayMapPoint]
+        if let viewport, viewport.width > 0, viewport.height > 0 {
             let expandedViewport = viewport.insetBy(dx: -32, dy: -32)
-            for point in points where expandedViewport.contains(point.imagePosition) {
+            visiblePoints = points.filter { expandedViewport.contains($0.imagePosition) }
+        } else {
+            visiblePoints = []
+        }
+        let iconURLs = Array(Set(visiblePoints.compactMap(\.iconURL)))
+            .sorted { $0.absoluteString < $1.absoluteString }
+        return Canvas(rendersAsynchronously: false) { context, canvasSize in
+            guard let viewport, viewport.width > 0, viewport.height > 0 else { return }
+            for point in visiblePoints {
                 let center = CGPoint(
                     x: (point.imagePosition.x - viewport.minX) * canvasSize.width / viewport.width,
                     y: (point.imagePosition.y - viewport.minY) * canvasSize.height / viewport.height)
