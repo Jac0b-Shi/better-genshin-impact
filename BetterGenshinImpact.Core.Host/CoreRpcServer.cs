@@ -317,6 +317,8 @@ public sealed class CoreRpcServer(
                     ?? throw new ArgumentException("settings is required.")),
                 "runtime.status" => RuntimeStatus(),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
+                "scheduler.runGroups" => Scheduler.RunGroups(
+                    RequiredStrings(request.Params, "groupNames")),
                 "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),
                 "scheduler.resume" => Scheduler.Resume(RequiredString(request.Params, "taskId")),
                 "scheduler.stop" => Scheduler.Stop(RequiredString(request.Params, "taskId")),
@@ -370,7 +372,8 @@ public sealed class CoreRpcServer(
                 "trigger-control",
                 "runtime-control",
                 "runtime.geometry-refresh",
-                "scheduler.run"
+                "scheduler.run",
+                "scheduler.runGroups"
             }
         };
     }
@@ -557,6 +560,16 @@ public sealed class CoreRpcServer(
 
     private static int RequiredInt(JObject? parameters, string name) =>
         parameters?.Value<int?>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private static string[] RequiredStrings(JObject? parameters, string name)
+    {
+        var values = parameters?[name] as JArray
+            ?? throw new ArgumentException($"{name} is required.");
+        var result = values.Select(value => value.Value<string>()).ToArray();
+        if (result.Length == 0 || result.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException($"{name} must contain at least one non-empty string.");
+        return result.Select(value => value!).ToArray();
+    }
 
     private object ResetScriptRepository()
     {

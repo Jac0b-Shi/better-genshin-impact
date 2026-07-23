@@ -2,6 +2,7 @@ using BetterGenshinImpact.Core.Host.Transport;
 using BetterGenshinImpact.Core.Script;
 using BetterGenshinImpact.Core.Script.Group;
 using BetterGenshinImpact.GameTask;
+using BetterGenshinImpact.GameTask.TaskProgress;
 using BetterGenshinImpact.Service;
 using Newtonsoft.Json.Linq;
 
@@ -17,6 +18,7 @@ public sealed class SchedulerCoordinator(
     private readonly object _sync = new();
     private string? _taskId;
     private Task? _execution;
+    private CancellationTokenSource? _operationCancellation;
 
     public object Run(string groupName)
     {
@@ -25,7 +27,28 @@ public sealed class SchedulerCoordinator(
         ApplyNextProject(group);
         if (group.Projects.Count == 0)
             throw new InvalidDataException($"Script group '{groupName}' contains no projects.");
-        return Start(group.Projects, group.Name);
+        return Start(group.Name, _ => RunGroupAsync(group));
+    }
+
+    public object RunGroups(IReadOnlyList<string> groupNames)
+    {
+        ArgumentNullException.ThrowIfNull(groupNames);
+        if (groupNames.Count == 0)
+            throw new ArgumentException("At least one script group name is required.", nameof(groupNames));
+
+        var groups = groupNames
+            .Select(groupName =>
+            {
+                var path = ResolveGroup(groupName);
+                var group = ScriptGroup.FromJson(File.ReadAllText(path));
+                ApplyNextProject(group);
+                if (group.Projects.Count == 0)
+                    throw new InvalidDataException($"Script group '{groupName}' contains no projects.");
+                return group;
+            })
+            .ToArray();
+        var displayName = string.Join(",", groups.Select(group => group.Name));
+        return Start(displayName, cancellationToken => RunGroupsAsync(groups, cancellationToken));
     }
 
     public object RunProject(ScriptGroupProject project, string displayName)
@@ -33,22 +56,23 @@ public sealed class SchedulerCoordinator(
         ArgumentNullException.ThrowIfNull(project);
         if (string.IsNullOrWhiteSpace(displayName))
             throw new ArgumentException("Task display name cannot be empty.", nameof(displayName));
-        return Start([project], displayName);
+        return Start(displayName, _ =>
+            new ScriptService().RunMulti([project], displayName));
     }
 
-    private object Start(IEnumerable<ScriptGroupProject> projects, string displayName)
+    private object Start(string displayName, Func<CancellationToken, Task> operation)
     {
-        var projectList = projects.ToArray();
-        if (projectList.Length == 0)
-            throw new InvalidDataException($"Task '{displayName}' contains no projects.");
         lock (_sync)
         {
             if (_execution is { IsCompleted: false })
                 throw new InvalidOperationException($"Scheduler task '{_taskId}' is already running.");
+            _operationCancellation?.Dispose();
+            _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(hostCancellationToken);
             RunnerContext.Instance.IsSuspend = false;
             var taskId = Guid.NewGuid().ToString("N");
             _taskId = taskId;
-            _execution = ExecuteAsync(taskId, projectList, displayName);
+            _execution = ExecuteAsync(
+                taskId, displayName, operation, _operationCancellation.Token);
             return new { taskId, state = "running", groupName = displayName };
         }
     }
@@ -73,6 +97,7 @@ public sealed class SchedulerCoordinator(
     {
         RequireActive(taskId);
         CancellationContext.Instance.ManualCancel();
+        _operationCancellation?.Cancel();
         return new { taskId, state = "stopping" };
     }
 
@@ -84,6 +109,7 @@ public sealed class SchedulerCoordinator(
             if (_execution is not { IsCompleted: false })
                 return false;
             CancellationContext.Instance.ManualCancel();
+            _operationCancellation?.Cancel();
             execution = _execution;
         }
 
@@ -93,17 +119,19 @@ public sealed class SchedulerCoordinator(
 
     private async Task ExecuteAsync(
         string taskId,
-        IReadOnlyList<ScriptGroupProject> projects,
-        string displayName)
+        string displayName,
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
     {
         try
         {
             await EmitAsync(taskId, "running", null);
-            await new ScriptService().RunMulti(projects, displayName);
+            await operation(cancellationToken);
             var state = CancellationContext.Instance.IsManualStop ? "cancelled" : "completed";
             await EmitAsync(taskId, state, null);
         }
-        catch (OperationCanceledException) when (CancellationContext.Instance.IsManualStop)
+        catch (OperationCanceledException) when (
+            CancellationContext.Instance.IsManualStop || cancellationToken.IsCancellationRequested)
         {
             await EmitAsync(taskId, "cancelled", null);
         }
@@ -115,6 +143,57 @@ public sealed class SchedulerCoordinator(
         {
             RunnerContext.Instance.IsSuspend = false;
         }
+    }
+
+    private static async Task RunGroupsAsync(
+        IReadOnlyList<ScriptGroup> groups,
+        CancellationToken cancellationToken)
+    {
+        RunnerContext.Instance.Reset();
+        RunnerContext.Instance.IsContinuousRunGroup = true;
+        var taskProgress = new TaskProgress
+        {
+            ScriptGroupNames = groups.Select(group => group.Name).ToList(),
+            Loop = false
+        };
+        RunnerContext.Instance.taskProgress = taskProgress;
+        try
+        {
+            var service = new ScriptService();
+            for (var index = 0; index < groups.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var group = groups[index];
+                taskProgress.CurrentScriptGroupName = group.Name;
+                TaskProgressManager.SaveTaskProgress(taskProgress);
+                await service.RunMulti(group.Projects, group.Name, taskProgress);
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            }
+            taskProgress.LoopCount++;
+            if (taskProgress.ConsecutiveFailureCount == 0)
+            {
+                taskProgress.EndTime = DateTime.Now;
+                TaskProgressManager.SaveTaskProgress(taskProgress);
+            }
+        }
+        finally
+        {
+            RunnerContext.Instance.Reset();
+        }
+    }
+
+    private static async Task RunGroupAsync(ScriptGroup group)
+    {
+        RunnerContext.Instance.Reset();
+        var taskProgress = new TaskProgress
+        {
+            ScriptGroupNames = [group.Name],
+            CurrentScriptGroupName = group.Name
+        };
+        RunnerContext.Instance.taskProgress = taskProgress;
+        TaskProgressManager.SaveTaskProgress(taskProgress);
+        await new ScriptService().RunMulti(group.Projects, group.Name, taskProgress);
     }
 
     private async Task EmitAsync(string taskId, string state, object? error)

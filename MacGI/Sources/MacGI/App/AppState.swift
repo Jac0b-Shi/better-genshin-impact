@@ -332,6 +332,7 @@ final class AppState: ObservableObject {
     private var coreStartupTask: Task<Void, Never>?
     private var coreStartupInFlight = false
     private var autoStartRuntimePending: Bool
+    private var autoStartSchedulerGroupNames: [String]
     private var runtimeLaunchReady = false
     private var runtimeGeometryPixelSize: CGSize?
     private var pendingRuntimeGeometryPixelSize: CGSize?
@@ -427,7 +428,9 @@ final class AppState: ObservableObject {
         hideHUDWhenGameUnfocused = launchArguments.contains("--disable-hud-focus-hiding")
             ? false
             : storedFocusHiding
+        autoStartSchedulerGroupNames = Self.startGroupNames(from: launchArguments)
         autoStartRuntimePending = launchArguments.contains("--start-runtime")
+            || !autoStartSchedulerGroupNames.isEmpty
         addLog(.info, "betterGI-mac Swift UI initialized")
         if dryRunLaunchEnabled {
             addLog(.info, "Dry-Run enabled by --dry-run; real input is disabled")
@@ -805,6 +808,7 @@ final class AppState: ObservableObject {
                 self.runtimeLifecycleMessage = "运行时已启动，截图器正在持续捕获。"
                 self.appStatus = .running
                 self.addLog(.info, "BetterGI runtime started with a verified ScreenCaptureKit frame.")
+                self.attemptAutoStartSchedulerGroups()
             } catch {
                 try? await supervisor.stopRuntime()
                 self.captureStatus = .error
@@ -917,8 +921,31 @@ final class AppState: ObservableObject {
               !selectedWindow.isSynthetic,
               runtimeLifecycle == .stopped else { return }
         autoStartRuntimePending = false
-        addLog(.info, "--start-runtime accepted; starting BetterGI runtime when Core is ready.")
+        let source = autoStartSchedulerGroupNames.isEmpty ? "--start-runtime" : "--startGroups"
+        addLog(.info, "\(source) accepted; starting BetterGI runtime when Core is ready.")
         startRuntime()
+    }
+
+    private func attemptAutoStartSchedulerGroups() {
+        guard !autoStartSchedulerGroupNames.isEmpty,
+              coreStatus == .ok,
+              runtimeLifecycle == .running,
+              !schedulerGroups.isEmpty,
+              currentSchedulerProjectID == nil else { return }
+
+        let requested = autoStartSchedulerGroupNames
+        autoStartSchedulerGroupNames = []
+        let knownNames = Set(schedulerGroups.map(\.name))
+        let available = requested.filter(knownNames.contains)
+        for name in requested where !knownNames.contains(name) {
+            addLog(.warn, "--startGroups ignored unknown script group: \(name)")
+        }
+        guard !available.isEmpty else {
+            addLog(.error, "--startGroups did not contain an available script group.")
+            return
+        }
+        selectedSchedulerGroupName = available[0]
+        startSchedulerGroups(names: available, continuous: true)
     }
 
     func stopRuntime() {
@@ -976,6 +1003,7 @@ final class AppState: ObservableObject {
             }
             schedulerCatalogStatus = "Core loaded \(schedulerGroups.count)"
             addLog(.info, "Scheduler catalog loaded \(schedulerGroups.count) group(s) through BetterGI Core")
+            attemptAutoStartSchedulerGroups()
         } catch {
             setCoreCatalogUnavailable(error)
             addLog(.error, "BetterGI Core catalog load failed: \(error.localizedDescription)")
@@ -1274,7 +1302,7 @@ final class AppState: ObservableObject {
             addLog(.error, "Cannot run scheduler: another scheduler task is already active.")
             return
         }
-        guard let supervisor = betterGICoreSupervisor, coreStatus == .ok else {
+        guard betterGICoreSupervisor != nil, coreStatus == .ok else {
             schedulerExecutionStatus = "Core unavailable"
             addLog(.error, "Cannot run scheduler: BetterGI Core is not ready.")
             return
@@ -1294,16 +1322,23 @@ final class AppState: ObservableObject {
             addLog(.error, "Cannot run scheduler: no real on-screen game window is selected.")
             return
         }
+        startSchedulerGroups(names: [selectedSchedulerGroupName], continuous: false)
+    }
+
+    private func startSchedulerGroups(names: [String], continuous: Bool) {
+        guard let supervisor = betterGICoreSupervisor, !names.isEmpty else { return }
         schedulerExecutionTask?.cancel()
-        let groupName = selectedSchedulerGroupName
+        let displayName = names.joined(separator: ",")
         schedulerExecutionStatus = "Starting"
         schedulerExecutionError = nil
         schedulerExecutionTask = Task { [weak self] in
             do {
-                let taskID = try await supervisor.runSchedulerGroup(name: groupName)
+                let taskID = continuous
+                    ? try await supervisor.runSchedulerGroups(names: names)
+                    : try await supervisor.runSchedulerGroup(name: names[0])
                 guard !Task.isCancelled else { return }
                 guard let self else { return }
-                self.handleCoreSchedulerRunAccepted(taskID: taskID, groupName: groupName)
+                self.handleCoreSchedulerRunAccepted(taskID: taskID, groupName: displayName)
             } catch {
                 self?.schedulerExecutionStatus = "Failed"
                 self?.schedulerExecutionError = error.localizedDescription
@@ -1312,6 +1347,15 @@ final class AppState: ObservableObject {
                 self?.addLog(.error, "Core scheduler start failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    nonisolated static func startGroupNames(from arguments: [String]) -> [String] {
+        guard arguments.count > 1,
+              arguments[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("--startGroups") == .orderedSame
+        else { return [] }
+        return arguments.dropFirst(2)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
     func handleCoreSchedulerRunAccepted(taskID: String, groupName: String) {

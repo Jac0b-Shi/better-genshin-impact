@@ -180,6 +180,15 @@ if rg -n '\bBGIScriptGroup(Project|Config)?\b|getScriptGroup\(|saveScriptGroup\(
   MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift; then
   fail "Swift interprets or persists the upstream ScriptGroup document instead of consuming Core DTOs"
 fi
+rg -q '"scheduler.runGroups" => Scheduler.RunGroups' \
+  BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  && rg -q 'TaskProgressManager.SaveTaskProgress' \
+    BetterGenshinImpact.Core.Host/Runtime/SchedulerCoordinator.cs \
+  && rg -q 'runSchedulerGroups\(names: names\)' \
+    MacGI/Sources/MacGI/App/AppState.swift \
+  && rg -q 'method: "scheduler.runGroups"' \
+    MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  || fail "upstream --startGroups no longer delegates one ordered task to the Core scheduler"
 
 if rg -n 'manifestJSON|JSONSerialization.*manifest' MacGI/Sources/MacGI; then
   fail "Swift parses BetterGI script manifests instead of consuming Core display DTOs"

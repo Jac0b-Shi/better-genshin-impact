@@ -1338,6 +1338,8 @@ try
 
     Require(JArray.FromObject(handshakeJson["capabilities"]!).Any(value => value?.Value<string>() == "scheduler.run"),
         "handshake did not advertise the real scheduler.run chain");
+    Require(JArray.FromObject(handshakeJson["capabilities"]!).Any(value => value?.Value<string>() == "scheduler.runGroups"),
+        "handshake did not advertise the upstream multi-group scheduler chain");
     Require(JArray.FromObject(handshakeJson["capabilities"]!).Any(value => value?.Value<string>() == "trigger-control"),
         "handshake did not advertise Core-owned trigger control");
 
@@ -2761,6 +2763,74 @@ try
     Require(schedulerStates.FirstOrDefault() == "running" && schedulerStates.Contains("paused") &&
             schedulerStates.LastOrDefault() == "completed",
         "scheduler events did not preserve running/paused/resumed/completed lifecycle");
+
+    var multiGroupFirstMarker = Path.Combine(root, "scheduler-multi-first.marker");
+    var multiGroupSecondMarker = Path.Combine(root, "scheduler-multi-second.marker");
+    var multiGroupFirst = new ScriptGroup { Name = "SchedulerMultiFirst" };
+    multiGroupFirst.Config.EnableShellConfig = true;
+    multiGroupFirst.AddProject(ScriptGroupProject.BuildShellProject(
+        $"printf first > '{multiGroupFirstMarker}'"));
+    var multiGroupSecond = new ScriptGroup { Name = "SchedulerMultiSecond" };
+    multiGroupSecond.Config.EnableShellConfig = true;
+    multiGroupSecond.AddProject(ScriptGroupProject.BuildShellProject(
+        $"test -f '{multiGroupFirstMarker}' && printf second > '{multiGroupSecondMarker}'"));
+    await File.WriteAllTextAsync(
+        Path.Combine(layout.ScriptGroupPath, multiGroupFirst.Name + ".json"),
+        multiGroupFirst.ToJson());
+    await File.WriteAllTextAsync(
+        Path.Combine(layout.ScriptGroupPath, multiGroupSecond.Name + ".json"),
+        multiGroupSecond.ToJson());
+    var multiGroupStates = new List<string>();
+    var multiGroupResponder = Task.Run(async () =>
+    {
+        while (!multiGroupStates.Any(state => state is "completed" or "failed" or "cancelled"))
+        {
+            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
+                ?? throw new EndOfStreamException("Multi-group scheduler callback channel ended unexpectedly.");
+            object result = callback.Method switch
+            {
+                "window.metrics" => new
+                {
+                    captureX = 0, captureY = 0, captureWidth = schedulerWidth,
+                    captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
+                    workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
+                },
+                "capture.request" => new
+                {
+                    ringPath = captureRingPath, frameId = 10UL, sequence = 2UL, slot = 0,
+                    width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
+                    pixelFormat = "BGRA8"
+                },
+                "scheduler.event" => RecordSchedulerState(callback.Params, multiGroupStates),
+                "window.activate" or "input.dispatch" or "notification.emit" =>
+                    new { acknowledged = true },
+                _ => throw new InvalidDataException(
+                    $"Unexpected multi-group scheduler callback: {callback.Method}")
+            };
+            await callbackConnection.WriteResponseAsync(
+                RpcResponse.Success(callback.Id, result), cancellation.Token);
+        }
+    }, cancellation.Token);
+    var multiGroupRun = await ExchangeAsync(
+        connection, "scheduler-multi", "scheduler.runGroups", sessionToken,
+        JObject.FromObject(new
+        {
+            groupNames = new[] { multiGroupFirst.Name, multiGroupSecond.Name }
+        }), cancellation.Token);
+    Require(multiGroupRun.Error is null,
+        multiGroupRun.Error?.Message ?? "scheduler.runGroups failed");
+    var multiGroupResult = JObject.FromObject(multiGroupRun.Result!);
+    Require(!string.IsNullOrWhiteSpace(multiGroupResult.Value<string>("taskId")) &&
+            multiGroupResult.Value<string>("groupName") ==
+            $"{multiGroupFirst.Name},{multiGroupSecond.Name}",
+        "scheduler.runGroups did not return one ordered Core task");
+    await multiGroupResponder;
+    Require(await File.ReadAllTextAsync(multiGroupFirstMarker) == "first" &&
+            await File.ReadAllTextAsync(multiGroupSecondMarker) == "second",
+        "scheduler.runGroups did not execute both groups in order");
+    Require(multiGroupStates.FirstOrDefault() == "running" &&
+            multiGroupStates.LastOrDefault() == "completed",
+        "scheduler.runGroups did not preserve one running/completed lifecycle");
 
     var cancelledSchedulerStates = new List<string>();
     var cancelledSchedulerReleaseAllCount = 0;

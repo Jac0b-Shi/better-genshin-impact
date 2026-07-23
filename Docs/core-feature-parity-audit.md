@@ -73,6 +73,16 @@ scripts/verify-pathing-library.sh
 scripts/verify-pathing-library.sh "/path/to/runtime-root"
 ```
 
+## Command-line scheduling
+
+The macOS frontend accepts the upstream `--startGroups <group name...>` spelling.
+It starts the runtime only after permissions, a real game window and Core are
+ready, filters missing names against the Core-owned catalog, then sends the
+remaining ordered names in one `scheduler.runGroups` RPC. Core owns the
+continuous-group flag, two-second group interval, one task lifecycle and the
+upstream `TaskProgress` document. Normal UI execution of one selected group
+continues to use `scheduler.run`.
+
 ## Verification tiers
 
 Use the smallest tier that owns the changed behavior:

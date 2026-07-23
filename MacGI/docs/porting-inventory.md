@@ -1,5 +1,10 @@
 # BetterGI → macOS 全量移植清单
 
+> 历史规划快照。本文件包含已经废弃的 Swift、JavaScriptCore、Rust 与
+> mock fallback 方案，不得作为当前生产架构依据。当前所有权与完成证据以
+> `../../Docs/core-extraction-map.md`、`../../Docs/core-feature-parity-audit.md`
+> 和 `architecture.md` 为准。
+>
 > 基于 upstream BetterGI v0.61.3-alpha.1 的完整审计。
 > 原始代码量：~874 个 .cs 文件，~129,000 行 C#。
 > macOS 移植估算：~50,000+ 行需要实质修改或重写。

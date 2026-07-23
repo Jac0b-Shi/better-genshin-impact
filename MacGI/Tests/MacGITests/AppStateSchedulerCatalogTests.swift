@@ -4,6 +4,22 @@ import Testing
 
 @Suite("AppState scheduler catalog")
 struct AppStateSchedulerCatalogTests {
+    @Test("Launch arguments preserve upstream startGroups ordering")
+    func launchArgumentsPreserveUpstreamStartGroupsOrdering() {
+        #expect(AppState.startGroupNames(from: [
+            "betterGI-mac", "--startGroups", "千星", "狗粮+锄地",
+        ]) == ["千星", "狗粮+锄地"])
+        #expect(AppState.startGroupNames(from: [
+            "betterGI-mac", "--STARTGROUPS", "每日",
+        ]) == ["每日"])
+        #expect(AppState.startGroupNames(from: [
+            "betterGI-mac", "--start-runtime", "--startGroups", "每日",
+        ]).isEmpty)
+        #expect(AppState.startGroupNames(from: [
+            "betterGI-mac", "--startGroups", "每日", "--dry-run",
+        ]) == ["每日", "--dry-run"])
+    }
+
     @Test("Script settings preserve every JSON value kind")
     func scriptSettingsPreserveEveryJSONValueKind() throws {
         let source = Data(
