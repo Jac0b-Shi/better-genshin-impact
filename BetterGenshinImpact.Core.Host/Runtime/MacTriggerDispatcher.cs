@@ -15,6 +15,8 @@ public sealed class MacTriggerDispatcher(
     Func<CancellationToken, Task>? runLoop = null)
 {
     private const int IntervalMilliseconds = 50;
+    private const int CaptureFailureBackoffMilliseconds = 500;
+    private const int CaptureFailureLogInterval = 20;
     private readonly object _startLock = new();
     private Task? _loop;
     private CancellationTokenSource? _runCancellation;
@@ -78,6 +80,7 @@ public sealed class MacTriggerDispatcher(
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
+        var consecutiveCaptureFailures = 0;
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(IntervalMilliseconds));
         while (await timer.WaitForNextTickAsync(cancellationToken))
         {
@@ -92,14 +95,41 @@ public sealed class MacTriggerDispatcher(
             if (exclusive is not null)
                 triggers = [exclusive];
 
-            using var content = new CaptureContent(
-                TaskControl.CaptureToRectArea(), _frameIndex++, IntervalMilliseconds);
-            content.CurrentGameUiCategory = Bv.WhichGameUiForTriggers(content.CaptureRectArea);
-            if (content.CurrentGameUiCategory != _previousCategory)
-                _categoryChangedAt = DateTime.Now;
+            try
+            {
+                using var content = new CaptureContent(
+                    TaskControl.CaptureToRectArea(), _frameIndex++, IntervalMilliseconds);
+                content.CurrentGameUiCategory = Bv.WhichGameUiForTriggers(content.CaptureRectArea);
+                if (content.CurrentGameUiCategory != _previousCategory)
+                    _categoryChangedAt = DateTime.Now;
 
-            DispatchTriggers(triggers, content);
-            _previousCategory = content.CurrentGameUiCategory;
+                DispatchTriggers(triggers, content);
+                _previousCategory = content.CurrentGameUiCategory;
+                if (consecutiveCaptureFailures > 0)
+                {
+                    logger.LogInformation(
+                        "macOS trigger capture recovered after {FailureCount} consecutive failure(s)",
+                        consecutiveCaptureFailures);
+                    consecutiveCaptureFailures = 0;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                consecutiveCaptureFailures++;
+                if (consecutiveCaptureFailures == 1 ||
+                    consecutiveCaptureFailures % CaptureFailureLogInterval == 0)
+                {
+                    logger.LogError(
+                        exception,
+                        "macOS trigger capture failed {FailureCount} consecutive time(s); retrying",
+                        consecutiveCaptureFailures);
+                }
+                await Task.Delay(CaptureFailureBackoffMilliseconds, cancellationToken);
+            }
         }
     }
 

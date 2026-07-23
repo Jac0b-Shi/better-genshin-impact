@@ -109,6 +109,7 @@ The CI gate intentionally does not replace the last row with a synthetic fixture
 - Focus waits honor task cancellation and never silently fall back to global input.
 - `runtime.stop` is a Core-owned stop transaction: it cancels and awaits any active scheduler and independent task before stopping the trigger dispatcher. A scheduler cancelled while waiting for focus emits `cancelled`, not `failed`, and independent-task cancellation flows into the same foreground wait.
 - During the Swift `.stopping` state, the input gate permits only a foreground-verified `releaseAll`; every key, mouse, scroll and text action remains blocked. The packaged App reproduced `scheduler running -> scheduler cancelled -> runtime stopped`, and a subsequent runtime start exposed no active scheduler task.
+- A transient capture callback failure is isolated to the current dispatcher iteration. Core retries after a bounded backoff, logs only the first and every twentieth consecutive failure, and records recovery instead of leaving Swift in a false `Running` state with a dead trigger loop.
 
 `scheduler.run`, `scheduler.pause`, `scheduler.resume`, and `scheduler.stop`
 are owned by Core and call the shared `ScriptService.RunMulti` chain. Swift may
