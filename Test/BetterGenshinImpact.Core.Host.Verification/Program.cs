@@ -1452,61 +1452,79 @@ try
     var battlePassMetricsCount = 0;
     var battlePassActivationCount = 0;
     var battlePassInputs = new List<string>();
+    using var battlePassResponseCancellation =
+        CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
     var battlePassResponder = Task.Run(async () =>
     {
-        while (battlePassCaptureCount < 5 || battlePassInputs.Count < 7)
+        try
         {
-            var callback = await callbackConnection.ReadRequestAsync(cancellation.Token)
-                ?? throw new EndOfStreamException("genshin.claimBattlePassRewards callback channel ended unexpectedly.");
-            switch (callback.Method)
+            while (true)
             {
-                case "window.activate":
-                    battlePassActivationCount++;
-                    await callbackConnection.WriteResponseAsync(
-                        RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
-                    break;
-                case "window.metrics":
-                    battlePassMetricsCount++;
-                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
-                    {
-                        captureX = 0, captureY = 0, captureWidth = schedulerWidth,
-                        captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
-                        workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
-                    }), cancellation.Token);
-                    break;
-                case "capture.request":
-                    battlePassCaptureCount++;
-                    await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
-                    {
-                        ringPath = captureRingPath, frameId = 8UL, sequence = 2UL, slot = 0,
-                        width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
-                        pixelFormat = "BGRA8"
-                    }), cancellation.Token);
-                    break;
-                case "input.dispatch":
+                var callback = await callbackConnection.ReadRequestAsync(battlePassResponseCancellation.Token)
+                    ?? throw new EndOfStreamException(
+                        "genshin.claimBattlePassRewards callback channel ended unexpectedly.");
+                switch (callback.Method)
                 {
-                    var action = callback.Params?.Value<string>("action") ?? "";
-                    var detail = action switch
+                    case "window.activate":
+                        battlePassActivationCount++;
+                        await callbackConnection.WriteResponseAsync(
+                            RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                            battlePassResponseCancellation.Token);
+                        break;
+                    case "window.metrics":
+                        battlePassMetricsCount++;
+                        await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                        {
+                            captureX = 0, captureY = 0, captureWidth = schedulerWidth,
+                            captureHeight = schedulerHeight, workingAreaWidth = schedulerWidth,
+                            workingAreaHeight = schedulerHeight, dpiScale = 1.0, processId = 1
+                        }), battlePassResponseCancellation.Token);
+                        break;
+                    case "capture.request":
+                        battlePassCaptureCount++;
+                        await callbackConnection.WriteResponseAsync(RpcResponse.Success(callback.Id, new
+                        {
+                            ringPath = captureRingPath, frameId = 8UL, sequence = 2UL, slot = 0,
+                            width = schedulerWidth, height = schedulerHeight, stride = schedulerStride,
+                            pixelFormat = "BGRA8"
+                        }), battlePassResponseCancellation.Token);
+                        break;
+                    case "input.dispatch":
                     {
-                        "gameAction" => callback.Params?.Value<string>("gameAction") + ":" +
-                                        callback.Params?.Value<string>("keyType"),
-                        "moveMouseToScreen" => callback.Params?.Value<int>("x") + "," +
-                                               callback.Params?.Value<int>("y"),
-                        "mouseDown" or "mouseUp" => callback.Params?.Value<string>("button") ?? "",
-                        _ => ""
-                    };
-                    battlePassInputs.Add($"{action}:{detail}");
-                    await callbackConnection.WriteResponseAsync(
-                        RpcResponse.Success(callback.Id, new { acknowledged = true }), cancellation.Token);
-                    break;
+                        var action = callback.Params?.Value<string>("action") ?? "";
+                        var detail = action switch
+                        {
+                            "gameAction" => callback.Params?.Value<string>("gameAction") + ":" +
+                                            callback.Params?.Value<string>("keyType"),
+                            "mouseClick" => callback.Params?.Value<string>("button") + ":" +
+                                            callback.Params?.Value<int>("x") + "," +
+                                            callback.Params?.Value<int>("y"),
+                            _ => ""
+                        };
+                        battlePassInputs.Add($"{action}:{detail}");
+                        await callbackConnection.WriteResponseAsync(
+                            RpcResponse.Success(callback.Id, new { acknowledged = true }),
+                            battlePassResponseCancellation.Token);
+                        break;
+                    }
+                    default:
+                        throw new InvalidDataException(
+                            $"genshin.claimBattlePassRewards emitted unexpected callback {callback.Method}.");
                 }
-                default:
-                    throw new InvalidDataException(
-                        $"genshin.claimBattlePassRewards emitted unexpected callback {callback.Method}.");
             }
         }
+        catch (OperationCanceledException) when (battlePassResponseCancellation.IsCancellationRequested)
+        {
+        }
     }, cancellation.Token);
-    await new ScriptProject("GenshinClaimBattlePassRewards").ExecuteAsync();
+    try
+    {
+        await new ScriptProject("GenshinClaimBattlePassRewards").ExecuteAsync();
+    }
+    finally
+    {
+        await battlePassResponseCancellation.CancelAsync();
+    }
     await battlePassResponder;
     Require(battlePassCaptureCount == 5,
         $"genshin.claimBattlePassRewards capture sequence changed: {battlePassCaptureCount}.");
@@ -1516,8 +1534,8 @@ try
         "genshin.claimBattlePassRewards forced the game window to the foreground.");
     Require(battlePassInputs.SequenceEqual([
             "gameAction:openBattlePassScreen:keyPress",
-            "moveMouseToScreen:960,45", "mouseDown:left", "mouseUp:left",
-            "moveMouseToScreen:858,45", "mouseDown:left", "mouseUp:left"
+            "mouseClick:left:960,45",
+            "mouseClick:left:858,45"
         ]),
         "genshin.claimBattlePassRewards input sequence changed: " + string.Join(",", battlePassInputs));
     Console.WriteLine(
@@ -1887,7 +1905,7 @@ try
             $"activations={teleportActivationCount}.");
         Require(teleportInputActions.SequenceEqual([
                 "releaseAll",
-                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "mouseClick",
                 "keyPress"
             ]),
             $"genshin.tp input sequence changed: {string.Join(",", teleportInputActions)}.");
@@ -2047,7 +2065,7 @@ try
             $"metrics={forceTeleportMetricsCount}, activations={forceTeleportActivationCount}.");
         Require(forceTeleportInputDetails.SequenceEqual([
                 "releaseAll", "gameAction:openMap:keyPress",
-                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "mouseClick",
                 "keyPress",
                 "gameAction:moveForward:keyUp", "mouseUp"
             ]),
@@ -2152,7 +2170,7 @@ try
             $"metrics={statueMetricsCount}, activations={statueActivationCount}.");
         Require(statueInputActions.SequenceEqual([
                 "releaseAll",
-                "moveMouseToScreen", "mouseDown", "mouseUp",
+                "mouseClick",
                 "keyPress"
             ]),
             "genshin.tpToStatueOfTheSeven input sequence changed: " +
@@ -2521,7 +2539,7 @@ try
                         var gameAction = callback.Params?.Value<string>("gameAction");
                         var keyType = callback.Params?.Value<string>("keyType");
                         nearestInputs.Add(gameAction is null ? action : $"{action}:{gameAction}:{keyType}");
-                        if (action == "moveMouseToScreen")
+                        if (action == "mouseClick")
                             nearestClicks.Add(new OpenCvSharp.Point(
                                 callback.Params?.Value<int>("x") ?? -1,
                                 callback.Params?.Value<int>("y") ?? -1));
@@ -2919,7 +2937,9 @@ try
             expectedSoloTaskNames.SetEquals(actualSoloTaskNames) &&
             soloItems.All(item => item.Value<bool>("available")),
         "solo.list did not expose the truthful Core capability catalog");
-    Require(soloItems.All(item => item.Value<bool>("settingsAvailable")) &&
+    Require(soloItems.Where(item => item.Value<string>("name") != "AutoRedeemCode")
+                .All(item => item.Value<bool>("settingsAvailable")) &&
+            !redeemCodeDescriptor.Value<bool>("settingsAvailable") &&
             redeemCodeDescriptor.Value<string>("inputKind") == "multilineText" &&
             !string.IsNullOrWhiteSpace(redeemCodeDescriptor.Value<string>("inputTitle")) &&
             !string.IsNullOrWhiteSpace(redeemCodeDescriptor.Value<string>("inputPlaceholder")),
