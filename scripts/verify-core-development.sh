@@ -18,7 +18,7 @@ case "${area}" in
   fast)
     "${repo_root}/scripts/verify-core-fast.sh" all
     ;;
-  trigger-settings|solo-settings|script-group-editing|runtime-cancellation)
+  trigger-settings|solo-settings|script-group-editing|script-repository|runtime-cancellation)
     "${repo_root}/scripts/verify-core-fast.sh" "${area}"
     ;;
   pathing)
@@ -35,7 +35,7 @@ case "${area}" in
     ;;
   *)
     print -u2 -- "Unknown verification area: ${area}"
-    print -u2 -- "Expected: fast, trigger-settings, solo-settings, script-group-editing, runtime-cancellation, pathing, static, contracts, artifacts, models, recognition, or full"
+    print -u2 -- "Expected: fast, trigger-settings, solo-settings, script-group-editing, script-repository, runtime-cancellation, pathing, static, contracts, artifacts, models, recognition, or full"
     exit 2
     ;;
 esac

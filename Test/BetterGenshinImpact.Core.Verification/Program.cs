@@ -969,7 +969,6 @@ Assert("B11.6.1.4 Lock has artifactSetVersion", lockDoc.TryGetProperty("artifact
 Assert("B11.6.1.4 Lock has sources", lockDoc.TryGetProperty("sources", out var sourcesArray) && sourcesArray.GetArrayLength() > 0, "");
 Assert("B11.6.1.4 Lock has artifacts", lockDoc.TryGetProperty("artifacts", out var artifactsArray), "");
 var lockArtifactsCount = artifactsArray.GetArrayLength();
-Assert("B11.6.1.4 Lock has 34 artifacts", lockArtifactsCount == 34, $"got {lockArtifactsCount}");
 // Validate each artifact
 var lockDests = new HashSet<string>(StringComparer.Ordinal);
 var lockHashes = new HashSet<string>(StringComparer.Ordinal);
@@ -981,8 +980,14 @@ var requiredRuntimeAssetPaths = new HashSet<string>(StringComparer.Ordinal)
     "Assets/Model/ItemV2/item.onnx",
     "Assets/Model/ItemV2/item.csv",
     "Assets/Map/Teyvat/Teyvat_0_256_SIFT.kp.bin",
-    "Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png"
+    "Assets/Map/Teyvat/Teyvat_0_256_SIFT.mat.png",
+    "Assets/Web/ScriptRepo/index.html"
 };
+var expectedLockedArtifactCount = manifestPhysicalPaths.Count + requiredRuntimeAssetPaths.Count;
+Assert(
+    $"B11.6.1.4 Lock has {expectedLockedArtifactCount} artifacts",
+    lockArtifactsCount == expectedLockedArtifactCount,
+    $"got {lockArtifactsCount}");
 foreach (var art in artifactsArray.EnumerateArray())
 {
     var dest = art.GetProperty("destinationRelativePath").GetString()!;
@@ -1010,8 +1015,14 @@ foreach (var art in artifactsArray.EnumerateArray())
     var licStatus = art.GetProperty("licenseEvidence").GetProperty("redistributionStatus").GetString();
     Assert($"B11.6.1.4 redistributionStatus non-empty {dest}", !string.IsNullOrEmpty(licStatus), "");
 }
-Assert("B11.6.1.4 34 unique destinations", lockDests.Count == 34, $"got {lockDests.Count}");
-Assert("B11.6.1.4 34 unique hashes", lockHashes.Count == 34, $"got {lockHashes.Count}");
+Assert(
+    $"B11.6.1.4 {expectedLockedArtifactCount} unique destinations",
+    lockDests.Count == expectedLockedArtifactCount,
+    $"got {lockDests.Count}");
+Assert(
+    $"B11.6.1.4 {expectedLockedArtifactCount} unique hashes",
+    lockHashes.Count == expectedLockedArtifactCount,
+    $"got {lockHashes.Count}");
 Assert("B11.6.1.4 covers every model manifest path", manifestPhysicalPaths.IsSubsetOf(lockDests),
     $"missing {string.Join(", ", manifestPhysicalPaths.Except(lockDests))}");
 Assert("B11.6.1.4 contains exact runtime asset set",
@@ -1035,7 +1046,10 @@ var dlSource = downloaderLock.Sources[0];
 Assert("B11.6.2 Downloader source has url", !string.IsNullOrEmpty(dlSource.Url), "");
 Assert("B11.6.2 Downloader source has sha256", dlSource.Sha256.Length == 64, $"len={dlSource.Sha256.Length}");
 Assert("B11.6.2 Downloader source has provenance", dlSource.Provenance.CommitSha.Length == 40, "");
-Assert("B11.6.2 Downloader has 34 artifacts", downloaderLock.Artifacts.Count == 34, $"got {downloaderLock.Artifacts.Count}");
+Assert(
+    $"B11.6.2 Downloader has {expectedLockedArtifactCount} artifacts",
+    downloaderLock.Artifacts.Count == expectedLockedArtifactCount,
+    $"got {downloaderLock.Artifacts.Count}");
 // Validate each artifact has required fields for download
 foreach (var art in downloaderLock.Artifacts)
 {
@@ -1232,7 +1246,10 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
         .Select(artifact => artifact.DestinationRelativePath)
         .Distinct(StringComparer.Ordinal)
         .ToList();
-    Assert("B12.1 All 34 destination paths enumerated", allDestinations.Count == 34, $"got {allDestinations.Count}");
+    Assert(
+        $"B12.1 All {expectedLockedArtifactCount} destination paths enumerated",
+        allDestinations.Count == expectedLockedArtifactCount,
+        $"got {allDestinations.Count}");
 
     var contentDict = new Dictionary<string, byte[]>();
     foreach (var dest in allDestinations)
@@ -1268,7 +1285,10 @@ Console.WriteLine("B12.1: Path chain verification — Downloader → Resolver �
     Directory.CreateDirectory(chainModelRoot);
     var chainResult = await chainDl.DownloadAsync(chainLockPath, chainModelRoot, CancellationToken.None);
     Assert("B12.1 Chain download success", chainResult.Success, $"errors={string.Join("; ", chainResult.Errors)}");
-    Assert("B12.1 Chain all 34 files placed", chainResult.ArtifactsExtracted == 34, $"extracted={chainResult.ArtifactsExtracted}");
+    Assert(
+        $"B12.1 Chain all {expectedLockedArtifactCount} files placed",
+        chainResult.ArtifactsExtracted == expectedLockedArtifactCount,
+        $"extracted={chainResult.ArtifactsExtracted}");
 
     // Create resolvers with the same modelRoot
     var chainOnnxResolver = new BetterGenshinImpact.Core.Adapters.ModelRootPathResolver(chainModelRoot);
@@ -1362,8 +1382,9 @@ var lockedRuntimeRoot = Path.Combine(Path.GetTempPath(), "bgi-locked-runtime-" +
             lockedTestSourcePath, lockedRuntimeRoot, CancellationToken.None, sharedArchiveCacheDir);
         Assert("B12.2 locked release installation succeeds", installResult.Success,
             string.Join("; ", installResult.Errors));
-        Assert("B12.2 locked release installs all 34 artifacts",
-            installResult.ArtifactsExtracted == 34, $"got {installResult.ArtifactsExtracted}");
+        Assert($"B12.2 locked release installs all {expectedLockedArtifactCount} artifacts",
+            installResult.ArtifactsExtracted == expectedLockedArtifactCount,
+            $"got {installResult.ArtifactsExtracted}");
     }
 
     if (File.Exists(temporaryLockPath)) File.Delete(temporaryLockPath);

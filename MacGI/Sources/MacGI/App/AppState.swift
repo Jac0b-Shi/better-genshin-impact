@@ -328,6 +328,7 @@ final class AppState: ObservableObject {
     private var coreStartupTask: Task<Void, Never>?
     private var coreStartupInFlight = false
     private var autoStartRuntimePending: Bool
+    private var runtimeLaunchReady = false
     private var runtimeGeometryPixelSize: CGSize?
     private var pendingRuntimeGeometryPixelSize: CGSize?
     private var runtimeGeometryRefreshTask: Task<Void, Never>?
@@ -433,10 +434,12 @@ final class AppState: ObservableObject {
 
     func beginCoreStartup() {
         guard coreStartupTask == nil, !coreStartupInFlight, betterGICoreSupervisor == nil else { return }
+        runtimeLaunchReady = true
         NSLog("BetterGI Core startup scheduled")
         coreStartupTask = Task {
             await startBetterGICore()
         }
+        attemptAutoStartRuntime()
     }
 
     func reloadSchedulerGroupsFromCore() {
@@ -552,6 +555,89 @@ final class AppState: ObservableObject {
                 self?.addLog(.error, "Open script directory failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    func loadScriptRepositoryState() async throws -> BetterGIScriptRepositoryState {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.scriptRepositoryState()
+    }
+
+    func updateScriptRepository(channel: String, url: String) async throws -> BetterGIScriptRepositoryUpdateResult {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        let result = try await supervisor.updateScriptRepository(channel: channel, url: url)
+        addLog(.info, result.status == "alreadyUpToDate" ? "脚本仓库已是最新。" : "脚本仓库更新完成。")
+        return result
+    }
+
+    func resetScriptRepository() async throws {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        try await supervisor.resetScriptRepository()
+        addLog(.info, "脚本仓库已重置。")
+    }
+
+    func scriptRepositoryRepoJSON() async throws -> String {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.scriptRepositoryRepoJSON()
+    }
+
+    func scriptRepositorySubscribedPathsJSON() async throws -> String {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.scriptRepositorySubscribedPathsJSON()
+    }
+
+    func scriptRepositoryFile(path: String) async throws -> String {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.scriptRepositoryFile(path: path)
+    }
+
+    func resetScriptRepositoryUpdateFlag(path: String) async throws -> Bool {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.resetScriptRepositoryUpdateFlag(path: path)
+    }
+
+    func clearScriptRepositoryUpdateFlags() async throws -> Bool {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.clearScriptRepositoryUpdateFlags()
+    }
+
+    func scriptRepositoryGuideStatus() async throws -> Bool {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.scriptRepositoryGuideStatus()
+    }
+
+    func setScriptRepositoryGuideStatus(_ status: Bool) async throws -> Bool {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        return try await supervisor.setScriptRepositoryGuideStatus(status)
+    }
+
+    func importScriptRepositoryURI(_ uri: String) async throws -> Int {
+        guard let supervisor = betterGICoreSupervisor else {
+            throw BetterGICoreRPCError.socket("BetterGI Core is unavailable.")
+        }
+        let count = try await supervisor.importScriptRepositoryURI(uri)
+        await loadSchedulerGroupsFromCore()
+        addLog(.info, "已从脚本仓库安装 \(count) 个项目。")
+        return count
     }
 
     func exportMergedSchedulerPathing() {
@@ -787,12 +873,14 @@ final class AppState: ObservableObject {
 
     private func attemptAutoStartRuntime() {
         guard autoStartRuntimePending,
-              coreStatus == .ok,
+              runtimeLaunchReady,
+              screenCapturePermissionGranted,
+              accessibilityPermissionGranted,
               isWindowValid,
               !selectedWindow.isSynthetic,
               runtimeLifecycle == .stopped else { return }
         autoStartRuntimePending = false
-        addLog(.info, "--start-runtime conditions satisfied; starting BetterGI runtime.")
+        addLog(.info, "--start-runtime accepted; starting BetterGI runtime when Core is ready.")
         startRuntime()
     }
 

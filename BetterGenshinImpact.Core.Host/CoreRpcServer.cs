@@ -20,6 +20,7 @@ public sealed class CoreRpcServer(
     public const int ProtocolVersion = 1;
     private readonly ScriptGroupCatalog _catalog = new(layout);
     private readonly ScriptProjectCatalog _scriptProjectCatalog = new(layout);
+    private readonly ScriptRepositoryCatalog _scriptRepositoryCatalog = new(layout);
     private readonly SoloTaskSettingsCatalog _soloTaskSettings = new(layout);
     private readonly TriggerSettingsCatalog _triggerSettings = new(layout);
     private readonly PlatformCallbackChannel _platformCallbacks = new();
@@ -252,6 +253,25 @@ public sealed class CoreRpcServer(
                 "catalog.listScriptProjects" => _scriptProjectCatalog.List(),
                 "catalog.getScriptProject" => _scriptProjectCatalog.Get(RequiredString(request.Params, "folderName")),
                 "catalog.getScriptProjectRootLocation" => _scriptProjectCatalog.GetRootLocation(),
+                "repository.state" => _scriptRepositoryCatalog.GetState(),
+                "repository.update" => await _scriptRepositoryCatalog.UpdateAsync(
+                    RequiredString(request.Params, "channel"),
+                    RequiredString(request.Params, "url"),
+                    _shutdown.Token),
+                "repository.reset" => ResetScriptRepository(),
+                "repository.web.getRepoJson" => _scriptRepositoryCatalog.GetRepoJson(),
+                "repository.web.getSubscribedScriptPaths" => _scriptRepositoryCatalog.GetSubscribedPathsJson(),
+                "repository.web.importUri" => await _scriptRepositoryCatalog.ImportUriAsync(
+                    RequiredString(request.Params, "uri"), _shutdown.Token),
+                "repository.web.getFile" => _scriptRepositoryCatalog.GetFile(
+                    RequiredString(request.Params, "path")),
+                "repository.web.updateSubscribed" => _scriptRepositoryCatalog.ResetUpdateFlag(
+                    RequiredString(request.Params, "path")),
+                "repository.web.clearUpdate" => _scriptRepositoryCatalog.ClearUpdateFlags(),
+                "repository.web.getGuideStatus" => _scriptRepositoryCatalog.GetGuideStatus(),
+                "repository.web.setGuideStatus" => _scriptRepositoryCatalog.SetGuideStatus(
+                    request.Params?.Value<bool?>("status")
+                    ?? throw new ArgumentException("status is required.")),
                 "trigger.list" => ListTriggers(),
                 "trigger.setEnabled" => SetTriggerEnabled(
                     RequiredString(request.Params, "name"),
@@ -325,6 +345,7 @@ public sealed class CoreRpcServer(
                 "catalog.script-groups",
                 "catalog.script-projects",
                 "catalog.script-group-editing",
+                "catalog.script-repository",
                 "runtime-layout",
                 "runtime-artifacts.source-lock",
                 "opencv",
@@ -512,6 +533,12 @@ public sealed class CoreRpcServer(
 
     private static int RequiredInt(JObject? parameters, string name) =>
         parameters?.Value<int?>(name) ?? throw new ArgumentException($"{name} is required.");
+
+    private object ResetScriptRepository()
+    {
+        _scriptRepositoryCatalog.ResetAsync(_shutdown.Token).GetAwaiter().GetResult();
+        return new { reset = true };
+    }
 }
 
 public sealed class CapabilityUnavailableException(string message) : Exception(message);

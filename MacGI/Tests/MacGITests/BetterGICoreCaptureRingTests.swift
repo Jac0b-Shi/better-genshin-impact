@@ -23,6 +23,10 @@ struct BetterGICoreCaptureRingTests {
         #expect(second["height"] as? Int == 2)
         #expect(second["stride"] as? Int == 8)
         #expect(second["pixelFormat"] as? String == "BGRA8")
+        #expect(second["captureX"] as? Int == 200)
+        #expect(second["captureY"] as? Int == 400)
+        #expect(second["captureWidth"] as? Int == 4)
+        #expect(second["captureHeight"] as? Int == 4)
 
         let fileURL = root.appendingPathComponent("capture-ring.bin")
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
@@ -32,6 +36,10 @@ struct BetterGICoreCaptureRingTests {
         let header = try #require(try handle.read(upToCount: BetterGICoreCaptureRing.headerSize))
         #expect(Array(header.prefix(8)) == Array("BGIRING1".utf8))
         #expect(readUInt64(header, at: 56) == 2)
+        #expect(readInt32(header, at: 64) == 200)
+        #expect(readInt32(header, at: 68) == 400)
+        #expect(readUInt32(header, at: 72) == 4)
+        #expect(readUInt32(header, at: 76) == 4)
         #expect(readUInt64(header, at: 80) % 2 == 0)
 
         try handle.seek(toOffset: UInt64(BetterGICoreCaptureRing.headerSize))
@@ -58,11 +66,11 @@ struct BetterGICoreCaptureRingTests {
         let window = WindowInfo(
             id: 42, ownerPID: 10, ownerName: "wine", title: "原神",
             frame: CGRect(x: 100, y: 200, width: 2, height: 2), layer: 0,
-            isOnScreen: true, scaleFactor: 1
+            isOnScreen: true, scaleFactor: 2
         )
         let metadata = CapturedFrame(
             frameIndex: 1, timestamp: Date(timeIntervalSince1970: 1), width: 2, height: 2,
-            scaleFactor: 1, pixelFormat: 0x42475241, bytesPerRow: 8, sourceWindow: window
+            scaleFactor: 2, pixelFormat: 0x42475241, bytesPerRow: 8, sourceWindow: window
         )
         return CaptureImageFrame(metadata: metadata, cgImage: image, backendName: "Test")
     }
@@ -71,5 +79,15 @@ struct BetterGICoreCaptureRingTests {
         data[offset ..< offset + 8].enumerated().reduce(0) { value, byte in
             value | UInt64(byte.element) << UInt64(byte.offset * 8)
         }
+    }
+
+    private func readUInt32(_ data: Data, at offset: Int) -> UInt32 {
+        data[offset ..< offset + 4].enumerated().reduce(0) { value, byte in
+            value | UInt32(byte.element) << UInt32(byte.offset * 8)
+        }
+    }
+
+    private func readInt32(_ data: Data, at offset: Int) -> Int32 {
+        Int32(bitPattern: readUInt32(data, at: offset))
     }
 }

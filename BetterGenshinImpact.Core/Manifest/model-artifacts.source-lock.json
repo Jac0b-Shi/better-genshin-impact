@@ -20,6 +20,19 @@
   ],
   "artifacts": [
     {
+      "destinationRelativePath": "Assets/Web/ScriptRepo/index.html",
+      "sourceId": "bettergi-release-0.62.0-portable-7z",
+      "memberPath": "BetterGI/Assets/Web/ScriptRepo/index.html",
+      "sizeBytes": 7402689,
+      "sha256": "fb63e905fe37c903c543fb1d4a344900ac278aec11452ae6b0d346a775402c24",
+      "transformation": "relocate",
+      "licenseEvidence": {
+        "spdxId": "GPL-3.0",
+        "source": "BetterGI 0.62.0 release ScriptRepo web frontend",
+        "redistributionStatus": "allowed-under-GPLv3"
+      }
+    },
+    {
       "destinationRelativePath": "Assets/Model/Yap/model_training.onnx",
       "sourceId": "bettergi-release-0.62.0-portable-7z",
       "memberPath": "BetterGI/Assets/Model/Yap/model_training.onnx",

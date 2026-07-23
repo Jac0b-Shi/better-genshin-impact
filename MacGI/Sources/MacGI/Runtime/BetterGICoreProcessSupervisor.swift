@@ -598,6 +598,59 @@ actor BetterGICoreProcessSupervisor {
         try runningClient().scriptProjectRootLocation()
     }
 
+    func scriptRepositoryState() throws -> BetterGIScriptRepositoryState {
+        try runningClient().scriptRepositoryState()
+    }
+
+    func updateScriptRepository(channel: String, url: String) throws -> BetterGIScriptRepositoryUpdateResult {
+        try runningClient().updateScriptRepository(channel: channel, url: url)
+    }
+
+    func resetScriptRepository() throws {
+        try runningClient().resetScriptRepository()
+    }
+
+    func scriptRepositoryRepoJSON() throws -> String {
+        try runningClient().scriptRepositoryWebString(method: "repository.web.getRepoJson")
+    }
+
+    func scriptRepositorySubscribedPathsJSON() throws -> String {
+        try runningClient().scriptRepositoryWebString(method: "repository.web.getSubscribedScriptPaths")
+    }
+
+    func scriptRepositoryFile(path: String) throws -> String {
+        try runningClient().scriptRepositoryWebString(
+            method: "repository.web.getFile",
+            parameters: ["path": path]
+        )
+    }
+
+    func resetScriptRepositoryUpdateFlag(path: String) throws -> Bool {
+        try runningClient().scriptRepositoryWebBool(
+            method: "repository.web.updateSubscribed",
+            parameters: ["path": path]
+        )
+    }
+
+    func clearScriptRepositoryUpdateFlags() throws -> Bool {
+        try runningClient().scriptRepositoryWebBool(method: "repository.web.clearUpdate")
+    }
+
+    func scriptRepositoryGuideStatus() throws -> Bool {
+        try runningClient().scriptRepositoryWebBool(method: "repository.web.getGuideStatus")
+    }
+
+    func setScriptRepositoryGuideStatus(_ status: Bool) throws -> Bool {
+        try runningClient().scriptRepositoryWebBool(
+            method: "repository.web.setGuideStatus",
+            parameters: ["status": status]
+        )
+    }
+
+    func importScriptRepositoryURI(_ uri: String) throws -> Int {
+        try runningClient().importScriptRepositoryURI(uri)
+    }
+
     func runSchedulerGroup(name: String) throws -> String {
         guard case .running = state, let client else {
             throw BetterGICoreRPCError.socket("BetterGI Core is not running.")

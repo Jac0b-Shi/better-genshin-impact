@@ -6,5 +6,6 @@ return await VerificationRunner.RunAsync(args,
     new TriggerSettingsSuite(),
     new SoloTaskSettingsSuite(),
     new ScriptGroupEditingSuite(),
+    new ScriptRepositorySuite(),
     new RuntimeCancellationSuite(),
 ]);

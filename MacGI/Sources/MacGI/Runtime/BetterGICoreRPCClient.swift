@@ -124,6 +124,22 @@ struct BetterGIAddCandidate: Equatable, Sendable, Identifiable {
     let type: String
 }
 
+struct BetterGIScriptRepositoryState: Equatable, Sendable {
+    let available: Bool
+    let repositoryPath: String
+    let indexPath: String?
+    let webIndexPath: String?
+    let lastUpdated: String?
+    let subscribedPaths: [String]
+}
+
+struct BetterGIScriptRepositoryUpdateResult: Equatable, Sendable {
+    let status: String
+    let channel: String
+    let repositoryPath: String
+    let indexPath: String
+}
+
 enum BetterGISchedulerCatalogMutation: Sendable {
     case add(type: String, candidateIDs: [String], shellCommand: String?)
     case remove(projectIndex: Int, sameFolder: Bool)
@@ -371,6 +387,78 @@ final class BetterGICoreRPCClient: @unchecked Sendable {
             throw BetterGICoreRPCError.protocolViolation("Invalid script project root location.")
         }
         return path
+    }
+
+    func scriptRepositoryState() throws -> BetterGIScriptRepositoryState {
+        guard let item = try request(method: "repository.state") as? [String: Any],
+              let available = item["available"] as? Bool,
+              let repositoryPath = item["repositoryPath"] as? String,
+              let subscribedPaths = item["subscribedPaths"] as? [String]
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid script repository state.")
+        }
+        return BetterGIScriptRepositoryState(
+            available: available,
+            repositoryPath: repositoryPath,
+            indexPath: item["indexPath"] as? String,
+            webIndexPath: item["webIndexPath"] as? String,
+            lastUpdated: item["lastUpdated"] as? String,
+            subscribedPaths: subscribedPaths
+        )
+    }
+
+    func updateScriptRepository(channel: String, url: String) throws -> BetterGIScriptRepositoryUpdateResult {
+        guard let item = try request(
+            method: "repository.update",
+            parameters: ["channel": channel, "url": url]
+        ) as? [String: Any],
+              let status = item["status"] as? String,
+              let resultChannel = item["channel"] as? String,
+              let repositoryPath = item["repositoryPath"] as? String,
+              let indexPath = item["indexPath"] as? String
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid script repository update result.")
+        }
+        return BetterGIScriptRepositoryUpdateResult(
+            status: status,
+            channel: resultChannel,
+            repositoryPath: repositoryPath,
+            indexPath: indexPath
+        )
+    }
+
+    func resetScriptRepository() throws {
+        guard let item = try request(method: "repository.reset") as? [String: Any],
+              item["reset"] as? Bool == true
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid script repository reset result.")
+        }
+    }
+
+    func scriptRepositoryWebString(method: String, parameters: [String: Any]? = nil) throws -> String {
+        guard let result = try request(method: method, parameters: parameters) as? String else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid \(method) result.")
+        }
+        return result
+    }
+
+    func scriptRepositoryWebBool(method: String, parameters: [String: Any]? = nil) throws -> Bool {
+        guard let result = try request(method: method, parameters: parameters) as? Bool else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid \(method) result.")
+        }
+        return result
+    }
+
+    func importScriptRepositoryURI(_ uri: String) throws -> Int {
+        guard let result = try request(
+            method: "repository.web.importUri",
+            parameters: ["uri": uri]
+        ) as? [String: Any],
+              let installedCount = result["installedCount"] as? Int
+        else {
+            throw BetterGICoreRPCError.protocolViolation("Invalid repository import result.")
+        }
+        return installedCount
     }
 
     @discardableResult

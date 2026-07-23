@@ -74,3 +74,26 @@ public sealed record ScriptProjectSummary(
     [property: JsonProperty("folderName")] string FolderName,
     [property: JsonProperty("name")] string Name,
     [property: JsonProperty("version")] string Version);
+
+public sealed record ScriptRepositoryState(
+    [property: JsonProperty("available")] bool Available,
+    [property: JsonProperty("repositoryPath")] string RepositoryPath,
+    [property: JsonProperty("indexPath")] string? IndexPath,
+    [property: JsonProperty("webIndexPath")] string? WebIndexPath,
+    [property: JsonProperty("lastUpdated")] DateTime? LastUpdated,
+    [property: JsonProperty("subscribedPaths")] IReadOnlyList<string> SubscribedPaths);
+
+public sealed record ScriptRepositoryUpdateResult(
+    [property: JsonProperty("status")] string Status,
+    [property: JsonProperty("channel")] string Channel,
+    [property: JsonProperty("repositoryPath")] string RepositoryPath,
+    [property: JsonProperty("indexPath")] string IndexPath);
+
+public sealed record ScriptRepositoryImportResult(
+    [property: JsonProperty("installedCount")] int InstalledCount,
+    [property: JsonProperty("subscribedPaths")] IReadOnlyList<string> SubscribedPaths);
+
+public sealed record ScriptRepositoryInstallResult(
+    [property: JsonProperty("path")] string Path,
+    [property: JsonProperty("destinationPath")] string DestinationPath,
+    [property: JsonProperty("subscribedPaths")] IReadOnlyList<string> SubscribedPaths);

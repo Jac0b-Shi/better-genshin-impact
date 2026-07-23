@@ -18,11 +18,8 @@ public sealed class MacSemanticInputBackend(
         { action = "moveMouseBy", x = deltaX, y = deltaY });
     public void LeftButtonDown() => Dispatch(new { action = "mouseDown", button = "left" });
     public void LeftButtonUp() => Dispatch(new { action = "mouseUp", button = "left" });
-    public void LeftClick(int screenX, int screenY)
-    {
-        MoveMouseTo(screenX, screenY);
-        Dispatch(new { action = "mouseClick", button = "left" });
-    }
+    public void LeftClick(int screenX, int screenY) => Dispatch(new
+        { action = "mouseClick", button = "left", x = screenX, y = screenY });
     public void Scroll(int delta) => Dispatch(new { action = "verticalScroll", clicks = delta });
 
     private void Dispatch(object parameters)

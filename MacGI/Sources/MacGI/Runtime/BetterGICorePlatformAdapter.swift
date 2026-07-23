@@ -415,12 +415,13 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
             guard let x = number(parameters["x"]), let y = number(parameters["y"]),
                   let current = CGEvent(source: nil)?.location
             else { throw BetterGICorePlatformAdapterError.invalidParameters("moveMouseBy requires x/y and a current cursor position.") }
-            return .mouseMove(to: CGPoint(x: current.x + x, y: current.y + y))
+            let scale = coreInputScale(appState)
+            return .mouseMove(to: CGPoint(x: current.x + x / scale, y: current.y + y / scale))
         case "moveMouseToScreen":
             guard let x = number(parameters["x"]), let y = number(parameters["y"]) else {
                 throw BetterGICorePlatformAdapterError.invalidParameters("moveMouseToScreen requires x/y.")
             }
-            return .mouseMove(to: CGPoint(x: x, y: y))
+            return .mouseMove(to: quartzPoint(coreX: x, coreY: y, appState: appState))
         case "moveMouseToGame":
             guard let x = number(parameters["x"]), let y = number(parameters["y"]),
                   let gameWidth = number(parameters["gameWidth"]),
@@ -447,7 +448,17 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
             }
             if action == "mouseDown" { return .mouseButtonDown(button: button) }
             if action == "mouseUp" { return .mouseButtonUp(button: button) }
-            return .mouseClick(button: button)
+            let point: CGPoint?
+            if parameters["x"] != nil || parameters["y"] != nil {
+                guard let x = number(parameters["x"]), let y = number(parameters["y"]) else {
+                    throw BetterGICorePlatformAdapterError.invalidParameters(
+                        "mouseClick coordinates require both x and y.")
+                }
+                point = quartzPoint(coreX: x, coreY: y, appState: appState)
+            } else {
+                point = nil
+            }
+            return .mouseClick(button: button, at: point)
         case "verticalScroll":
             guard let clicks = parameters["clicks"] as? Int else {
                 throw BetterGICorePlatformAdapterError.invalidParameters("verticalScroll requires clicks.")
@@ -472,6 +483,17 @@ final class BetterGICorePlatformAdapter: @unchecked Sendable {
     private func number(_ value: Any?) -> CGFloat? {
         if let value = value as? NSNumber { return CGFloat(value.doubleValue) }
         return nil
+    }
+
+    @MainActor
+    private func quartzPoint(coreX: CGFloat, coreY: CGFloat, appState: AppState) -> CGPoint {
+        let scale = coreInputScale(appState)
+        return CGPoint(x: coreX / scale, y: coreY / scale)
+    }
+
+    @MainActor
+    private func coreInputScale(_ appState: AppState) -> CGFloat {
+        max(1, appState.selectedWindow.scaleFactor)
     }
 
     private func mouseButton(_ value: String?) -> InputMouseButton? {

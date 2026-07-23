@@ -379,6 +379,7 @@ struct SchedulerPage: View {
 
 struct JSScriptPage: View {
     @EnvironmentObject private var appState: AppState
+    @State private var showingRepository = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -387,7 +388,11 @@ struct JSScriptPage: View {
                 Button { appState.openScriptProjectRootLocation() } label: {
                     Label("打开脚本目录", systemImage: "folder")
                 }
-                BGIUnavailableAction("脚本仓库", systemImage: "archivebox")
+                Button {
+                    showingRepository = true
+                } label: {
+                    Label("脚本仓库", systemImage: "archivebox")
+                }
                 Button { appState.runSchedulerGroups() } label: {
                     Label("运行所选配置组", systemImage: "play.fill")
                 }
@@ -418,6 +423,9 @@ struct JSScriptPage: View {
                         .textSelection(.enabled)
                 }
             }
+        }
+        .sheet(isPresented: $showingRepository) {
+            ScriptRepositorySheet()
         }
     }
 }

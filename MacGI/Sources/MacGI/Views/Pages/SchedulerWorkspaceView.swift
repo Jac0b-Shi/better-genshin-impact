@@ -5,6 +5,7 @@ private enum SchedulerSheet: Identifiable {
     case custom(Int)
     case add(String)
     case groupSettings
+    case repository
 
     var id: String {
         switch self {
@@ -12,6 +13,7 @@ private enum SchedulerSheet: Identifiable {
         case .custom(let index): "custom-\(index)"
         case .add(let type): "add-\(type)"
         case .groupSettings: "group-settings"
+        case .repository: "repository"
         }
     }
 }
@@ -50,6 +52,7 @@ struct SchedulerWorkspaceView: View {
             case .custom(let index): SchedulerProjectCustomSettingsSheet(projectIndex: index)
             case .add(let type): SchedulerAddProjectsSheet(type: type)
             case .groupSettings: SchedulerGroupSettingsSheet()
+            case .repository: ScriptRepositorySheet()
             }
         }
         .confirmationDialog("是否清空当前配置组的所有任务？", isPresented: $confirmingClear) {
@@ -135,8 +138,8 @@ struct SchedulerWorkspaceView: View {
                         appState.addLog(.info, "日志分析尚未接入。")
                     }.disabled(true)
                     Button("打开脚本仓库") {
-                        appState.addLog(.info, "脚本仓库尚未接入。")
-                    }.disabled(true)
+                        sheet = .repository
+                    }
                     Button("根据文件夹更新") {
                         appState.performSchedulerCatalogMutation(.updatePathingFolders)
                     }

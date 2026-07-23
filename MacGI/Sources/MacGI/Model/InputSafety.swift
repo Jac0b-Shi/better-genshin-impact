@@ -52,7 +52,9 @@ final class InputSafetyGate: ObservableObject {
     /// launches disable it before any Core callback can dispatch a CGEvent.
     @Published var realInputEnabled: Bool
 
-    /// Minimum interval between two consecutive real input actions (seconds).
+    /// Minimum interval between two consecutive manual real-input actions (seconds).
+    /// Core owns production action timing; applying this to runtime callbacks would
+    /// split valid key and mouse sequences emitted by the shared BetterGI tasks.
     @Published var rateLimit: TimeInterval = 0.05
 
     // MARK: Read-only counters
@@ -171,16 +173,18 @@ final class InputSafetyGate: ObservableObject {
             return .blocked(reason: "Target window is not frontmost")
         }
 
-        // 9. Rate limit
-        let elapsed = Date().timeIntervalSince(lastDispatchTime)
-        if elapsed < rateLimit {
-            blockedActionCount += 1
-            return .blocked(reason: String(format: "Rate limit: %.0fms since last action", elapsed * 1000))
+        // 9. Manual-input rate limit. Runtime sequencing remains Core-owned.
+        if source == .manual {
+            let elapsed = Date().timeIntervalSince(lastDispatchTime)
+            if elapsed < rateLimit {
+                blockedActionCount += 1
+                return .blocked(reason: String(format: "Rate limit: %.0fms since last action", elapsed * 1000))
+            }
+            lastDispatchTime = Date()
         }
 
         // 10. All clear
         dispatchCount += 1
-        lastDispatchTime = Date()
         return .allow
     }
 

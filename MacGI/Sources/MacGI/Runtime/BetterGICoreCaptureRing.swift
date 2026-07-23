@@ -68,10 +68,15 @@ final class BetterGICoreCaptureRing {
         Self.writeUInt64(UInt64(dataLength), to: bytes, offset: 48)
         Self.writeUInt64(frameID, to: bytes, offset: 56)
         let rect = frame.metadata.sourceWindow.captureRect
-        Self.writeInt32(Int32(rect.minX), to: bytes, offset: 64)
-        Self.writeInt32(Int32(rect.minY), to: bytes, offset: 68)
-        Self.writeUInt32(UInt32(rect.width), to: bytes, offset: 72)
-        Self.writeUInt32(UInt32(rect.height), to: bytes, offset: 76)
+        let scale = max(1, frame.metadata.scaleFactor)
+        let captureX = Int((rect.minX * scale).rounded())
+        let captureY = Int((rect.minY * scale).rounded())
+        let captureWidth = Int((rect.width * scale).rounded())
+        let captureHeight = Int((rect.height * scale).rounded())
+        Self.writeInt32(Int32(captureX), to: bytes, offset: 64)
+        Self.writeInt32(Int32(captureY), to: bytes, offset: 68)
+        Self.writeUInt32(UInt32(captureWidth), to: bytes, offset: 72)
+        Self.writeUInt32(UInt32(captureHeight), to: bytes, offset: 76)
         OSMemoryBarrier()
         let committedSequence = writingSequence &+ 1
         Self.writeUInt64(committedSequence, to: bytes, offset: 80)
@@ -81,8 +86,8 @@ final class BetterGICoreCaptureRing {
             "frameId": frameID, "sequence": committedSequence, "ringPath": fileURL.path,
             "slot": slot, "slotCapacity": slotCapacity, "headerSize": Self.headerSize,
             "width": width, "height": height, "stride": stride, "pixelFormat": "BGRA8",
-            "dataLength": dataLength, "captureX": Int(rect.minX), "captureY": Int(rect.minY),
-            "captureWidth": Int(rect.width), "captureHeight": Int(rect.height),
+            "dataLength": dataLength, "captureX": captureX, "captureY": captureY,
+            "captureWidth": captureWidth, "captureHeight": captureHeight,
         ]
     }
 
