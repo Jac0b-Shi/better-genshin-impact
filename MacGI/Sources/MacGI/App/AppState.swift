@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import SwiftUI
 import UserNotifications
@@ -341,6 +342,7 @@ final class AppState: ObservableObject {
     private var runtimeGeometryPixelSize: CGSize?
     private var pendingRuntimeGeometryPixelSize: CGSize?
     private var runtimeGeometryRefreshTask: Task<Void, Never>?
+    private var runtimeTargetProcessID: pid_t?
     private var mapMaskSelectionSaveTask: Task<Void, Never>?
     private let keyMouseEventRecorder = MacKeyMouseEventRecorder()
     private var keyMouseRecordingStartTask: Task<Void, Never>?
@@ -1212,6 +1214,7 @@ final class AppState: ObservableObject {
                     self.isHUDVisible = true
                 }
                 self.runtimeGeometryPixelSize = self.selectedWindow.capturePixelSize
+                self.runtimeTargetProcessID = self.selectedWindow.ownerPID
                 self.runtimeLifecycle = .running
                 self.runtimeLifecycleMessage = "运行时已启动，截图器正在持续捕获。"
                 self.appStatus = .running
@@ -1358,6 +1361,15 @@ final class AppState: ObservableObject {
     }
 
     func stopRuntime() {
+        stopRuntime(
+            completionMessage: "运行时已停止。",
+            completionLog: "BetterGI runtime stopped.")
+    }
+
+    private func stopRuntime(
+        completionMessage: String,
+        completionLog: String
+    ) {
         guard runtimeLifecycle == .running else { return }
         if keyMouseEventRecorder.isRecording {
             _ = try? keyMouseEventRecorder.stop()
@@ -1367,6 +1379,7 @@ final class AppState: ObservableObject {
         keyMouseRecordingStartTask?.cancel()
         keyMouseRecordingStartTask = nil
         stopAuxiliaryControlMonitor()
+        releaseAllRuntimeInputs()
         runtimeLifecycle = .stopping
         runtimeLifecycleMessage = "正在停止 BetterGI 运行时..."
         Task { [weak self] in
@@ -1383,11 +1396,13 @@ final class AppState: ObservableObject {
                 self.measuredCaptureFPS = 0
                 self.captureStatus = .missing
                 self.isHUDVisible = false
+                self.runtimeTargetProcessID = nil
                 self.runtimeLifecycle = .stopped
-                self.runtimeLifecycleMessage = "运行时已停止。"
+                self.runtimeLifecycleMessage = completionMessage
                 self.appStatus = .idle
-                self.addLog(.info, "BetterGI runtime stopped.")
+                self.addLog(.info, completionLog)
             } catch {
+                self.runtimeTargetProcessID = nil
                 self.runtimeLifecycle = .failed
                 self.runtimeLifecycleMessage = "停止失败：\(error.localizedDescription)"
                 self.appStatus = .error
@@ -2715,6 +2730,12 @@ final class AppState: ObservableObject {
     func refreshWindows() {
         let windows = QuartzWindowEnumerator.enumerateApplicationWindows()
         if windows.isEmpty {
+            if stopRuntimeIfGameProcessExited() {
+                availableWindows = []
+                selectedWindow = .unavailable(title: "Game process exited")
+                gameWindowStatus = .missing
+                return
+            }
             availableWindows = []
             selectedWindow = .unavailable(title: "No game window selected")
             gameWindowStatus = .missing
@@ -2723,7 +2744,25 @@ final class AppState: ObservableObject {
         }
 
         availableWindows = windows
-        if let preserved = windows.first(where: { $0.id == selectedWindow.id }) {
+        if runtimeLifecycle == .running, let targetPID = runtimeTargetProcessID {
+            if let preserved = windows.first(where: {
+                $0.id == selectedWindow.id && $0.ownerPID == targetPID
+            }) {
+                selectedWindow = preserved
+            } else if !Self.isProcessAlive(targetPID) {
+                gameWindowStatus = .missing
+                stopRuntimeAfterGameExit()
+                selectedWindow = .unavailable(title: "Game process exited")
+                return
+            } else if let replacement = QuartzWindowEnumerator.bestGameWindow(
+                from: windows.filter { $0.ownerPID == targetPID })
+            {
+                selectedWindow = replacement
+            } else {
+                gameWindowStatus = .missing
+                return
+            }
+        } else if let preserved = windows.first(where: { $0.id == selectedWindow.id }) {
             selectedWindow = preserved
         } else if let best = QuartzWindowEnumerator.bestGameWindow(from: windows) {
             selectedWindow = best
@@ -2751,6 +2790,35 @@ final class AppState: ObservableObject {
             return refreshed
         }
 
+        if runtimeLifecycle == .running, let targetPID = runtimeTargetProcessID {
+            if !Self.isProcessAlive(targetPID) {
+                availableWindows = windows
+                gameWindowStatus = .missing
+                stopRuntimeAfterGameExit()
+                selectedWindow = .unavailable(title: "Game process exited")
+                return nil
+            }
+            if let replacement = QuartzWindowEnumerator.bestGameWindow(
+                from: windows.filter { $0.ownerPID == targetPID })
+            {
+                let previousWindowID = selectedWindow.isSynthetic ? nil : selectedWindow.id
+                selectedWindow = replacement
+                availableWindows = windows
+                gameWindowStatus = .detected
+                if runtimeGeometryPixelSize != replacement.capturePixelSize {
+                    scheduleRuntimeGeometryRefresh(for: replacement.capturePixelSize)
+                }
+                if let previousWindowID {
+                    addLog(.info,
+                        "Game window recreated in the active process; rebound WindowID \(previousWindowID) to \(replacement.id).")
+                }
+                return replacement
+            }
+            availableWindows = windows
+            gameWindowStatus = .missing
+            return nil
+        }
+
         if let replacement = QuartzWindowEnumerator.bestGameWindow(from: windows) {
             let previousWindowID = selectedWindow.isSynthetic ? nil : selectedWindow.id
             selectedWindow = replacement
@@ -2776,6 +2844,54 @@ final class AppState: ObservableObject {
             addLog(.warn, "Selected game window disappeared; waiting for a new Genshin window.")
         }
         return nil
+    }
+
+    func gameApplicationDidTerminate(processID: pid_t) {
+        guard runtimeLifecycle == .running,
+              runtimeTargetProcessID == processID else { return }
+        gameWindowStatus = .missing
+        stopRuntimeAfterGameExit()
+        selectedWindow = .unavailable(title: "Game process exited")
+    }
+
+    private func stopRuntimeIfGameProcessExited() -> Bool {
+        guard runtimeLifecycle == .running,
+              let targetPID = runtimeTargetProcessID,
+              !Self.isProcessAlive(targetPID) else { return false }
+        stopRuntimeAfterGameExit()
+        return true
+    }
+
+    private func stopRuntimeAfterGameExit() {
+        guard runtimeLifecycle == .running else { return }
+        addLog(.info, "游戏已退出，BetterGI 自动停止截图器。")
+        stopRuntime(
+            completionMessage: "游戏已退出，运行时已自动停止。",
+            completionLog: "Game process exited; BetterGI runtime stopped automatically.")
+    }
+
+    private static func isProcessAlive(_ processID: pid_t) -> Bool {
+        guard processID > 0 else { return false }
+        if Darwin.kill(processID, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
+    }
+
+    private func releaseAllRuntimeInputs() {
+        guard !safetyGate.dryRun, safetyGate.realInputEnabled else { return }
+        do {
+            let report = try inputDispatcher.perform(
+                .releaseAll,
+                targetWindow: selectedWindow)
+            addLog(
+                .debug,
+                "Released runtime inputs during shutdown: \(report.eventCount) events.")
+        } catch {
+            addLog(
+                .error,
+                "Failed to release runtime inputs during shutdown: \(error.localizedDescription)")
+        }
     }
 
     private func scheduleRuntimeGeometryRefresh(for pixelSize: CGSize) {
@@ -2974,6 +3090,7 @@ final class AppState: ObservableObject {
         lastCaptureImageFrame = nil
         captureTimestamps = []
         measuredCaptureFPS = 0
+        runtimeTargetProcessID = nil
         schedulerExecutionStatus = "Idle"
         currentSchedulerProjectID = nil
         safetyGate.resetCounters()

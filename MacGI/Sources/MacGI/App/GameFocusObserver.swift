@@ -39,6 +39,11 @@ final class GameFocusObserver: NSObject {
             object: nil)
         center.addObserver(
             self,
+            selector: #selector(applicationTerminated(_:)),
+            name: NSWorkspace.didTerminateApplicationNotification,
+            object: nil)
+        center.addObserver(
+            self,
             selector: #selector(environmentChanged(_:)),
             name: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil)
@@ -88,6 +93,16 @@ final class GameFocusObserver: NSObject {
         }
         delayedRecheckTask?.cancel()
         appState?.updateGameWindowFocus(frontmostPID: nil)
+    }
+
+    @objc
+    private func applicationTerminated(_ notification: Notification) {
+        guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+            as? NSRunningApplication else {
+            return
+        }
+        appState?.gameApplicationDidTerminate(
+            processID: application.processIdentifier)
     }
 
     @objc

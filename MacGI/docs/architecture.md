@@ -67,6 +67,11 @@ upstream window and request/response contract, while Swift implements the
 platform WebView surface with `WKWebView`. Runtime stop closes every platform
 HTML mask.
 
+The selected Wine PID is retained for the lifetime of a running capture
+session. A terminated-process notification or a failed PID liveness probe
+stops Core capture automatically. Window-ID recreation within the same live
+process only rebinds capture geometry and does not stop the runtime.
+
 The upstream `--startGroups <name...>` command-line flow is parsed by Swift only
 to obtain ordered names. Core receives one `scheduler.runGroups` request and
 owns the continuous-group flag, two-second interval, one task lifecycle and
