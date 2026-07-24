@@ -193,7 +193,10 @@ The path-recorder and add-waypoint hotkeys execute the shared
 teleport/path waypoint semantics, route metadata, timestamped JSON naming and
 the recording lifecycle. Windows retains the optional WebView editor adapter;
 macOS follows the upstream no-editor branch and saves directly to
-`User/AutoPathing`.
+`User/AutoPathing`. The upstream developer big-map-position hotkey executes the
+shared `TpTask.GetPositionFromBigMap` path, including the existing map UI check,
+SIFT matching, shared-memory capture and Core logging; Swift only observes and
+forwards the configured physical key.
 
 ### Game key bindings
 

@@ -10,6 +10,8 @@ public sealed class OneShotHotKeyCoordinator(
 {
     public const string QuickSereniteaPotHotKey =
         "QuickSereniteaPotHotkey";
+    public const string BigMapPositionHotKey =
+        "RecBigMapPosHotkey";
 
     private readonly object _lock = new();
     private readonly IReadOnlyDictionary<string, Action<CancellationToken>> _actions =

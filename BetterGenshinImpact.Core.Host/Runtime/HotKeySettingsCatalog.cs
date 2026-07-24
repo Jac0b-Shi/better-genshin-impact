@@ -122,6 +122,9 @@ public sealed class HotKeySettingsCatalog(RuntimeLayout layout)
             "AddWaypointHotkey", "开发者", "添加路径点",
             "addWaypointHotkey", "pathRecorder.addWaypoint", "core", false, true),
         new(
+            "RecBigMapPosHotkey", "开发者", "（开发）获取当前大地图中心点位置",
+            "recBigMapPosHotkey", "map.position.probe", "core", false, true),
+        new(
             "TurnAroundHotkey", "操控辅助", "长按旋转视角 - 那维莱特转圈",
             "turnAroundHotkey", "macro.turnAround", "core", true, true,
             DispatchOnRelease: true),

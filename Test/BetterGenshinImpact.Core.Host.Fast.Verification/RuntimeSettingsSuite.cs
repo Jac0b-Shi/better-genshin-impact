@@ -457,6 +457,8 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                                 token.WaitHandle.WaitOne();
                                 token.ThrowIfCancellationRequested();
                             },
+                        [OneShotHotKeyCoordinator.BigMapPositionHotKey] =
+                            _ => Interlocked.Increment(ref invocationCount),
                     });
                 oneShotHotKeys.Start();
                 var started = JObject.FromObject(oneShotHotKeys.Invoke(
@@ -739,7 +741,7 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             var hotKeys = JArray.FromObject(hotKeyCatalog.List());
             context.Require(
-                hotKeys.Count == 31 &&
+                hotKeys.Count == 32 &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "TakeScreenshotHotkey")
                     .Value<string>("action") == "capture.screenshot" &&
@@ -749,6 +751,9 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "AddWaypointHotkey")
                     .Value<string>("action") == "pathRecorder.addWaypoint" &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") == "RecBigMapPosHotkey")
+                    .Value<string>("action") == "map.position.probe" &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "AutoPickEnabledHotkey")
                     .Value<string>("hotKey") == "F6" &&
@@ -972,6 +977,21 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             });
         server.AttachHoldHotKeyCoordinator(holdHotKeys);
         holdHotKeys.Start();
+        var bigMapPositionProbeCount = 0;
+        using var oneShotHotKeys = new OneShotHotKeyCoordinator(
+            serverCancellation.Token,
+            loggerFactory.CreateLogger<OneShotHotKeyCoordinator>(),
+            new Dictionary<string, Action<CancellationToken>>(
+                StringComparer.Ordinal)
+            {
+                [OneShotHotKeyCoordinator.QuickSereniteaPotHotKey] =
+                    _ => { },
+                [OneShotHotKeyCoordinator.BigMapPositionHotKey] =
+                    _ => Interlocked.Increment(
+                        ref bigMapPositionProbeCount),
+            });
+        server.AttachOneShotHotKeyCoordinator(oneShotHotKeys);
+        oneShotHotKeys.Start();
         var serverTask = server.RunAsync(serverCancellation.Token);
 
         try
@@ -1193,6 +1213,27 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     item.Value<string>("executionOwner") == "swift"),
                 hotKeySave.Error?.Message ??
                     "hotKey.settings.save did not preserve the platform-owned runtime binding.");
+
+            var bigMapPositionProbe = await ExchangeAsync(
+                connection, "hotkey-big-map-position", "hotKey.invoke",
+                sessionToken, JObject.FromObject(new
+                {
+                    id = OneShotHotKeyCoordinator.BigMapPositionHotKey,
+                }), cancellationToken);
+            for (var retry = 0;
+                 retry < 100 &&
+                 Volatile.Read(ref bigMapPositionProbeCount) == 0;
+                 retry++)
+            {
+                await Task.Delay(5, cancellationToken);
+            }
+            context.Require(
+                bigMapPositionProbe.Error is null &&
+                JObject.FromObject(bigMapPositionProbe.Result!)
+                    .Value<string>("state") == "started" &&
+                Volatile.Read(ref bigMapPositionProbeCount) == 1,
+                bigMapPositionProbe.Error?.Message ??
+                    "hotKey.invoke did not route the upstream big-map position action through Core.");
 
             RunnerContext.Instance.IsSuspend = false;
 

@@ -275,6 +275,19 @@ using var oneShotHotKeys = new OneShotHotKeyCoordinator(
     {
         [OneShotHotKeyCoordinator.QuickSereniteaPotHotKey] =
             taskControlPlatform.CreateQuickSereniteaPotAction(),
+        [OneShotHotKeyCoordinator.BigMapPositionHotKey] =
+            cancellationToken =>
+            {
+                var position =
+                    new BetterGenshinImpact.GameTask.AutoTrackPath.TpTask(
+                        cancellationToken)
+                    .GetPositionFromBigMap(
+                        BetterGenshinImpact.GameTask.Common.Map.Maps.Base
+                            .MapTypes.Teyvat.ToString());
+                loggerFactory
+                    .CreateLogger("BetterGenshinImpact.GameTask.AutoTrackPath")
+                    .LogInformation("大地图位置：{Position}", position);
+            },
     });
 server.AttachOneShotHotKeyCoordinator(oneShotHotKeys);
 var autoFightRuntimePlatform = new MacAutoFightRuntimePlatform(

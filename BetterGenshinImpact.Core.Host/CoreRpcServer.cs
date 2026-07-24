@@ -819,8 +819,12 @@ public sealed class CoreRpcServer(
         }
         if (descriptor.Action.StartsWith("solo.toggle:", StringComparison.Ordinal))
             return SoloTasks.Toggle(descriptor.Action["solo.toggle:".Length..]);
-        if (descriptor.Action == "macro.quickSereniteaPot")
+        if (descriptor.Action is
+            "macro.quickSereniteaPot" or
+            "map.position.probe")
+        {
             return RequiredOneShotHotKeys().Invoke(id);
+        }
 
         throw new CapabilityUnavailableException(
             $"Hotkey action '{descriptor.Action}' is not composed in the macOS Core.");
