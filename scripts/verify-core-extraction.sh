@@ -661,9 +661,14 @@ rg -q 'CFBundlePackageType string APPL' MacGI/scripts/package-macgi-app.sh \
   && rg -q 'CFBundleIdentifier string \$\{bundle_identifier\}' MacGI/scripts/package-macgi-app.sh \
   && rg -q 'NSScreenCaptureUsageDescription' MacGI/scripts/package-macgi-app.sh \
   || fail "macOS App packaging does not create a standard APPL bundle identity"
-rg -q 'MACGI_ALLOW_ADHOC_SIGNING' MacGI/scripts/package-macgi-app.sh \
-  && ! rg -Fq 'signing_identity=${signing_identity:--}' MacGI/scripts/package-macgi-app.sh \
-  || fail "macOS local packaging can silently fall back to an unstable ad-hoc TCC identity"
+adhoc_signing_plan=$(
+  MACGI_ALLOW_ADHOC_SIGNING=1 \
+  MACGI_SIGNING_PLAN_ONLY=1 \
+    MacGI/scripts/package-macgi-app.sh
+)
+[[ ${adhoc_signing_plan} == *'Signing identity: -'* &&
+   ${adhoc_signing_plan} == *'Bundle identifier: cn.jac0bshi.bettergi.mac.adhoc'* ]] \
+  || fail "macOS packaging does not expose a reachable, isolated ad-hoc signing plan for CI"
 rg -q 'Contents/Resources/BetterGICore' MacGI/scripts/package-bettergi-core.sh \
   && rg -q 'Resources/BetterGICore/BetterGenshinImpact.Core.Host' \
     MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \

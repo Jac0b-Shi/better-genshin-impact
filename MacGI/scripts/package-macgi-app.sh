@@ -18,17 +18,26 @@ bundle_identifier=${MACGI_BUNDLE_IDENTIFIER:-${default_bundle_identifier}}
 short_version=${MACGI_SHORT_VERSION:-0.1.0}
 bundle_version=${MACGI_BUNDLE_VERSION:-1}
 signing_identity=${MACGI_SIGNING_IDENTITY:-${EXPANDED_CODE_SIGN_IDENTITY:-}}
-if [[ ${MACGI_ALLOW_ADHOC_SIGNING:-0} == 1 ]]; then
+allow_adhoc_signing=${MACGI_ALLOW_ADHOC_SIGNING:-0}
+if [[ ${allow_adhoc_signing} == 1 ]]; then
   signing_identity=-
-elif [[ -z ${signing_identity} || ${signing_identity} == "-" ]]; then
-  signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
-    | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' \
-    | head -n 1)
+else
+  if [[ -z ${signing_identity} || ${signing_identity} == "-" ]]; then
+    signing_identity=$(security find-identity -v -p codesigning 2>/dev/null \
+      | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' \
+      | head -n 1)
+  fi
+  if [[ -z ${signing_identity} || ${signing_identity} == "-" ]]; then
+    print -u2 "Apple Development signing identity is required for local TCC-stable builds."
+    print -u2 "Set MACGI_ALLOW_ADHOC_SIGNING=1 only for CI packaging smoke tests."
+    exit 4
+  fi
 fi
-if [[ -z ${signing_identity} || ${signing_identity} == "-" ]]; then
-  print -u2 "Apple Development signing identity is required for local TCC-stable builds."
-  print -u2 "Set MACGI_ALLOW_ADHOC_SIGNING=1 only for CI packaging smoke tests."
-  exit 4
+
+if [[ ${MACGI_SIGNING_PLAN_ONLY:-0} == 1 ]]; then
+  print "Signing identity: ${signing_identity}"
+  print "Bundle identifier: ${bundle_identifier}"
+  exit 0
 fi
 
 swift build --package-path ${macgi_root} -c ${swift_configuration} --product ${executable_name}
