@@ -59,6 +59,13 @@ rg -Fq '"scheduler.status" => Scheduler.Status()' \
   && rg -Fq 'await synchronizeSchedulerStatusFromCore()' \
     MacGI/Sources/MacGI/App/AppState.swift \
   || fail "scheduler lifecycle snapshot is not composed across Core RPC and Swift"
+rg -Fq '"takeScreenshotHotkey", "capture.screenshot", "core"' \
+  BetterGenshinImpact.Core.Host/Runtime/HotKeySettingsCatalog.cs \
+  && rg -Fq 'new MacGameScreenshotAction(' \
+    BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -Fq 'new GameScreenshotTask(' \
+    BetterGenshinImpact/GameTask/TaskTriggerDispatcher.cs \
+  || fail "game screenshot hotkey is not composed through the shared Core task"
 rg -q 'AddHostObject\("dispatcher", new Dispatcher' \
   BetterGenshinImpact.Core.Host/Runtime/MacScriptProjectHostInitializer.cs \
   || fail "ClearScript dispatcher host is not registered"

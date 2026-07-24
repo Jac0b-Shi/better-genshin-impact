@@ -107,6 +107,14 @@ var gameTaskManagerPlatform = new MacGameTaskManagerPlatform(
     layout, server.PlatformCallbacks, sessionToken, shutdown.Token, loggerFactory);
 var captureRing = new SharedCaptureRingReader(
     layout, () => gameTaskManagerPlatform.SystemInfo.DesktopRectArea);
+server.AttachGameScreenshotAction(new MacGameScreenshotAction(
+    layout,
+    server.PlatformCallbacks,
+    sessionToken,
+    captureRing,
+    () => gameTaskManagerPlatform.SystemInfo.ScaleTo1080PRatio,
+    loggerFactory.CreateLogger<
+        BetterGenshinImpact.GameTask.Screenshot.GameScreenshotTask>()));
 var foregroundInputCoordinator = new ForegroundInputCoordinator(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
 var globalMethodRuntime = new MacGlobalMethodRuntime(

@@ -738,7 +738,10 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             var hotKeys = JArray.FromObject(hotKeyCatalog.List());
             context.Require(
-                hotKeys.Count == 28 &&
+                hotKeys.Count == 29 &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") == "TakeScreenshotHotkey")
+                    .Value<string>("action") == "capture.screenshot" &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "AutoPickEnabledHotkey")
                     .Value<string>("hotKey") == "F6" &&
@@ -913,6 +916,10 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             layout,
             loggerFactory.CreateLogger<KeyMouseScriptCoordinator>(),
             serverCancellation.Token));
+        var screenshotPath = Path.Combine(
+            layout.LogPath, "screenshot", "verification.png");
+        var screenshotAction = new RecordingGameScreenshotAction(screenshotPath);
+        server.AttachGameScreenshotAction(screenshotAction);
         using var auxiliaryControls = new AuxiliaryControlCoordinator(
             server.MacroSettings,
             (_, token) => token.ThrowIfCancellationRequested(),
@@ -1107,7 +1114,11 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 hotKeyList.Error is null &&
                 hotKeyListResult.Any(item =>
                     item.Value<string>("id") == "BgiEnabledHotkey" &&
-                    item.Value<string>("hotKey") == "F11"),
+                    item.Value<string>("hotKey") == "F11") &&
+                hotKeyListResult.Any(item =>
+                    item.Value<string>("id") == "TakeScreenshotHotkey" &&
+                    item.Value<string>("action") == "capture.screenshot" &&
+                    item.Value<string>("executionOwner") == "core"),
                 hotKeyList.Error?.Message ??
                     "hotKey.settings.list did not return the persisted upstream binding.");
 
@@ -1207,6 +1218,22 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 suspend.Error?.Message ??
                     "hotKey.invoke did not toggle the shared RunnerContext suspension state.");
             RunnerContext.Instance.IsSuspend = false;
+
+            var screenshot = await ExchangeAsync(
+                connection, "hotkey-screenshot", "hotKey.invoke",
+                sessionToken, JObject.FromObject(new
+                {
+                    id = "TakeScreenshotHotkey",
+                }), cancellationToken);
+            var screenshotResult = JObject.FromObject(screenshot.Result!);
+            context.Require(
+                screenshot.Error is null &&
+                screenshotResult.Value<string>("state") == "saved" &&
+                screenshotResult.Value<string>("path") == screenshotPath &&
+                screenshotAction.InvocationCount == 1 &&
+                File.Exists(screenshotPath),
+                screenshot.Error?.Message ??
+                    "hotKey.invoke did not execute the Core-owned screenshot action.");
 
             var saveRecording = await ExchangeAsync(
                 connection, "recording-save", "keyMouse.saveRecording", sessionToken,
@@ -1585,5 +1612,23 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             NullLogger<RecordingOneKeyFightRuntimePlatform>.Instance;
 
         public string EnsureAvatarMacroPath() => avatarMacroPath;
+    }
+
+    private sealed class RecordingGameScreenshotAction(string path)
+        : IGameScreenshotAction
+    {
+        public int InvocationCount { get; private set; }
+
+        public string TakeScreenshot(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            InvocationCount++;
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(path)
+                ?? throw new InvalidOperationException(
+                    "Screenshot verification path omitted its directory."));
+            File.WriteAllText(path, "screenshot");
+            return path;
+        }
     }
 }

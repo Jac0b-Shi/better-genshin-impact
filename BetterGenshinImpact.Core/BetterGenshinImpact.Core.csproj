@@ -132,6 +132,7 @@
     <Compile Include="../BetterGenshinImpact/GameTask/QuickSereniteaPot/QuickSereniteaPotRuntimePlatform.cs" Link="GameTask/QuickSereniteaPot/QuickSereniteaPotRuntimePlatform.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/QuickClaimReward/OneKeyClaimRewardTask.cs" Link="GameTask/QuickClaimReward/OneKeyClaimRewardTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/QuickClaimReward/OneKeyClaimRewardRuntimePlatform.cs" Link="GameTask/QuickClaimReward/OneKeyClaimRewardRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/GameTask/Screenshot/GameScreenshotTask.cs" Link="GameTask/Screenshot/GameScreenshotTask.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvChatUi.cs" Link="GameTask/Common/BgiVision/BvChatUi.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvImage.cs" Link="GameTask/Common/BgiVision/BvImage.cs" />
     <Compile Include="../BetterGenshinImpact/GameTask/Common/BgiVision/BvOcr.cs" Link="GameTask/Common/BgiVision/BvOcr.cs" />

@@ -62,6 +62,9 @@ public sealed class HotKeySettingsCatalog(RuntimeLayout layout)
             "SuspendHotkey", "系统控制", "暂停当前脚本/独立任务",
             "suspendHotkey", "automation.suspend.toggle", "core", false, true),
         new(
+            "TakeScreenshotHotkey", "系统控制", "游戏截图",
+            "takeScreenshotHotkey", "capture.screenshot", "core", false, true),
+        new(
             "LogBoxDisplayHotkey", "系统控制", "日志，状态窗与指标栏展示开关",
             "logBoxDisplayHotkey", "overlay.log.toggle", "swift", false, true),
         new(

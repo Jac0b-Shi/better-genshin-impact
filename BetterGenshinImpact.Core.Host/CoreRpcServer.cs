@@ -48,6 +48,7 @@ public sealed class CoreRpcServer(
     private AuxiliaryControlCoordinator? _auxiliaryControls;
     private HoldHotKeyCoordinator? _holdHotKeys;
     private OneShotHotKeyCoordinator? _oneShotHotKeys;
+    private IGameScreenshotAction? _gameScreenshotAction;
     private int _platformAssetsInitialized;
     private readonly SemaphoreSlim _runtimeMutationLock = new(1, 1);
     public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
@@ -147,6 +148,17 @@ public sealed class CoreRpcServer(
         {
             throw new InvalidOperationException(
                 "One-shot hotkey coordinator has already been attached.");
+        }
+    }
+
+    public void AttachGameScreenshotAction(IGameScreenshotAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (Interlocked.CompareExchange(
+                ref _gameScreenshotAction, action, null) is not null)
+        {
+            throw new InvalidOperationException(
+                "Game screenshot action has already been attached.");
         }
     }
 
@@ -759,6 +771,12 @@ public sealed class CoreRpcServer(
                 state = RunnerContext.Instance.IsSuspend ? "paused" : "running",
             };
         }
+        if (descriptor.Action == "capture.screenshot")
+        {
+            var path = RequiredGameScreenshotAction()
+                .TakeScreenshot(cancellationToken);
+            return new { id, state = "saved", path };
+        }
         if (descriptor.Action == "trigger.toggleHangout")
             return _triggerSettings.ToggleAutoHangoutEventEnabled();
         if (descriptor.Action.StartsWith("trigger.toggle:", StringComparison.Ordinal))
@@ -785,6 +803,11 @@ public sealed class CoreRpcServer(
 
     private static bool CanSetTriggerEnabled(ITaskTrigger trigger) =>
         trigger is not GameLoadingTrigger;
+
+    private IGameScreenshotAction RequiredGameScreenshotAction() =>
+        _gameScreenshotAction
+        ?? throw new CapabilityUnavailableException(
+            "Game screenshot action is unavailable until Core composition completes.");
 
     private static string RequiredString(JObject? parameters, string name) =>
         parameters?.Value<string>(name) is { Length: > 0 } value

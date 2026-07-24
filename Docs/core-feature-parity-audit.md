@@ -176,8 +176,11 @@ live-updated key through the existing physical key-state callback, matching the
 upstream trigger contract.
 
 Only upstream entries whose action has a complete production path are exposed.
-Screenshot, Serenitea Pot and path-recorder hotkeys
-remain absent until those shared actions are extracted.
+The game-screenshot hotkey executes the shared `GameScreenshotTask` on both
+Windows and macOS. Core owns timestamped PNG naming, the upstream UID cover and
+the `log/screenshot` output contract; macOS reads the real shared-memory frame.
+The path-recorder hotkeys remain absent until the shared recorder is separated
+from its WPF WebView editor.
 
 ## Verification tiers
 

@@ -11,6 +11,7 @@ return await VerificationRunner.RunAsync(args,
     new RuntimeCancellationSuite(),
     new RuntimeSettingsSuite(),
     new SchedulerStatusSuite(),
+    new GameScreenshotSuite(),
     new HtmlMaskContractSuite(),
     new CaptureRingContractSuite(),
 ]);
