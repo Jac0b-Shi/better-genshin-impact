@@ -1137,6 +1137,26 @@ struct NotificationPage: View {
             } content: {
                 VStack(spacing: 0) {
                     BGISettingLine(
+                        title: "通知时包含截图",
+                        subtitle: "启用后，支持图片的通知渠道会附带当前游戏画面。"
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: {
+                                appState.notificationSettings?
+                                    .includeScreenShot ?? true
+                            },
+                            set: {
+                                appState.saveNotificationSettings(
+                                    includeScreenShot: $0)
+                            }
+                        ))
+                        .labelsHidden()
+                        .disabled(appState.notificationSettings == nil)
+                    }
+
+                    Divider()
+
+                    BGISettingLine(
                         title: "允许 JS 脚本发送通知",
                         subtitle: "启用后，调度器中获准发送通知的脚本可以调用通知接口。"
                     ) {
@@ -1241,79 +1261,8 @@ struct NotificationPage: View {
                 }
             }
 
-            BGIOriginalCard(
-                icon: .symbol("link"),
-                title: "Webhook",
-                subtitle: "向兼容 BetterGI 通知载荷的 HTTP 端点发送事件"
-            ) {
-                Toggle("", isOn: Binding(
-                    get: {
-                        appState.notificationSettings?.webhookEnabled ?? false
-                    },
-                    set: {
-                        appState.saveNotificationSettings(webhookEnabled: $0)
-                    }
-                ))
-                .labelsHidden()
-                .disabled(appState.notificationSettings == nil)
-            } content: {
-                VStack(spacing: 0) {
-                    BGISettingLine(
-                        title: "Webhook 地址",
-                        subtitle: "接收 BetterGI JSON 通知载荷的 HTTP 或 HTTPS 地址。"
-                    ) {
-                        TextField(
-                            "https://example.com/webhook",
-                            text: Binding(
-                                get: {
-                                    appState.notificationSettings?
-                                        .webhookEndpoint ?? ""
-                                },
-                                set: {
-                                    appState.saveNotificationSettings(
-                                        webhookEndpoint: $0)
-                                }))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(minWidth: 260)
-                    }
-
-                    Divider()
-
-                    BGISettingLine(
-                        title: "发送目标",
-                        subtitle: "写入上游 Webhook 载荷的 send_to 字段。"
-                    ) {
-                        TextField(
-                            "可选",
-                            text: Binding(
-                                get: {
-                                    appState.notificationSettings?
-                                        .webhookSendTo ?? ""
-                                },
-                                set: {
-                                    appState.saveNotificationSettings(
-                                        webhookSendTo: $0)
-                                }))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(minWidth: 180)
-                    }
-
-                    Divider()
-
-                    BGISettingLine(
-                        title: "测试 Webhook",
-                        subtitle: "使用当前已保存配置发送上游测试载荷。"
-                    ) {
-                        Button {
-                            appState.sendTestNotification(channel: "webhook")
-                        } label: {
-                            Label("发送", systemImage: "paperplane")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(
-                            appState.notificationSettings?.webhookEnabled != true)
-                    }
-                }
+            ForEach(appState.notificationSettings?.channels ?? []) { channel in
+                NotificationChannelCard(channel: channel)
             }
         }
     }
@@ -1326,5 +1275,152 @@ struct NotificationPage: View {
         return selectedCount == 0
             ? "未选择时按全部通知处理"
             : "已选择 \(selectedCount) / \(events.count) 个事件"
+    }
+}
+
+private struct NotificationChannelCard: View {
+    @EnvironmentObject private var appState: AppState
+    let channel: BetterGINotificationChannel
+
+    var body: some View {
+        BGIOriginalCard(
+            icon: .symbol(iconName),
+            title: channel.title,
+            subtitle: channel.subtitle
+        ) {
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { channel.enabled },
+                    set: {
+                        appState.saveNotificationChannel(
+                            channelID: channel.id,
+                            enabled: $0)
+                    }))
+                .labelsHidden()
+        } content: {
+            VStack(spacing: 0) {
+                ForEach(Array(channel.fields.enumerated()), id: \.element.id) {
+                    index, field in
+                    if index > 0 {
+                        Divider()
+                    }
+                    BGISettingLine(
+                        title: field.label,
+                        subtitle: field.placeholder
+                    ) {
+                        fieldControl(field)
+                    }
+                }
+
+                if !channel.fields.isEmpty {
+                    Divider()
+                }
+                BGISettingLine(
+                    title: "测试通知",
+                    subtitle: "使用当前已保存配置发送一条测试通知。"
+                ) {
+                    HStack(spacing: 8) {
+                        if !appState.notificationTestStatus.isEmpty {
+                            Text(appState.notificationTestStatus)
+                                .font(BGIFonts.caption)
+                                .foregroundStyle(BGIColors.secondaryText)
+                                .lineLimit(3)
+                        }
+                        Button {
+                            appState.sendTestNotification(channel: channel.id)
+                        } label: {
+                            Label("发送", systemImage: "paperplane")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!channel.enabled)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fieldControl(_ field: BetterGINotificationField) -> some View {
+        switch field.value {
+        case .boolean(let value):
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { value },
+                    set: {
+                        save(field, value: .boolean($0))
+                    }))
+                .labelsHidden()
+        case .integer(let value):
+            TextField(
+                field.placeholder,
+                value: Binding(
+                    get: { value },
+                    set: {
+                        save(field, value: .integer($0))
+                    }),
+                format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 120)
+        case .string(let value):
+            if field.kind == "select" {
+                Picker(
+                    field.label,
+                    selection: Binding(
+                        get: { value },
+                        set: {
+                            save(field, value: .string($0))
+                        })
+                ) {
+                    ForEach(field.options, id: \.self) {
+                        Text($0).tag($0)
+                    }
+                }
+                .labelsHidden()
+                .frame(minWidth: 150)
+            } else if field.kind == "secret" {
+                SecureField(
+                    field.placeholder,
+                    text: Binding(
+                        get: { value },
+                        set: {
+                            save(field, value: .string($0))
+                        }))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 240)
+            } else {
+                TextField(
+                    field.placeholder,
+                    text: Binding(
+                        get: { value },
+                        set: {
+                            save(field, value: .string($0))
+                        }))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 240)
+            }
+        }
+    }
+
+    private func save(
+        _ field: BetterGINotificationField,
+        value: BetterGINotificationFieldValue
+    ) {
+        appState.saveNotificationChannel(
+            channelID: channel.id,
+            fieldID: field.id,
+            value: value)
+    }
+
+    private var iconName: String {
+        switch channel.id {
+        case "email": "envelope"
+        case "telegram": "paperplane"
+        case "websocket": "network"
+        case "bark": "bell.badge"
+        case "discord": "bubble.left.and.bubble.right"
+        default: "link"
+        }
     }
 }

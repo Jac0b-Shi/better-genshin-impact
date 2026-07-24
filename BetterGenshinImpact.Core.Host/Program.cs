@@ -96,12 +96,6 @@ using var loggerFactory = LoggerFactory.Create(builder => builder.AddSimpleConso
     options.TimestampFormat = "HH:mm:ss.fff ";
 }));
 var scriptHostServices = new MacScriptHostServices(loggerFactory);
-using var notificationSettings = new NotificationSettingsCatalog(
-    layout, server.PlatformCallbacks, sessionToken, shutdown.Token,
-    loggerFactory.CreateLogger<NotificationSettingsCatalog>());
-notificationSettings.AttachScriptHostServices(scriptHostServices);
-server.AttachNotificationSettings(notificationSettings);
-NotificationRuntimePlatform.Configure(notificationSettings);
 ScriptHostServices.Configure(scriptHostServices);
 ServerTimeHelper.Initialize(new ServerTimeProvider(TimeProvider.System, () => scriptHostServices.ServerTimeZoneOffset));
 server.AttachScriptHostServices(scriptHostServices);
@@ -162,6 +156,19 @@ var taskControlPlatform = new MacTaskControlPlatform(
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl"),
     foregroundInputCoordinator, new GameActionKeyResolver(layout));
 TaskControlPlatform.Configure(taskControlPlatform);
+using var notificationSettings = new NotificationSettingsCatalog(
+    layout,
+    server.PlatformCallbacks,
+    sessionToken,
+    shutdown.Token,
+    () =>
+    {
+        using var capture = TaskControl.CaptureToRectArea(forceNew: true);
+        return capture.CacheImage.Clone();
+    },
+    loggerFactory.CreateLogger<NotificationSettingsCatalog>());
+notificationSettings.AttachScriptHostServices(scriptHostServices);
+server.AttachNotificationSettings(notificationSettings);
 using var auxiliaryControls = new AuxiliaryControlCoordinator(
     server.MacroSettings,
     (windowsVirtualKey, cancellationToken) =>

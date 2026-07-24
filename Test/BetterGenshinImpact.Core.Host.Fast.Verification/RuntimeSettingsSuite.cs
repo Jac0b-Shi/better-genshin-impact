@@ -573,10 +573,12 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             var scriptHostServices = new MacScriptHostServices(loggerFactory);
             var notificationCatalog = new NotificationSettingsCatalog(
                 layout, new PlatformCallbackChannel(), "verification", cancellationToken,
+                () => null,
                 loggerFactory.CreateLogger<NotificationSettingsCatalog>());
             notificationCatalog.AttachScriptHostServices(scriptHostServices);
             _ = notificationCatalog.Save(JObject.FromObject(new
             {
+                includeScreenShot = false,
                 jsNotificationEnabled = true,
                 macOSNotificationEnabled = true,
                 notificationEventSubscribe = "js.error,js.custom,JS.ERROR",
@@ -586,7 +588,9 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             var notificationSettings = JObject.FromObject(notificationCatalog.Get());
             var notificationEvents = (JArray)notificationSettings["events"]!;
+            var notificationChannels = (JArray)notificationSettings["channels"]!;
             context.Require(
+                !notificationSettings.Value<bool>("includeScreenShot") &&
                 notificationSettings.Value<string>("notificationEventSubscribe") ==
                     "js.error,js.custom" &&
                 notificationEvents.Any(item =>
@@ -601,9 +605,74 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     "js.error,js.custom", "domain.end"),
                 "Notification settings did not preserve the upstream event subscription contract.");
             context.Require(
+                notificationChannels.Count == 13 &&
+                notificationChannels.Any(channel =>
+                    channel.Value<string>("id") == "telegram" &&
+                    channel.Value<string>("enabledField") ==
+                        "telegramNotificationEnabled" &&
+                    ((JArray)channel["fields"]!).Any(field =>
+                        field.Value<string>("id") == "telegramBotToken" &&
+                        field.Value<string>("kind") == "secret")) &&
+                notificationChannels.Any(channel =>
+                    channel.Value<string>("id") == "email" &&
+                    ((JArray)channel["fields"]!).Any(field =>
+                        field.Value<string>("id") == "smtpPort" &&
+                        field.Value<string>("kind") == "integer")),
+                "Notification settings did not expose the complete Core-owned upstream channel schema.");
+            var telegramSettings = JObject.FromObject(
+                notificationCatalog.SaveChannel(
+                    "telegram",
+                    JObject.FromObject(new
+                    {
+                        telegramNotificationEnabled = true,
+                        telegramBotToken = "verification-token",
+                        telegramChatId = "verification-chat",
+                        telegramApiBaseUrl = "",
+                        telegramProxyEnabled = false,
+                        telegramProxyUrl = "http://127.0.0.1:10809",
+                    })));
+            var telegramChannel = ((JArray)telegramSettings["channels"]!)
+                .Single(channel => channel.Value<string>("id") == "telegram");
+            context.Require(
+                telegramChannel.Value<bool>("enabled") &&
+                ((JArray)telegramChannel["fields"]!).Any(field =>
+                    field.Value<string>("id") == "telegramBotToken" &&
+                    field.Value<string>("value") == "verification-token") &&
+                ((JArray)telegramChannel["fields"]!).Any(field =>
+                    field.Value<string>("id") == "telegramProxyEnabled" &&
+                    !field.Value<bool>("value")),
+                "Notification channel save did not atomically preserve typed Telegram settings.");
+            _ = notificationCatalog.SaveChannel(
+                "serverChan",
+                JObject.FromObject(new
+                {
+                    serverChanNotificationEnabled = true,
+                    serverChanSendKey = "",
+                }));
+            context.Require(
+                JObject.FromObject(notificationCatalog.Get())
+                    .SelectToken("channels[?(@.id == 'serverChan')].enabled")!
+                    .Value<bool>() &&
+                await ThrowsAsync<InvalidOperationException>(
+                    () => notificationCatalog.TestAsync("serverChan")),
+                "Notification channels did not preserve upstream save-first, validate-on-test semantics.");
+            _ = notificationCatalog.SaveChannel(
+                "serverChan",
+                JObject.FromObject(new
+                {
+                    serverChanNotificationEnabled = false,
+                }));
+            _ = notificationCatalog.SaveChannel(
+                "telegram",
+                JObject.FromObject(new
+                {
+                    telegramNotificationEnabled = false,
+                }));
+            context.Require(
                 Throws<ArgumentException>(() => notificationCatalog.Save(
                     JObject.FromObject(new
                     {
+                        includeScreenShot = false,
                         jsNotificationEnabled = true,
                         macOSNotificationEnabled = true,
                         notificationEventSubscribe = "unknown.event",
@@ -620,6 +689,7 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 webhookListener, cancellationToken);
             _ = notificationCatalog.Save(JObject.FromObject(new
             {
+                includeScreenShot = false,
                 jsNotificationEnabled = true,
                 macOSNotificationEnabled = true,
                 notificationEventSubscribe = "js.error,js.custom",
@@ -634,8 +704,8 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 webhookPayload.Value<string>("event") == "notify.test" &&
                 webhookPayload.Value<int>("result") == 0 &&
                 webhookPayload.Value<string>("message") ==
-                    "这是一条 BetterGI 测试通知。",
-                $"The extracted upstream Webhook notifier sent an unexpected test payload: {webhookPayload}");
+                    "这是一条测试通知信息",
+                $"The shared upstream NotificationService sent an unexpected Webhook test payload: {webhookPayload}");
 
             var hotKeyUpdates = new List<(string Id, string HotKey)>();
             var hotKeyCatalog = new HotKeySettingsCatalog(layout);
@@ -1199,6 +1269,21 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
         try
         {
             action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
+
+    private static async Task<bool> ThrowsAsync<TException>(
+        Func<Task> action)
+        where TException : Exception
+    {
+        try
+        {
+            await action();
             return false;
         }
         catch (TException)

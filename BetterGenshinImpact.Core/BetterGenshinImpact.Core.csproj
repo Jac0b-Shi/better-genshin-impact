@@ -31,6 +31,8 @@
     <PackageReference Include="System.Collections.Immutable" Version="10.0.7" />
     <PackageReference Include="System.IO.Packaging" Version="9.0.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="MimeKit" Version="4.16.0" />
     <PackageReference Include="Semver" Version="3.0.0" />
     <PackageReference Include="YoloSharp" Version="6.0.3" />
     <PackageReference Include="BehaviourTree" Version="1.0.73" />
@@ -482,15 +484,30 @@
     <Compile Include="../BetterGenshinImpact/Service/Notification/NotificationConfig.cs" Link="Service/Notification/NotificationConfig.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/NotificationEventSubscriptionHelper.cs" Link="Service/Notification/NotificationEventSubscriptionHelper.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/NotificationRuntimePlatform.cs" Link="Service/Notification/NotificationRuntimePlatform.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notification/NotificationService.cs" Link="Service/Notification/NotificationService.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Converter/BaseDateTimeJsonConverter.cs" Link="Service/Notification/Converter/BaseDateTimeJsonConverter.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Converter/DateTimeJsonConverter.cs" Link="Service/Notification/Converter/DateTimeJsonConverter.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Converter/ImageToBase64Converter.cs" Link="Service/Notification/Converter/ImageToBase64Converter.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Model/BaseNotificationData.cs" Link="Service/Notification/Model/BaseNotificationData.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notification/Model/NotificationTestResult.cs" Link="Service/Notification/Model/NotificationTestResult.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Model/Enum/NotificationEvent.cs" Link="Service/Notification/Model/Enum/NotificationEvent.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notification/Model/Enum/NotificationEventResult.cs" Link="Service/Notification/Model/Enum/NotificationEventResult.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notifier/Exception/NotifierException.cs" Link="Service/Notifier/Exception/NotifierException.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notifier/Interface/INotifier.cs" Link="Service/Notifier/Interface/INotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/NotifierManager.cs" Link="Service/Notifier/NotifierManager.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/BarkNotifier.cs" Link="Service/Notifier/BarkNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/DiscordWebhookNotifier.cs" Link="Service/Notifier/DiscordWebhookNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/EmailNotifier.cs" Link="Service/Notifier/EmailNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/FeishuNotifier.cs" Link="Service/Notifier/FeishuNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/MeowNotifier.cs" Link="Service/Notifier/MeowNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/OneBotNotifier.cs" Link="Service/Notifier/OneBotNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/ServerChanNotifier.cs" Link="Service/Notifier/ServerChanNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/TelegramNotifier.cs" Link="Service/Notifier/TelegramNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/WebSocketNotifier.cs" Link="Service/Notifier/WebSocketNotifier.cs" />
     <Compile Include="../BetterGenshinImpact/Service/Notifier/WebhookNotifier.cs" Link="Service/Notifier/WebhookNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/WorkWeixinNotifier.cs" Link="Service/Notifier/WorkWeixinNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/dingdingwebhookNotifier.cs" Link="Service/Notifier/dingdingwebhookNotifier.cs" />
+    <Compile Include="../BetterGenshinImpact/Service/Notifier/xxtuiNotifier.cs" Link="Service/Notifier/xxtuiNotifier.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/ServerTime.cs" Link="Core/Script/Dependence/ServerTime.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Dependence/StrategyFile.cs" Link="Core/Script/Dependence/StrategyFile.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Utils/ScriptUtils.cs" Link="Core/Script/Utils/ScriptUtils.cs" />

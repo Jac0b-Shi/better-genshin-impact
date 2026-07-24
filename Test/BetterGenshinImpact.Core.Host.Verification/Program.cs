@@ -270,12 +270,13 @@ server.AttachRuntimeArtifactInitializer(() =>
 var scriptHostServices = new MacScriptHostServices(loggerFactory);
 using var notificationSettings = new NotificationSettingsCatalog(
     layout, server.PlatformCallbacks, sessionToken, cancellation.Token,
+    () => null,
     loggerFactory.CreateLogger<NotificationSettingsCatalog>());
 notificationSettings.AttachScriptHostServices(scriptHostServices);
 server.AttachNotificationSettings(notificationSettings);
-NotificationRuntimePlatform.Configure(notificationSettings);
 _ = notificationSettings.Save(JObject.FromObject(new
 {
+    includeScreenShot = false,
     jsNotificationEnabled = true,
     macOSNotificationEnabled = true,
     notificationEventSubscribe = "js.custom",

@@ -27,6 +27,7 @@ struct BetterGIKeyMousePlaybackStatus: Sendable, Equatable {
 }
 
 struct BetterGINotificationSettings: Sendable, Equatable {
+    let includeScreenShot: Bool
     let jsNotificationEnabled: Bool
     let macOSNotificationEnabled: Bool
     let notificationEventSubscribe: String
@@ -34,6 +35,7 @@ struct BetterGINotificationSettings: Sendable, Equatable {
     let webhookEnabled: Bool
     let webhookEndpoint: String
     let webhookSendTo: String
+    let channels: [BetterGINotificationChannel]
 }
 
 struct BetterGINotificationEvent: Sendable, Equatable, Identifiable {
@@ -42,6 +44,55 @@ struct BetterGINotificationEvent: Sendable, Equatable, Identifiable {
     let selected: Bool
 
     var id: String { code }
+}
+
+enum BetterGINotificationFieldValue: Sendable, Equatable {
+    case boolean(Bool)
+    case integer(Int)
+    case string(String)
+
+    var rpcValue: Any {
+        switch self {
+        case .boolean(let value): value
+        case .integer(let value): value
+        case .string(let value): value
+        }
+    }
+}
+
+struct BetterGINotificationField: Sendable, Equatable, Identifiable {
+    let id: String
+    let label: String
+    let kind: String
+    let placeholder: String
+    let options: [String]
+    let value: BetterGINotificationFieldValue
+}
+
+struct BetterGINotificationChannel: Sendable, Equatable, Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let enabledField: String
+    let enabled: Bool
+    let fields: [BetterGINotificationField]
+
+    var rpcValues: [String: Any] {
+        var result: [String: Any] = [enabledField: enabled]
+        for field in fields {
+            result[field.id] = field.value.rpcValue
+        }
+        return result
+    }
+
+    func stringValue(_ fieldID: String) -> String {
+        guard let field = fields.first(where: { $0.id == fieldID }),
+              case .string(let value) = field.value
+        else {
+            return ""
+        }
+        return value
+    }
 }
 
 struct BetterGIHotKeyBinding: Sendable, Equatable, Identifiable {
@@ -627,6 +678,7 @@ actor BetterGICoreProcessSupervisor {
             method: "notification.settings.save",
             parameters: [
                 "settings": [
+                    "includeScreenShot": settings.includeScreenShot,
                     "jsNotificationEnabled": settings.jsNotificationEnabled,
                     "macOSNotificationEnabled": settings.macOSNotificationEnabled,
                     "notificationEventSubscribe":
@@ -635,6 +687,17 @@ actor BetterGICoreProcessSupervisor {
                     "webhookEndpoint": settings.webhookEndpoint,
                     "webhookSendTo": settings.webhookSendTo,
                 ],
+            ]))
+    }
+
+    func saveNotificationChannel(
+        _ channel: BetterGINotificationChannel
+    ) throws -> BetterGINotificationSettings {
+        try parseNotificationSettings(runningClient().request(
+            method: "notification.channel.save",
+            parameters: [
+                "channelId": channel.id,
+                "values": channel.rpcValues,
             ]))
     }
 
@@ -814,6 +877,7 @@ actor BetterGICoreProcessSupervisor {
         -> BetterGINotificationSettings
     {
         guard let result = value as? [String: Any],
+              let includeScreenShot = result["includeScreenShot"] as? Bool,
               let jsEnabled = result["jsNotificationEnabled"] as? Bool,
               let nativeEnabled = result["macOSNotificationEnabled"] as? Bool,
               let eventSubscribe =
@@ -821,7 +885,8 @@ actor BetterGICoreProcessSupervisor {
               let eventValues = result["events"] as? [[String: Any]],
               let webhookEnabled = result["webhookEnabled"] as? Bool,
               let webhookEndpoint = result["webhookEndpoint"] as? String,
-              let webhookSendTo = result["webhookSendTo"] as? String
+              let webhookSendTo = result["webhookSendTo"] as? String,
+              let channelValues = result["channels"] as? [[String: Any]]
         else {
             throw BetterGICoreRPCError.protocolViolation("Invalid notification settings.")
         }
@@ -838,14 +903,75 @@ actor BetterGICoreProcessSupervisor {
                 displayName: displayName,
                 selected: selected)
         }
+        let channels = try channelValues.map { value in
+            guard let id = value["id"] as? String,
+                  let title = value["title"] as? String,
+                  let subtitle = value["subtitle"] as? String,
+                  let enabledField = value["enabledField"] as? String,
+                  let enabled = value["enabled"] as? Bool,
+                  let fieldValues = value["fields"] as? [[String: Any]]
+            else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid notification channel descriptor.")
+            }
+            let fields = try fieldValues.map { fieldValue in
+                guard let fieldID = fieldValue["id"] as? String,
+                      let label = fieldValue["label"] as? String,
+                      let kind = fieldValue["kind"] as? String,
+                      let placeholder =
+                        fieldValue["placeholder"] as? String,
+                      let options = fieldValue["options"] as? [String]
+                else {
+                    throw BetterGICoreRPCError.protocolViolation(
+                        "Invalid notification field descriptor.")
+                }
+                let field: BetterGINotificationFieldValue
+                switch kind {
+                case "boolean":
+                    guard let raw = fieldValue["value"] as? Bool else {
+                        throw BetterGICoreRPCError.protocolViolation(
+                            "Invalid boolean notification field.")
+                    }
+                    field = .boolean(raw)
+                case "integer":
+                    guard let raw = fieldValue["value"] as? Int else {
+                        throw BetterGICoreRPCError.protocolViolation(
+                            "Invalid integer notification field.")
+                    }
+                    field = .integer(raw)
+                default:
+                    guard let raw = fieldValue["value"] as? String else {
+                        throw BetterGICoreRPCError.protocolViolation(
+                            "Invalid string notification field.")
+                    }
+                    field = .string(raw)
+                }
+                return BetterGINotificationField(
+                    id: fieldID,
+                    label: label,
+                    kind: kind,
+                    placeholder: placeholder,
+                    options: options,
+                    value: field)
+            }
+            return BetterGINotificationChannel(
+                id: id,
+                title: title,
+                subtitle: subtitle,
+                enabledField: enabledField,
+                enabled: enabled,
+                fields: fields)
+        }
         return BetterGINotificationSettings(
+            includeScreenShot: includeScreenShot,
             jsNotificationEnabled: jsEnabled,
             macOSNotificationEnabled: nativeEnabled,
             notificationEventSubscribe: eventSubscribe,
             events: events,
             webhookEnabled: webhookEnabled,
             webhookEndpoint: webhookEndpoint,
-            webhookSendTo: webhookSendTo)
+            webhookSendTo: webhookSendTo,
+            channels: channels)
     }
 
     private func parseHotKeyBindings(_ value: Any) throws

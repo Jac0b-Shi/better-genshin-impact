@@ -684,6 +684,13 @@ if rg -n 'TemplateMatchingRecognitionEngine|PaddleOCRRecognitionEngine|BGIOnnx' 
   MacGI/Sources/MacGI/App MacGI/Sources/MacGI/Views; then
   fail "Swift UI owns recognition business state instead of consuming Core DTOs"
 fi
+rg -q 'new NotificationService' \
+  BetterGenshinImpact.Core.Host/Runtime/NotificationSettingsCatalog.cs \
+  && rg -q 'NotifierManager' \
+    BetterGenshinImpact.Core.Host/Runtime/NotificationSettingsCatalog.cs \
+  && ! rg -q 'new WebhookNotifier|DispatchAsync|SendWebhookAsync' \
+    BetterGenshinImpact.Core.Host/Runtime/NotificationSettingsCatalog.cs \
+  || fail "macOS notifications bypass the shared upstream NotificationService"
 
 git diff --check
 print -- "Core extraction static gate passed."

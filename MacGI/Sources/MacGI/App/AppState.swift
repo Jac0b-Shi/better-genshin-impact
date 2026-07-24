@@ -353,6 +353,8 @@ final class AppState: ObservableObject {
     private var keyMousePlaybackPollTask: Task<Void, Never>?
     private var notificationSettingsSaveRevision = 0
     private var notificationSettingsSaveTask: Task<Void, Never>?
+    private var notificationChannelSaveRevisions: [String: Int] = [:]
+    private var notificationChannelSaveTasks: [String: Task<Void, Never>] = [:]
     private var macroSettingsSaveRevision = 0
     private var hotKeySettingsSaveRevision = 0
     private var hotKeyMonitorErrorLogged = false
@@ -882,6 +884,7 @@ final class AppState: ObservableObject {
     }
 
     func saveNotificationSettings(
+        includeScreenShot: Bool? = nil,
         jsNotificationEnabled: Bool? = nil,
         macOSNotificationEnabled: Bool? = nil,
         selectedEventCodes: Set<String>? = nil,
@@ -907,6 +910,7 @@ final class AppState: ObservableObject {
                             "macOS 通知权限未授权。")
                     }
                     self.applyNotificationSettingsUpdate(
+                        includeScreenShot: includeScreenShot,
                         jsNotificationEnabled: jsNotificationEnabled,
                         macOSNotificationEnabled: macOSNotificationEnabled,
                         selectedEventCodes: selectedEventCodes,
@@ -923,6 +927,7 @@ final class AppState: ObservableObject {
             return
         }
         applyNotificationSettingsUpdate(
+            includeScreenShot: includeScreenShot,
             jsNotificationEnabled: jsNotificationEnabled,
             macOSNotificationEnabled: macOSNotificationEnabled,
             selectedEventCodes: selectedEventCodes,
@@ -932,6 +937,7 @@ final class AppState: ObservableObject {
     }
 
     private func applyNotificationSettingsUpdate(
+        includeScreenShot: Bool?,
         jsNotificationEnabled: Bool?,
         macOSNotificationEnabled: Bool?,
         selectedEventCodes: Set<String>?,
@@ -951,6 +957,8 @@ final class AppState: ObservableObject {
                 .joined(separator: ",")
         } ?? current.notificationEventSubscribe
         let next = BetterGINotificationSettings(
+            includeScreenShot:
+                includeScreenShot ?? current.includeScreenShot,
             jsNotificationEnabled:
                 jsNotificationEnabled ?? current.jsNotificationEnabled,
             macOSNotificationEnabled:
@@ -969,7 +977,8 @@ final class AppState: ObservableObject {
             webhookEndpoint:
                 webhookEndpoint ?? current.webhookEndpoint,
             webhookSendTo:
-                webhookSendTo ?? current.webhookSendTo)
+                webhookSendTo ?? current.webhookSendTo,
+            channels: current.channels)
         notificationSettingsSaveRevision += 1
         let revision = notificationSettingsSaveRevision
         notificationSettings = next
@@ -994,6 +1003,121 @@ final class AppState: ObservableObject {
                 self.addLog(
                     .error,
                     "通知设置保存失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    func saveNotificationChannel(
+        channelID: String,
+        enabled: Bool? = nil,
+        fieldID: String? = nil,
+        value: BetterGINotificationFieldValue? = nil
+    ) {
+        guard let supervisor = betterGICoreSupervisor,
+              let current = notificationSettings,
+              let channel = current.channels.first(where: {
+                  $0.id == channelID
+              })
+        else {
+            addLog(.error, "通知通道保存失败：BetterGI Core 尚未就绪。")
+            return
+        }
+        let nextChannel = BetterGINotificationChannel(
+            id: channel.id,
+            title: channel.title,
+            subtitle: channel.subtitle,
+            enabledField: channel.enabledField,
+            enabled: enabled ?? channel.enabled,
+            fields: channel.fields.map { field in
+                guard field.id == fieldID, let value else {
+                    return field
+                }
+                return BetterGINotificationField(
+                    id: field.id,
+                    label: field.label,
+                    kind: field.kind,
+                    placeholder: field.placeholder,
+                    options: field.options,
+                    value: value)
+            })
+        notificationSettings = BetterGINotificationSettings(
+            includeScreenShot: current.includeScreenShot,
+            jsNotificationEnabled: current.jsNotificationEnabled,
+            macOSNotificationEnabled: current.macOSNotificationEnabled,
+            notificationEventSubscribe:
+                current.notificationEventSubscribe,
+            events: current.events,
+            webhookEnabled:
+                nextChannel.id == "webhook"
+                ? nextChannel.enabled
+                : current.webhookEnabled,
+            webhookEndpoint:
+                nextChannel.id == "webhook"
+                ? nextChannel.stringValue("webhookEndpoint")
+                : current.webhookEndpoint,
+            webhookSendTo:
+                nextChannel.id == "webhook"
+                ? nextChannel.stringValue("webhookSendTo")
+                : current.webhookSendTo,
+            channels: current.channels.map {
+                $0.id == nextChannel.id ? nextChannel : $0
+            })
+        let revision =
+            (notificationChannelSaveRevisions[channelID] ?? 0) + 1
+        notificationChannelSaveRevisions[channelID] = revision
+        notificationChannelSaveTasks[channelID]?.cancel()
+        notificationChannelSaveTasks[channelID] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(250))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            do {
+                let saved = try await supervisor.saveNotificationChannel(
+                    nextChannel)
+                guard self.notificationChannelSaveRevisions[channelID] ==
+                        revision,
+                      let savedChannel = saved.channels.first(where: {
+                          $0.id == channelID
+                      }),
+                      let latest = self.notificationSettings
+                else {
+                    return
+                }
+                self.notificationSettings = BetterGINotificationSettings(
+                    includeScreenShot: latest.includeScreenShot,
+                    jsNotificationEnabled:
+                        latest.jsNotificationEnabled,
+                    macOSNotificationEnabled:
+                        latest.macOSNotificationEnabled,
+                    notificationEventSubscribe:
+                        latest.notificationEventSubscribe,
+                    events: latest.events,
+                    webhookEnabled:
+                        channelID == "webhook"
+                        ? savedChannel.enabled
+                        : latest.webhookEnabled,
+                    webhookEndpoint:
+                        channelID == "webhook"
+                        ? savedChannel.stringValue("webhookEndpoint")
+                        : latest.webhookEndpoint,
+                    webhookSendTo:
+                        channelID == "webhook"
+                        ? savedChannel.stringValue("webhookSendTo")
+                        : latest.webhookSendTo,
+                    channels: latest.channels.map {
+                        $0.id == channelID ? savedChannel : $0
+                    })
+                self.notificationTestStatus = ""
+            } catch {
+                if self.notificationChannelSaveRevisions[channelID] ==
+                    revision {
+                    await self.loadNotificationSettingsFromCore()
+                }
+                self.addLog(
+                    .error,
+                    "通知通道保存失败：\(error.localizedDescription)")
             }
         }
     }
@@ -1023,8 +1147,13 @@ final class AppState: ObservableObject {
         Task { [weak self] in
             do {
                 try await supervisor.testNotification(channel: channel)
-                self?.notificationTestStatus =
-                    channel == "webhook" ? "Webhook 发送成功" : "系统通知发送成功"
+                let channelName =
+                    channel == "native"
+                    ? "系统通知"
+                    : self?.notificationSettings?.channels.first(where: {
+                        $0.id == channel
+                    })?.title ?? channel
+                self?.notificationTestStatus = "\(channelName)发送成功"
             } catch {
                 self?.notificationTestStatus = error.localizedDescription
                 self?.addLog(.error, "测试通知失败：\(error.localizedDescription)")

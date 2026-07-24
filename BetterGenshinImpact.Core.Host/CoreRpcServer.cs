@@ -427,6 +427,11 @@ public sealed class CoreRpcServer(
                     RequiredString(request.Params, "id")),
                 "keyMouse.status" => KeyMouseScripts.Status(),
                 "notification.settings.get" => NotificationSettings.Get(),
+                "notification.channel.save" =>
+                    NotificationSettings.SaveChannel(
+                        RequiredString(request.Params, "channelId"),
+                        request.Params?["values"] as JObject
+                        ?? throw new ArgumentException("values is required.")),
                 "notification.settings.save" => NotificationSettings.Save(
                     request.Params?["settings"] as JObject
                     ?? throw new ArgumentException("settings is required.")),
@@ -504,6 +509,7 @@ public sealed class CoreRpcServer(
                 "keyMouse.recording",
                 "keyMouse.playback",
                 "notification.native",
+                "notification.channels",
                 "macro.hold-continuation",
                 "macro.turn-around",
                 "macro.quick-serenitea-pot",
