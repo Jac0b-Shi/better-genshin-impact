@@ -66,21 +66,6 @@ struct OverviewPage: View {
                     Text("ScreenCaptureKit")
                         .foregroundStyle(.secondary)
                 }
-                BGISettingLine(title: "触发器间隔（毫秒）", subtitle: "默认50ms，普通用户不建议调整这个值，具体调整方式见文档。") {
-                    TextField("", text: .constant("50"))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 96)
-                }
-                BGISettingLine(title: "AI推理设备设置", subtitle: "修改后需要重启程序生效。") {
-                    Picker("", selection: .constant("Cpu")) {
-                        Text("Cpu").tag("Cpu")
-                        Text("Gpu").tag("Gpu")
-                    }
-                    .frame(width: 98)
-                    Text("由 Core 管理")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 BGISettingLine(title: "测试图像捕获", subtitle: "测试功能，测试几种截图模式的效果。") {
                     Text("使用真实运行帧")
                         .font(.caption)
@@ -93,26 +78,6 @@ struct OverviewPage: View {
                 }
                 BGISettingLine(title: "原神失焦时隐藏 HUD", subtitle: "切换到其他应用时隐藏叠加层，返回原神后自动恢复。") {
                     Toggle("", isOn: $appState.hideHUDWhenGameUnfocused)
-                        .labelsHidden()
-                }
-            }
-
-            BGISettingGroup(icon: "link", title: "同时启动原神", subtitle: "启动截图器时，如果原神未启动，则自动启动原神。") {
-                Toggle("", isOn: .constant(true))
-                    .labelsHidden()
-            } content: {
-                BGISettingLine(title: "原神安装位置（不支持云原神的联动启动）", subtitle: "/Applications/Genshin Impact.app") {
-                    Text("暂不可更改")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                BGISettingLine(title: "启动参数", subtitle: "如果你不知道什么是启动参数请不要填写。") {
-                    TextField("", text: .constant(""))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 320)
-                }
-                BGISettingLine(title: "自动进入游戏", subtitle: "原神启动后自动进入游戏（自动开门、领取月卡）。") {
-                    Toggle("", isOn: .constant(true))
                         .labelsHidden()
                 }
             }

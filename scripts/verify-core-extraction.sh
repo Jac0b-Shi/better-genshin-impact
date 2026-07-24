@@ -25,6 +25,10 @@ if rg -n 'OneDragonPage|sidebarButton\(\.oneDragon\)|case \.oneDragon|oneDragonI
   MacGI/Sources/MacGI --glob '*.swift'; then
   fail "unextracted OneDragon workflow must not expose a production placeholder"
 fi
+if rg -n '\.constant\(|BGIUnavailable(Action|Toggle)|var action: \(\) -> Void = \{\}' \
+  MacGI/Sources/MacGI/Views MacGI/Sources/MacGI/Components --glob '*.swift'; then
+  fail "production views must not expose constant-bound controls or empty actions"
+fi
 
 rg -q 'synchronizeBundledGameTaskResources\(\)' \
   MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift || {

@@ -278,9 +278,7 @@ final class AppState: ObservableObject {
         didSet { recomputeHUDPresentation() }
     }
     let coreOverlayStore = CoreOverlayStore()
-    @Published var launchAtLogin = false
     @Published var showHUDOnStart = true
-    @Published var keepWindowOnTop = false
     @Published var debugPageEnabled = true
     @Published var debugConfidence = 0.86
     @Published var dispatcherIntervalMs = 50

@@ -5,7 +5,7 @@ struct BGICommand: Identifiable {
     let title: String
     let symbol: String
     var isEnabled = true
-    var action: () -> Void = {}
+    let action: () -> Void
 }
 
 struct BGIWorkflowShell<Sidebar: View, Content: View>: View {
@@ -54,7 +54,7 @@ struct BGIGroupSidebar: View {
     let title: String
     let groups: [String]
     var selected: String
-    var onSelect: (String) -> Void = { _ in }
+    let onSelect: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -196,60 +196,6 @@ private struct BGIDataTable: View {
             RoundedRectangle(cornerRadius: BGIRadius.small, style: .continuous)
                 .stroke(BGIColors.border, lineWidth: 1)
         )
-    }
-}
-
-struct BGIInlinePicker: View {
-    let value: String
-    let width: CGFloat
-
-    var body: some View {
-        Picker("", selection: .constant(value)) {
-            Text(value).tag(value)
-        }
-        .labelsHidden()
-        .frame(width: width)
-    }
-}
-
-struct BGINumberField: View {
-    let value: String
-    let width: CGFloat
-
-    var body: some View {
-        TextField("", text: .constant(value))
-            .textFieldStyle(.roundedBorder)
-            .frame(width: width)
-    }
-}
-
-struct BGIUnavailableToggle: View {
-    let isOn: Bool
-
-    var body: some View {
-        Toggle("", isOn: .constant(isOn))
-            .labelsHidden()
-            .disabled(true)
-    }
-}
-
-struct BGIUnavailableAction: View {
-    let title: String
-    let systemImage: String?
-
-    init(_ title: String, systemImage: String? = nil) {
-        self.title = title
-        self.systemImage = systemImage
-    }
-
-    var body: some View {
-        if let systemImage {
-            Label("\(title)（不可用）", systemImage: systemImage)
-                .foregroundStyle(.secondary)
-        } else {
-            Text("\(title)（不可用）")
-                .foregroundStyle(.secondary)
-        }
     }
 }
 
