@@ -30,6 +30,7 @@ public sealed class CoreRpcServer(
     private readonly TriggerSettingsCatalog _triggerSettings = new(layout);
     private readonly MacroSettingsCatalog _macroSettings = new(layout);
     private readonly HotKeySettingsCatalog _hotKeySettings = new(layout);
+    private readonly KeyBindingSettingsCatalog _keyBindingSettings = new(layout);
     private NotificationSettingsCatalog? _notificationSettings;
     private readonly PlatformCallbackChannel _platformCallbacks = new();
     private SchedulerCoordinator? _scheduler;
@@ -58,6 +59,8 @@ public sealed class CoreRpcServer(
     public TriggerSettingsCatalog TriggerSettings => _triggerSettings;
     public MacroSettingsCatalog MacroSettings => _macroSettings;
     public HotKeySettingsCatalog HotKeySettings => _hotKeySettings;
+    public KeyBindingSettingsCatalog KeyBindingSettings =>
+        _keyBindingSettings;
 
     private SchedulerCoordinator Scheduler => _scheduler ??= new SchedulerCoordinator(
         layout, _platformCallbacks, sessionToken, _shutdown.Token);
@@ -472,6 +475,10 @@ public sealed class CoreRpcServer(
                 "hotKey.settings.save" => _hotKeySettings.Save(
                     request.Params?["binding"] as JObject
                     ?? throw new ArgumentException("binding is required.")),
+                "keyBinding.settings.get" => _keyBindingSettings.Get(),
+                "keyBinding.settings.save" => _keyBindingSettings.Save(
+                    request.Params?["settings"] as JObject
+                    ?? throw new ArgumentException("settings is required.")),
                 "runtime.status" => RuntimeStatus(),
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.runGroups" => Scheduler.RunGroups(
@@ -540,7 +547,8 @@ public sealed class CoreRpcServer(
                 "macro.hold-continuation",
                 "macro.turn-around",
                 "macro.quick-serenitea-pot",
-                "macro.one-key-fight"
+                "macro.one-key-fight",
+                "key-bindings"
             }
         };
     }

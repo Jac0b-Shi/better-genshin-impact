@@ -11,6 +11,15 @@ public sealed class GameActionKeyResolver(RuntimeLayout layout)
     private JsonObject? _cachedKeyBindings;
     private long _nextRefreshAt;
 
+    public void Invalidate()
+    {
+        lock (_lock)
+        {
+            _cachedKeyBindings = null;
+            _nextRefreshAt = 0;
+        }
+    }
+
     public ResolvedGameActionKey Resolve(GIActions action)
     {
         var propertyName = LowerCamel(action.ToString());

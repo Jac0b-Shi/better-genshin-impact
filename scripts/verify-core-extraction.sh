@@ -729,6 +729,15 @@ if rg -n '"notification\.emit"' \
   --glob '!NotificationSettingsCatalog.cs'; then
   fail "macOS runtime events bypass the shared notification subscription and notifier chain"
 fi
+rg -q '"keyBinding\.settings\.get"' \
+  BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  && rg -q '"keyBinding\.settings\.save"' \
+    BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  && rg -q 'globalKeyMappingEnabled' \
+    BetterGenshinImpact.Core.Host/Runtime/ExternalKeyMappingResolver.cs \
+  && rg -q 'keyBinding\.settings\.save did not persist the RPC contract' \
+    Test/BetterGenshinImpact.Core.Host.Fast.Verification/RuntimeSettingsSuite.cs \
+  || fail "macOS game key bindings do not preserve the Core-owned RPC and external mapping contract"
 
 git diff --check
 print -- "Core extraction static gate passed."

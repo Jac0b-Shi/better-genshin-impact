@@ -195,6 +195,27 @@ the recording lifecycle. Windows retains the optional WebView editor adapter;
 macOS follows the upstream no-editor branch and saves directly to
 `User/AutoPathing`.
 
+### Game key bindings
+
+Core owns the complete upstream `keyBindingsConfig` action/menu catalog,
+default Windows virtual-key values, macOS-supported key options, validation and
+atomic persistence. The macOS page consumes `keyBinding.settings.get/save`
+descriptors and does not maintain an editable Swift business catalog. Saving a
+binding invalidates the shared `GameActionKeyResolver` immediately and refreshes
+the hold-to-repeat pickup/jump snapshot, so built-in tasks and auxiliary
+controls use the new key without restarting Core.
+
+The upstream `globalKeyMappingEnabled` boundary is preserved. Shared built-in
+tasks always execute their configured `GIActions`; JavaScript globals and
+combat-script string keys retain their literal defaults while the switch is
+off, and map only the exact upstream default-key set while it is on. Mouse
+attack/sprint, elemental sight and Paimon-menu keys remain excluded from global
+mapping as upstream requires. Unsupported legacy key values are shown
+truthfully and cannot be re-saved as if the macOS input bridge supported them.
+The `key-bindings` Fast suite covers persistence, hot update, validation and
+external-key mapping, while `runtime-settings` verifies the authenticated Unix
+socket RPC round trip.
+
 ## Verification tiers
 
 Use the smallest tier that owns the changed behavior:

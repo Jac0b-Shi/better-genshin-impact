@@ -949,6 +949,119 @@ struct HotkeyPage: View {
     }
 }
 
+struct KeyBindingPage: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            BGIPageTitle(title: "按键绑定设置")
+
+            if let settings = appState.keyBindingSettings {
+                BGISectionCard(
+                    "全局按键映射",
+                    subtitle: "应用于脚本、战斗策略和地图追踪中的游戏动作",
+                    symbolName: "keyboard"
+                ) {
+                    BGISettingLine(
+                        title: "启用全局按键映射",
+                        subtitle: "关闭时仅内置功能使用以下按键绑定"
+                    ) {
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: {
+                                    settings.globalKeyMappingEnabled
+                                },
+                                set: {
+                                    appState.setGlobalKeyMappingEnabled($0)
+                                }))
+                        .labelsHidden()
+                    }
+                }
+
+                ForEach(Array(groupedBindings.enumerated()), id: \.offset) {
+                    _, group in
+                    BGISectionCard(
+                        group.category,
+                        symbolName:
+                            group.category == "操作"
+                            ? "gamecontroller"
+                            : "rectangle.grid.2x2"
+                    ) {
+                        VStack(spacing: 0) {
+                            ForEach(group.bindings) { binding in
+                                bindingRow(binding, settings: settings)
+                            }
+                        }
+                    }
+                }
+            } else {
+                BGISectionCard(
+                    "按键绑定尚未就绪",
+                    subtitle: "BetterGI Core 启动后会加载游戏键位。",
+                    symbolName: "keyboard"
+                ) {
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    private var groupedBindings:
+        [(category: String, bindings: [BetterGIKeyBinding])]
+    {
+        (appState.keyBindingSettings?.bindings ?? []).reduce(
+            into: []
+        ) { groups, binding in
+            if let index = groups.firstIndex(where: {
+                $0.category == binding.category
+            }) {
+                groups[index].bindings.append(binding)
+            } else {
+                groups.append((
+                    category: binding.category,
+                    bindings: [binding]))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func bindingRow(
+        _ binding: BetterGIKeyBinding,
+        settings: BetterGIKeyBindingSettings
+    ) -> some View {
+        BGISettingLine(
+            title: binding.actionName,
+            subtitle: binding.supported
+                ? binding.displayValue
+                : "当前键值无法由 macOS 输入桥投递"
+        ) {
+            Picker(
+                binding.actionName,
+                selection: Binding(
+                    get: { binding.value },
+                    set: {
+                        appState.setGameKeyBinding(
+                            binding,
+                            value: $0)
+                    })
+            ) {
+                if !binding.supported {
+                    Text(binding.displayValue)
+                        .tag(binding.value)
+                }
+                ForEach(settings.options) { option in
+                    Text(option.displayName)
+                        .tag(option.value)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 150)
+        }
+    }
+}
+
 struct NotificationPage: View {
     @EnvironmentObject private var appState: AppState
 

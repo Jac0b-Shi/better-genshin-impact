@@ -117,8 +117,10 @@ server.AttachGameScreenshotAction(new MacGameScreenshotAction(
         BetterGenshinImpact.GameTask.Screenshot.GameScreenshotTask>()));
 var foregroundInputCoordinator = new ForegroundInputCoordinator(
     server.PlatformCallbacks, sessionToken, shutdown.Token);
+var externalKeyMappingResolver = new ExternalKeyMappingResolver(layout);
 var globalMethodRuntime = new MacGlobalMethodRuntime(
-    server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing, foregroundInputCoordinator);
+    server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing,
+    foregroundInputCoordinator, externalKeyMappingResolver);
 BetterGenshinImpact.Core.BgiVision.BvRuntimePlatform.Configure(
     new MacBvRuntimePlatform(() => gameTaskManagerPlatform.SystemInfo));
 var bvSimpleOperationPlatform = new MacBvSimpleOperationPlatform(
@@ -159,10 +161,11 @@ server.AttachPlatformAssetInitializer(() =>
         autoPickConfigProvider, paddleAutoPickRecognizer, yapAutoPickRecognizer);
 });
 BetterGenshinImpact.Core.Recognition.OCR.ImageRegionOcrPlatform.Configure(imageRegionOcrService);
+var gameActionKeyResolver = new GameActionKeyResolver(layout);
 var taskControlPlatform = new MacTaskControlPlatform(
     server.PlatformCallbacks, sessionToken, shutdown.Token, captureRing,
     loggerFactory.CreateLogger("BetterGenshinImpact.GameTask.Common.TaskControl"),
-    foregroundInputCoordinator, new GameActionKeyResolver(layout));
+    foregroundInputCoordinator, gameActionKeyResolver);
 TaskControlPlatform.Configure(taskControlPlatform);
 using var notificationSettings = new NotificationSettingsCatalog(
     layout,
@@ -190,6 +193,13 @@ using var auxiliaryControls = new AuxiliaryControlCoordinator(
     shutdown.Token,
     loggerFactory.CreateLogger<AuxiliaryControlCoordinator>());
 server.MacroSettings.AttachUpdated(auxiliaryControls.ApplySettings);
+var macroSettingsCatalog = server.MacroSettings;
+server.KeyBindingSettings.AttachUpdated(() =>
+{
+    gameActionKeyResolver.Invalidate();
+    externalKeyMappingResolver.Invalidate();
+    auxiliaryControls.ApplySettings(macroSettingsCatalog.Snapshot());
+});
 server.AttachAuxiliaryControlCoordinator(auxiliaryControls);
 BetterGenshinImpact.GameTask.Macro.TurnAroundRuntimePlatform.Configure(
     new MacTurnAroundRuntimePlatform(

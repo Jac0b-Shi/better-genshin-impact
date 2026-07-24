@@ -44,6 +44,8 @@ struct MainWindowView: View {
             MacroPage()
         case .hotkey:
             HotkeyPage()
+        case .keyBinding:
+            KeyBindingPage()
         case .notification:
             NotificationPage()
         case .settings:

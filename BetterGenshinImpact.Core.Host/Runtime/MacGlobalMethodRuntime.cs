@@ -17,16 +17,17 @@ public sealed class MacGlobalMethodRuntime(
     string sessionToken,
     CancellationToken cancellationToken,
     SharedCaptureRingReader captureRing,
-    ForegroundInputCoordinator inputCoordinator) : IGlobalMethodRuntime
+    ForegroundInputCoordinator inputCoordinator,
+    ExternalKeyMappingResolver keyMappingResolver) : IGlobalMethodRuntime
 {
     public CancellationToken CancellationToken => cancellationToken;
 
     public double DpiScale => Invoke("window.metrics", null).Value<double?>("dpiScale")
         ?? throw new InvalidDataException("window.metrics did not return dpiScale.");
 
-    public void KeyDown(string key) => Dispatch(new { action = "keyDown", key });
-    public void KeyUp(string key) => Dispatch(new { action = "keyUp", key });
-    public void KeyPress(string key) => Dispatch(new { action = "keyPress", key });
+    public void KeyDown(string key) => DispatchKey("keyDown", key);
+    public void KeyUp(string key) => DispatchKey("keyUp", key);
+    public void KeyPress(string key) => DispatchKey("keyPress", key);
     public void MoveMouseBy(int x, int y) => Dispatch(new { action = "moveMouseBy", x, y });
     public void MoveMouseToGameCoordinate(int x, int y, int gameWidth, int gameHeight) =>
         Dispatch(new { action = "moveMouseToGame", x, y, gameWidth, gameHeight });
@@ -56,6 +57,46 @@ public sealed class MacGlobalMethodRuntime(
     private void Dispatch(object operation)
     {
         inputCoordinator.Dispatch(JObject.FromObject(operation), cancellationToken);
+    }
+
+    private void DispatchKey(string action, string key)
+    {
+        var mapped = keyMappingResolver.Resolve(key);
+        if (mapped is null)
+        {
+            Dispatch(new JObject
+            {
+                ["action"] = action,
+                ["key"] = key,
+            });
+            return;
+        }
+        if (mapped.WindowsVirtualKey is null &&
+            mapped.MouseButton is null)
+        {
+            return;
+        }
+        if (mapped.MouseButton is not null)
+        {
+            Dispatch(new JObject
+            {
+                ["action"] = action switch
+                {
+                    "keyDown" => "mouseDown",
+                    "keyUp" => "mouseUp",
+                    "keyPress" => "mouseClick",
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(action), action, null),
+                },
+                ["button"] = mapped.MouseButton,
+            });
+            return;
+        }
+        Dispatch(new JObject
+        {
+            ["action"] = action,
+            ["windowsVirtualKey"] = mapped.WindowsVirtualKey,
+        });
     }
 
     private JToken Invoke(string method, JObject? parameters) =>

@@ -122,6 +122,7 @@ enum NavigationPage: String, CaseIterable, Identifiable {
     case recordReplay
     case macro
     case hotkey
+    case keyBinding
     case notification
     case settings
 
@@ -138,6 +139,7 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .recordReplay: "录制回放"
         case .macro: "辅助操控"
         case .hotkey: "快捷键"
+        case .keyBinding: "按键绑定"
         case .notification: "通知"
         case .settings: "Settings"
         }
@@ -154,6 +156,7 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .recordReplay: "键鼠脚本"
         case .macro: "宏与操控"
         case .hotkey: "全局热键"
+        case .keyBinding: "游戏键位"
         case .notification: "推送设置"
         case .settings: "软件设置"
         }
@@ -170,6 +173,7 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .recordReplay: "record.circle"
         case .macro: "gamecontroller"
         case .hotkey: "bolt"
+        case .keyBinding: "keyboard"
         case .notification: "bell"
         case .settings: "gearshape"
         }
@@ -351,6 +355,7 @@ final class AppState: ObservableObject {
     private var notificationChannelSaveTasks: [String: Task<Void, Never>] = [:]
     private var macroSettingsSaveRevision = 0
     private var hotKeySettingsSaveRevision = 0
+    private var keyBindingSettingsSaveRevision = 0
     private var hotKeyMonitorErrorLogged = false
     private lazy var auxiliaryControlMonitor = MacAuxiliaryControlMonitor {
         [weak self] key, isDown in
@@ -404,6 +409,8 @@ final class AppState: ObservableObject {
     @Published private(set) var notificationTestStatus = ""
     @Published private(set) var macroSettings: BetterGIMacroSettings?
     @Published private(set) var hotKeyBindings: [BetterGIHotKeyBinding] = []
+    @Published private(set) var keyBindingSettings:
+        BetterGIKeyBindingSettings?
     @Published private(set) var hotKeyCaptureID: String?
     @Published private(set) var hotKeyStatusMessage = ""
     @Published private(set) var autoGeniusInvokationSettings:
@@ -1186,6 +1193,112 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func loadKeyBindingSettingsFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else {
+            keyBindingSettings = nil
+            keyBindings = .bgiDefault
+            return
+        }
+        do {
+            applyKeyBindingSettings(
+                try await supervisor.keyBindingSettings())
+        } catch {
+            keyBindingSettings = nil
+            keyBindings = .bgiDefault
+            addLog(
+                .error,
+                "按键绑定设置加载失败：\(error.localizedDescription)")
+        }
+    }
+
+    func setGlobalKeyMappingEnabled(_ enabled: Bool) {
+        guard let current = keyBindingSettings else { return }
+        saveKeyBindingSettings(BetterGIKeyBindingSettings(
+            globalKeyMappingEnabled: enabled,
+            bindings: current.bindings,
+            options: current.options))
+    }
+
+    func setGameKeyBinding(_ binding: BetterGIKeyBinding, value: Int) {
+        guard let current = keyBindingSettings,
+              let option = current.options.first(where: {
+                  $0.value == value
+              })
+        else {
+            return
+        }
+        let bindings = current.bindings.map { item in
+            guard item.id == binding.id else { return item }
+            return BetterGIKeyBinding(
+                id: item.id,
+                category: item.category,
+                actionName: item.actionName,
+                value: option.value,
+                displayValue: option.displayName,
+                supported: true)
+        }
+        saveKeyBindingSettings(BetterGIKeyBindingSettings(
+            globalKeyMappingEnabled:
+                current.globalKeyMappingEnabled,
+            bindings: bindings,
+            options: current.options))
+    }
+
+    private func saveKeyBindingSettings(
+        _ settings: BetterGIKeyBindingSettings
+    ) {
+        guard let supervisor = betterGICoreSupervisor else {
+            addLog(
+                .error,
+                "按键绑定设置保存失败：BetterGI Core 尚未就绪。")
+            return
+        }
+        keyBindingSettingsSaveRevision += 1
+        let revision = keyBindingSettingsSaveRevision
+        applyKeyBindingSettings(settings)
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let saved = try await supervisor.saveKeyBindingSettings(
+                    settings)
+                guard revision == self.keyBindingSettingsSaveRevision
+                else {
+                    return
+                }
+                self.applyKeyBindingSettings(saved)
+                await self.loadMacroSettingsFromCore()
+            } catch {
+                if revision == self.keyBindingSettingsSaveRevision {
+                    await self.loadKeyBindingSettingsFromCore()
+                    await self.loadMacroSettingsFromCore()
+                }
+                self.addLog(
+                    .error,
+                    "按键绑定设置保存失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func applyKeyBindingSettings(
+        _ settings: BetterGIKeyBindingSettings
+    ) {
+        keyBindingSettings = settings
+        let mapped = settings.bindings.reduce(
+            into: [GIAction: KeyID]()
+        ) { result, binding in
+            guard let action = GIAction(rawValue: binding.id),
+                  let key = KeyID(windowsVirtualKey: binding.value)
+            else {
+                return
+            }
+            result[action] = key
+        }
+        keyBindings = KeyBindingsConfig(
+            globalKeyMappingEnabled:
+                settings.globalKeyMappingEnabled,
+            bindings: mapped)
+    }
+
     func beginHotKeyCapture(_ binding: BetterGIHotKeyBinding) {
         do {
             try hotKeyMonitor.beginCapture(
@@ -1585,6 +1698,7 @@ final class AppState: ObservableObject {
             await loadNotificationSettingsFromCore()
             await loadMacroSettingsFromCore()
             await loadHotKeySettingsFromCore()
+            await loadKeyBindingSettingsFromCore()
             attemptAutoStartRuntime()
         } catch {
             NSLog("BetterGI Core startup failed: %@", error.localizedDescription)
@@ -2038,6 +2152,8 @@ final class AppState: ObservableObject {
             CoreCatalogIssue(path: "Core/catalog", message: error.localizedDescription)
         ]
         hotKeyBindings = []
+        keyBindingSettings = nil
+        keyBindings = .bgiDefault
         hotKeyMonitor.stop()
     }
 

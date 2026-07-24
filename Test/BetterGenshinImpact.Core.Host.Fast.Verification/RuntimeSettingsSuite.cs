@@ -1115,6 +1115,41 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                 ((JArray)notificationResult["events"]!).Count > 10,
                 notificationGet.Error?.Message ?? "notification.settings.get returned an invalid result.");
 
+            var keyBindingGet = await ExchangeAsync(
+                connection, "key-binding-get", "keyBinding.settings.get",
+                sessionToken, null, cancellationToken);
+            var keyBindingResult = JObject.FromObject(keyBindingGet.Result!);
+            var gameBindings = (JArray)keyBindingResult["bindings"]!;
+            context.Require(
+                keyBindingGet.Error is null &&
+                gameBindings.Count == 46 &&
+                keyBindingResult["options"] is JArray { Count: > 60 } &&
+                gameBindings.Single(item =>
+                    item.Value<string>("id") == "pickUpOrInteract")
+                    .Value<int>("value") == 0x47,
+                keyBindingGet.Error?.Message ??
+                    "keyBinding.settings.get did not expose the Core-owned game bindings.");
+            ((JObject)gameBindings.Single(item =>
+                item.Value<string>("id") == "jump"))["value"] = 0x4A;
+            keyBindingResult["globalKeyMappingEnabled"] = true;
+            var keyBindingSave = await ExchangeAsync(
+                connection, "key-binding-save", "keyBinding.settings.save",
+                sessionToken, JObject.FromObject(new
+                {
+                    settings = keyBindingResult,
+                }), cancellationToken);
+            var keyBindingSaveResult =
+                JObject.FromObject(keyBindingSave.Result!);
+            context.Require(
+                keyBindingSave.Error is null &&
+                keyBindingSaveResult.Value<bool>(
+                    "globalKeyMappingEnabled") &&
+                ((JArray)keyBindingSaveResult["bindings"]!).Single(item =>
+                    item.Value<string>("id") == "jump")
+                    .Value<int>("value") == 0x4A,
+                keyBindingSave.Error?.Message ??
+                    "keyBinding.settings.save did not persist the RPC contract.");
+
             var hotKeyList = await ExchangeAsync(
                 connection, "hotkey-list", "hotKey.settings.list",
                 sessionToken, null, cancellationToken);

@@ -122,6 +122,28 @@ struct BetterGIHotKeyBinding: Sendable, Equatable, Identifiable {
     }
 }
 
+struct BetterGIKeyBindingOption: Sendable, Equatable, Identifiable {
+    let value: Int
+    let displayName: String
+
+    var id: Int { value }
+}
+
+struct BetterGIKeyBinding: Sendable, Equatable, Identifiable {
+    let id: String
+    let category: String
+    let actionName: String
+    let value: Int
+    let displayValue: String
+    let supported: Bool
+}
+
+struct BetterGIKeyBindingSettings: Sendable, Equatable {
+    let globalKeyMappingEnabled: Bool
+    let bindings: [BetterGIKeyBinding]
+    let options: [BetterGIKeyBindingOption]
+}
+
 struct BetterGIMacroSettings: Sendable, Equatable {
     let fPressHoldToContinuationEnabled: Bool
     let fFireInterval: Int
@@ -739,6 +761,27 @@ actor BetterGICoreProcessSupervisor {
             ]))
     }
 
+    func keyBindingSettings() throws -> BetterGIKeyBindingSettings {
+        try parseKeyBindingSettings(
+            runningClient().request(method: "keyBinding.settings.get"))
+    }
+
+    func saveKeyBindingSettings(
+        _ settings: BetterGIKeyBindingSettings
+    ) throws -> BetterGIKeyBindingSettings {
+        try parseKeyBindingSettings(runningClient().request(
+            method: "keyBinding.settings.save",
+            parameters: [
+                "settings": [
+                    "globalKeyMappingEnabled":
+                        settings.globalKeyMappingEnabled,
+                    "bindings": settings.bindings.map {
+                        ["id": $0.id, "value": $0.value]
+                    },
+                ],
+            ]))
+    }
+
     func invokeHotKey(id: String, isDown: Bool) throws -> String? {
         guard let result = try runningClient().request(
             method: "hotKey.invoke",
@@ -1015,6 +1058,54 @@ actor BetterGICoreProcessSupervisor {
                 dispatchOnPress: dispatchOnPress,
                 dispatchOnRelease: dispatchOnRelease)
         }
+    }
+
+    private func parseKeyBindingSettings(_ value: Any) throws
+        -> BetterGIKeyBindingSettings
+    {
+        guard let result = value as? [String: Any],
+              let globalKeyMappingEnabled =
+                result["globalKeyMappingEnabled"] as? Bool,
+              let rawBindings = result["bindings"] as? [[String: Any]],
+              let rawOptions = result["options"] as? [[String: Any]]
+        else {
+            throw BetterGICoreRPCError.protocolViolation(
+                "Invalid key binding settings result.")
+        }
+        let bindings = try rawBindings.map { item in
+            guard let id = item["id"] as? String,
+                  let category = item["category"] as? String,
+                  let actionName = item["actionName"] as? String,
+                  let value = item["value"] as? Int,
+                  let displayValue = item["displayValue"] as? String,
+                  let supported = item["supported"] as? Bool
+            else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid game key binding descriptor.")
+            }
+            return BetterGIKeyBinding(
+                id: id,
+                category: category,
+                actionName: actionName,
+                value: value,
+                displayValue: displayValue,
+                supported: supported)
+        }
+        let options = try rawOptions.map { item in
+            guard let value = item["value"] as? Int,
+                  let displayName = item["displayName"] as? String
+            else {
+                throw BetterGICoreRPCError.protocolViolation(
+                    "Invalid game key binding option.")
+            }
+            return BetterGIKeyBindingOption(
+                value: value,
+                displayName: displayName)
+        }
+        return BetterGIKeyBindingSettings(
+            globalKeyMappingEnabled: globalKeyMappingEnabled,
+            bindings: bindings,
+            options: options)
     }
 
     private func parseKeyMousePlaybackStatus(_ value: Any) throws

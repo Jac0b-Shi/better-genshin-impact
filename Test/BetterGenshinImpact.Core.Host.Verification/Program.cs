@@ -911,7 +911,7 @@ try
     }, cancellation.Token);
     var globalRuntime = new MacGlobalMethodRuntime(
         server.PlatformCallbacks, sessionToken, cancellation.Token, new SharedCaptureRingReader(layout, allowFileFixture: true),
-        foregroundInputCoordinator);
+        foregroundInputCoordinator, new ExternalKeyMappingResolver(layout));
     globalRuntime.KeyPress("VK_F");
     new BetterGenshinImpact.Core.Script.Dependence.Notification().Send("verification notification");
     await callbackResponder;

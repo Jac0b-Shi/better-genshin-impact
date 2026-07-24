@@ -161,6 +161,62 @@ enum KeyID: String, Identifiable, Equatable, Hashable, Sendable, CaseIterable {
 
     var id: String { rawValue }
 
+    init?(windowsVirtualKey value: Int) {
+        if (0x30...0x39).contains(value) {
+            self.init(rawValue: "d\(value - 0x30)")
+            return
+        }
+        if (0x41...0x5A).contains(value),
+           let scalar = UnicodeScalar(value) {
+            self.init(rawValue: String(Character(scalar)).lowercased())
+            return
+        }
+        if (0x70...0x7B).contains(value) {
+            self.init(rawValue: "f\(value - 0x6F)")
+            return
+        }
+        let key: KeyID? = switch value {
+        case 0x00: KeyID.none
+        case 0x01: .mouseLeftButton
+        case 0x02: .mouseRightButton
+        case 0x04: .mouseMiddleButton
+        case 0x05: .mouseSideButton1
+        case 0x06: .mouseSideButton2
+        case 0x08: .backspace
+        case 0x09: .tab
+        case 0x0D: .enter
+        case 0x14: .capsLock
+        case 0x1B: .escape
+        case 0x20: .space
+        case 0x21: .pageUp
+        case 0x22: .pageDown
+        case 0x23: .end
+        case 0x24: .home
+        case 0x25: .left
+        case 0x26: .up
+        case 0x27: .right
+        case 0x28: .down
+        case 0x2E: .delete
+        case 0xA0: .leftShift
+        case 0xA2: .leftCtrl
+        case 0xA4: .leftAlt
+        case 0xBA: .semicolon
+        case 0xBB: .equal
+        case 0xBC: .comma
+        case 0xBD: .minus
+        case 0xBE: .period
+        case 0xBF: .slash
+        case 0xC0: .tilde
+        case 0xDB: .leftSquareBracket
+        case 0xDC: .backslash
+        case 0xDD: .rightSquareBracket
+        case 0xDE: .apostrophe
+        default: nil
+        }
+        guard let key else { return nil }
+        self = key
+    }
+
     var displayName: String {
         switch self {
         case .none: "<未指定>"
