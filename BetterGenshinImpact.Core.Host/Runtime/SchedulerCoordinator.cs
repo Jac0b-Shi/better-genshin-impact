@@ -16,7 +16,7 @@ public sealed class SchedulerCoordinator(
     CancellationToken hostCancellationToken)
 {
     private readonly object _sync = new();
-    private string? _taskId;
+    private readonly SchedulerStatusTracker _status = new();
     private Task? _execution;
     private CancellationTokenSource? _operationCancellation;
 
@@ -60,45 +60,61 @@ public sealed class SchedulerCoordinator(
             new ScriptService().RunMulti([project], displayName));
     }
 
+    public object Status()
+        => ToRpcStatus(_status.Snapshot());
+
     private object Start(string displayName, Func<CancellationToken, Task> operation)
     {
         lock (_sync)
         {
             if (_execution is { IsCompleted: false })
-                throw new InvalidOperationException($"Scheduler task '{_taskId}' is already running.");
+                throw new InvalidOperationException(
+                    $"Scheduler task '{_status.Snapshot().TaskId}' is already running.");
             _operationCancellation?.Dispose();
             _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(hostCancellationToken);
             RunnerContext.Instance.IsSuspend = false;
             var taskId = Guid.NewGuid().ToString("N");
-            _taskId = taskId;
+            var status = _status.Start(taskId, displayName);
             _execution = ExecuteAsync(
                 taskId, displayName, operation, _operationCancellation.Token);
-            return new { taskId, state = "running", groupName = displayName };
+            return ToRpcStatus(status);
         }
     }
 
     public object Pause(string taskId)
     {
-        RequireActive(taskId);
-        RunnerContext.Instance.IsSuspend = true;
+        lock (_sync)
+        {
+            RequireActive(taskId);
+            RunnerContext.Instance.IsSuspend = true;
+            _status.Transition(taskId, "paused");
+        }
         EmitAsync(taskId, "paused", null).GetAwaiter().GetResult();
-        return new { taskId, state = "paused" };
+        return Status();
     }
 
     public object Resume(string taskId)
     {
-        RequireActive(taskId);
-        RunnerContext.Instance.IsSuspend = false;
+        lock (_sync)
+        {
+            RequireActive(taskId);
+            RunnerContext.Instance.IsSuspend = false;
+            _status.Transition(taskId, "running");
+        }
         EmitAsync(taskId, "running", null).GetAwaiter().GetResult();
-        return new { taskId, state = "running" };
+        return Status();
     }
 
     public object Stop(string taskId)
     {
-        RequireActive(taskId);
-        CancellationContext.Instance.ManualCancel();
-        _operationCancellation?.Cancel();
-        return new { taskId, state = "stopping" };
+        lock (_sync)
+        {
+            RequireActive(taskId);
+            var status = _status.Transition(taskId, "stopping");
+            CancellationContext.Instance.ManualCancel();
+            _operationCancellation?.Cancel();
+            return ToRpcStatus(status);
+        }
     }
 
     public async Task<bool> StopActiveAsync(CancellationToken cancellationToken)
@@ -106,8 +122,14 @@ public sealed class SchedulerCoordinator(
         Task? execution;
         lock (_sync)
         {
-            if (_execution is not { IsCompleted: false })
+            var status = _status.Snapshot();
+            if (_execution is not { IsCompleted: false } ||
+                SchedulerStatusTracker.IsTerminal(status.State))
                 return false;
+            _status.Transition(
+                status.TaskId
+                ?? throw new InvalidOperationException("Active scheduler task omitted its id."),
+                "stopping");
             CancellationContext.Instance.ManualCancel();
             _operationCancellation?.Cancel();
             execution = _execution;
@@ -128,15 +150,18 @@ public sealed class SchedulerCoordinator(
             await EmitAsync(taskId, "running", null);
             await operation(cancellationToken);
             var state = CancellationContext.Instance.IsManualStop ? "cancelled" : "completed";
+            SetExecutionStatus(taskId, state);
             await EmitAsync(taskId, state, null);
         }
         catch (OperationCanceledException) when (
             CancellationContext.Instance.IsManualStop || cancellationToken.IsCancellationRequested)
         {
+            SetExecutionStatus(taskId, "cancelled");
             await EmitAsync(taskId, "cancelled", null);
         }
         catch (Exception ex)
         {
+            SetExecutionStatus(taskId, "failed", ex.Message);
             await EmitAsync(taskId, "failed", new { code = ex.GetType().Name, message = ex.Message });
         }
         finally
@@ -210,12 +235,28 @@ public sealed class SchedulerCoordinator(
 
     private void RequireActive(string taskId)
     {
+        var status = _status.Snapshot();
+        if (_execution is not { IsCompleted: false } ||
+            SchedulerStatusTracker.IsTerminal(status.State) ||
+            !string.Equals(taskId, status.TaskId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Scheduler task '{taskId}' is not active.");
+    }
+
+    private void SetExecutionStatus(string taskId, string state, string? error = null)
+    {
         lock (_sync)
         {
-            if (_execution is not { IsCompleted: false } || !string.Equals(taskId, _taskId, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Scheduler task '{taskId}' is not active.");
+            _status.Transition(taskId, state, error);
         }
     }
+
+    private static object ToRpcStatus(SchedulerStatusSnapshot status) => new
+    {
+        taskId = status.TaskId,
+        state = status.State,
+        groupName = status.GroupName,
+        error = status.Error
+    };
 
     private string ResolveGroup(string groupName)
     {

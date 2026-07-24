@@ -451,6 +451,7 @@ public sealed class CoreRpcServer(
                 "scheduler.run" => Scheduler.Run(RequiredString(request.Params, "groupName")),
                 "scheduler.runGroups" => Scheduler.RunGroups(
                     RequiredStrings(request.Params, "groupNames")),
+                "scheduler.status" => Scheduler.Status(),
                 "scheduler.pause" => Scheduler.Pause(RequiredString(request.Params, "taskId")),
                 "scheduler.resume" => Scheduler.Resume(RequiredString(request.Params, "taskId")),
                 "scheduler.stop" => Scheduler.Stop(RequiredString(request.Params, "taskId")),
@@ -506,6 +507,7 @@ public sealed class CoreRpcServer(
                 "runtime.geometry-refresh",
                 "scheduler.run",
                 "scheduler.runGroups",
+                "scheduler.status",
                 "keyMouse.recording",
                 "keyMouse.playback",
                 "notification.native",

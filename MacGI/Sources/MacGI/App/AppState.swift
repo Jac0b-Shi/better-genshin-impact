@@ -1578,6 +1578,7 @@ final class AppState: ObservableObject {
             await loadTriggerStatesFromCore()
             await loadSoloTasksFromCore()
             await loadSchedulerGroupsFromCore()
+            await synchronizeSchedulerStatusFromCore()
             await loadScriptProjectsFromCore()
             await loadPathingEntriesFromCore()
             await loadKeyMouseScriptsFromCore()
@@ -2243,6 +2244,41 @@ final class AppState: ObservableObject {
         appStatus = .running
         schedulerExecutionStatus = "running"
         addLog(.info, "Core scheduler started group \(groupName) as \(taskID)")
+    }
+
+    private func synchronizeSchedulerStatusFromCore() async {
+        guard let supervisor = betterGICoreSupervisor else { return }
+        do {
+            let status = try await supervisor.schedulerStatus()
+            switch status.state {
+            case "idle":
+                currentSchedulerProjectID = nil
+                schedulerExecutionStatus = "Idle"
+                schedulerExecutionError = nil
+            case "stopping":
+                guard let taskID = status.taskID else {
+                    throw BetterGICoreRPCError.protocolViolation(
+                        "scheduler.status stopping state omitted taskId.")
+                }
+                currentSchedulerProjectID = taskID
+                schedulerExecutionStatus = status.state
+                schedulerExecutionError = status.error
+            case "running", "paused", "completed", "cancelled", "failed":
+                guard let taskID = status.taskID else {
+                    throw BetterGICoreRPCError.protocolViolation(
+                        "scheduler.status \(status.state) state omitted taskId.")
+                }
+                try handleCoreSchedulerEvent(
+                    taskID: taskID, state: status.state, error: status.error)
+            default:
+                throw BetterGICoreRPCError.protocolViolation(
+                    "scheduler.status contains unsupported state \(status.state).")
+            }
+        } catch {
+            schedulerExecutionStatus = "Status unavailable"
+            schedulerExecutionError = error.localizedDescription
+            addLog(.error, "Core scheduler status sync failed: \(error.localizedDescription)")
+        }
     }
 
     func handleCoreSchedulerControlAccepted(taskID: String, state: String) {

@@ -969,6 +969,17 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), cancellationToken);
             await using var connection = new FramedJsonConnection(socket);
 
+            var schedulerStatus = await ExchangeAsync(
+                connection, "scheduler-status", "scheduler.status", sessionToken,
+                null, cancellationToken);
+            var schedulerStatusResult = JObject.FromObject(schedulerStatus.Result!);
+            context.Require(
+                schedulerStatus.Error is null &&
+                schedulerStatusResult.Value<string>("state") == "idle" &&
+                schedulerStatusResult["taskId"]?.Type == JTokenType.Null,
+                schedulerStatus.Error?.Message ??
+                "scheduler.status did not expose the initial idle state.");
+
             var macroSave = await ExchangeAsync(
                 connection, "macro-save", "macro.settings.save", sessionToken,
                 JObject.FromObject(new

@@ -224,5 +224,8 @@ native-runtime and phase-completion changes.
 
 The `runtime-settings` Fast suite additionally starts the real Unix-domain RPC
 server and verifies macro settings, notification settings and key/mouse
-recording CRUD through framed authenticated requests. This prevents direct
-catalog tests from masking RPC method or payload drift.
+recording CRUD plus the initial `scheduler.status` snapshot through framed
+authenticated requests. The isolated `scheduler-status` suite covers running,
+paused, stopping and terminal transitions, stale task rejection and error
+retention. This prevents direct catalog tests from masking RPC method or
+payload drift without expanding the legacy integration verifier.

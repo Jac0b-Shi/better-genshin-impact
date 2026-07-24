@@ -404,6 +404,13 @@ struct BetterGICoreSoloTaskStatus: Sendable, Equatable {
     let error: String?
 }
 
+struct BetterGICoreSchedulerStatus: Sendable, Equatable {
+    let taskID: String?
+    let groupName: String?
+    let state: String
+    let error: String?
+}
+
 actor BetterGICoreProcessSupervisor {
     private static let startupPollLimit = 4_800
     enum StartupPhase: Sendable {
@@ -1379,6 +1386,20 @@ actor BetterGICoreProcessSupervisor {
             throw BetterGICoreRPCError.protocolViolation("Invalid scheduler.runGroups result.")
         }
         return taskID
+    }
+
+    func schedulerStatus() throws -> BetterGICoreSchedulerStatus {
+        guard let result = try runningClient().request(method: "scheduler.status")
+            as? [String: Any],
+              let state = result["state"] as? String else {
+            throw BetterGICoreRPCError.protocolViolation(
+                "Invalid scheduler.status result.")
+        }
+        return BetterGICoreSchedulerStatus(
+            taskID: result["taskId"] as? String,
+            groupName: result["groupName"] as? String,
+            state: state,
+            error: result["error"] as? String)
     }
 
     func listTriggers() throws -> [BetterGICoreTriggerState] {

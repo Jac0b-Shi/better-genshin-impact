@@ -10,6 +10,7 @@ return await VerificationRunner.RunAsync(args,
     new ScriptRepositorySuite(),
     new RuntimeCancellationSuite(),
     new RuntimeSettingsSuite(),
+    new SchedulerStatusSuite(),
     new HtmlMaskContractSuite(),
     new CaptureRingContractSuite(),
 ]);

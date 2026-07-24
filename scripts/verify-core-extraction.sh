@@ -52,6 +52,13 @@ fi
 
 rg -q 'Core/Script/Dependence/Dispatcher.cs' BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj \
   || fail "shared upstream Dispatcher is not linked into Core"
+rg -Fq '"scheduler.status" => Scheduler.Status()' \
+  BetterGenshinImpact.Core.Host/CoreRpcServer.cs \
+  && rg -Fq 'func schedulerStatus() throws -> BetterGICoreSchedulerStatus' \
+    MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift \
+  && rg -Fq 'await synchronizeSchedulerStatusFromCore()' \
+    MacGI/Sources/MacGI/App/AppState.swift \
+  || fail "scheduler lifecycle snapshot is not composed across Core RPC and Swift"
 rg -q 'AddHostObject\("dispatcher", new Dispatcher' \
   BetterGenshinImpact.Core.Host/Runtime/MacScriptProjectHostInitializer.cs \
   || fail "ClearScript dispatcher host is not registered"
