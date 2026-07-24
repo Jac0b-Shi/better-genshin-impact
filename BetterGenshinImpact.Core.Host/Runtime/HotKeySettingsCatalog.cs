@@ -135,6 +135,10 @@ public sealed class HotKeySettingsCatalog(RuntimeLayout layout)
             "quickBuyHotkey", "macro.quickBuy",
             "core", true, true, DispatchOnRelease: true),
         new(
+            "QuickSereniteaPotHotkey", "操控辅助", "按下快速进出尘歌壶",
+            "quickSereniteaPotHotkey", "macro.quickSereniteaPot",
+            "core", false, true),
+        new(
             "OneKeyClaimRewardHotkey", "操控辅助", "一键领取奖励",
             "oneKeyClaimRewardHotkey", "macro.claimReward",
             "core", true, true, DispatchOnRelease: true),

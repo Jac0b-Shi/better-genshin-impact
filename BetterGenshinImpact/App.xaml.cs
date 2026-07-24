@@ -249,6 +249,8 @@ public partial class App : Application
             new Core.Runtime.Windows.WindowsQuickEnhanceArtifactRuntimePlatform());
         GameTask.QuickBuy.QuickBuyRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsQuickBuyRuntimePlatform());
+        GameTask.QuickSereniteaPot.QuickSereniteaPotRuntimePlatform.Configure(
+            new Core.Runtime.Windows.WindowsQuickSereniteaPotRuntimePlatform());
         GameTask.QuickClaimReward.OneKeyClaimRewardRuntimePlatform.Configure(
             new Core.Runtime.Windows.WindowsOneKeyClaimRewardRuntimePlatform());
         GameTask.AutoFight.OneKeyFightRuntimePlatform.Configure(

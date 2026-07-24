@@ -110,8 +110,8 @@ notifier implementations are extracted.
 
 The production page exposes the two upstream hold-continuation controls, the
 Neuvillette turn-around macro, quick artifact enhancement, quick shop purchase,
-one-key reward claiming, one-key combat and the upstream confirm/cancel button
-hold actions.
+quick Serenitea Pot entry/exit, one-key reward claiming, one-key combat and the
+upstream confirm/cancel button hold actions.
 Core reads and writes
 `macroConfig`,
 supplies the configured `KeyBindingsConfig` pickup and jump virtual keys, and
@@ -132,6 +132,11 @@ click-once/hold state machine, top-left candidate ordering, blank-continue ESC
 handling, 30-click cap, scroll chunking and release cancellation. Core persists
 the original mode, scroll-enable and scroll-amount fields; macOS supplies only
 capture, coordinate conversion, focus-safe input and logging.
+The shared `QuickSereniteaPotTask` retains the upstream bag/pot template
+retries, white-confirm recognition, main/big-map recovery and OCR-gated
+enter/leave interaction. Core owns its one-shot deduplication and runtime-stop
+cancellation; macOS supplies only capture, foreground-safe input, timing,
+logging and overlay cleanup.
 The shared `OneKeyFightTask` owns the upstream three-mode press/release state
 machine, current-avatar recognition, per-avatar macro selection, command loop
 and residual key release. Core persists the original enable, mode and priority

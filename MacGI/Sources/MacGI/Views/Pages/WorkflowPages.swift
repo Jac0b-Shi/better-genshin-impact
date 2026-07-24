@@ -882,6 +882,19 @@ struct MacroPage: View {
             }
 
             BGIOriginalCard(
+                icon: .symbol("house"),
+                title: "一键进出尘歌壶",
+                subtitle: "一键自动打开背包，放置尘歌壶并进入。"
+            ) {
+                EmptyView()
+            } content: {
+                Text("请在快捷键设置中绑定“按下快速进出尘歌壶”。")
+                    .font(BGIFonts.body)
+                    .foregroundStyle(BGIColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            BGIOriginalCard(
                 icon: .symbol("gift"),
                 title: "一键领取奖励",
                 subtitle: "识别当前页面的领取按钮或礼物图标并点击，需要配置快捷键进行触发"

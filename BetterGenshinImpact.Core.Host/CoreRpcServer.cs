@@ -47,6 +47,7 @@ public sealed class CoreRpcServer(
     private KeyMouseScriptCoordinator? _keyMouseScripts;
     private AuxiliaryControlCoordinator? _auxiliaryControls;
     private HoldHotKeyCoordinator? _holdHotKeys;
+    private OneShotHotKeyCoordinator? _oneShotHotKeys;
     private int _platformAssetsInitialized;
     private readonly SemaphoreSlim _runtimeMutationLock = new(1, 1);
     public PlatformCallbackChannel PlatformCallbacks => _platformCallbacks;
@@ -132,6 +133,20 @@ public sealed class CoreRpcServer(
         {
             throw new InvalidOperationException(
                 "Hold hotkey coordinator has already been attached.");
+        }
+    }
+
+    public void AttachOneShotHotKeyCoordinator(
+        OneShotHotKeyCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        if (Interlocked.CompareExchange(
+                ref _oneShotHotKeys,
+                coordinator,
+                null) is not null)
+        {
+            throw new InvalidOperationException(
+                "One-shot hotkey coordinator has already been attached.");
         }
     }
 
@@ -491,6 +506,7 @@ public sealed class CoreRpcServer(
                 "notification.native",
                 "macro.hold-continuation",
                 "macro.turn-around",
+                "macro.quick-serenitea-pot",
                 "macro.one-key-fight"
             }
         };
@@ -560,6 +576,7 @@ public sealed class CoreRpcServer(
                 dispatcher.Start();
             _auxiliaryControls?.Start();
             _holdHotKeys?.Start();
+            _oneShotHotKeys?.Start();
             return RuntimeStatus();
         }
         finally
@@ -583,6 +600,8 @@ public sealed class CoreRpcServer(
                 await _auxiliaryControls.StopAsync();
             if (_holdHotKeys is not null)
                 await _holdHotKeys.StopAsync();
+            if (_oneShotHotKeys is not null)
+                await _oneShotHotKeys.StopAsync();
             await RequiredTriggerDispatcher().StopAsync(cancellationToken);
             return RuntimeStatus();
         }
@@ -644,6 +663,10 @@ public sealed class CoreRpcServer(
     private HoldHotKeyCoordinator RequiredHoldHotKeys() =>
         _holdHotKeys ?? throw new CapabilityUnavailableException(
             "Hold hotkeys are unavailable until Core composition completes.");
+
+    private OneShotHotKeyCoordinator RequiredOneShotHotKeys() =>
+        _oneShotHotKeys ?? throw new CapabilityUnavailableException(
+            "One-shot hotkeys are unavailable until Core composition completes.");
 
     private object ListTriggers()
     {
@@ -745,6 +768,8 @@ public sealed class CoreRpcServer(
         }
         if (descriptor.Action.StartsWith("solo.toggle:", StringComparison.Ordinal))
             return SoloTasks.Toggle(descriptor.Action["solo.toggle:".Length..]);
+        if (descriptor.Action == "macro.quickSereniteaPot")
+            return RequiredOneShotHotKeys().Invoke(id);
 
         throw new CapabilityUnavailableException(
             $"Hotkey action '{descriptor.Action}' is not composed in the macOS Core.");

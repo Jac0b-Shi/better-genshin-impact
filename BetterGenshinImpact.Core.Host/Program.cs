@@ -193,6 +193,15 @@ BetterGenshinImpact.GameTask.QuickBuy.QuickBuyRuntimePlatform.Configure(
         foregroundInputCoordinator,
         shutdown.Token,
         loggerFactory.CreateLogger<MacQuickBuyRuntimePlatform>()));
+BetterGenshinImpact.GameTask.QuickSereniteaPot
+    .QuickSereniteaPotRuntimePlatform.Configure(
+        new MacQuickSereniteaPotRuntimePlatform(
+            () => gameTaskManagerPlatform.SystemInfo,
+            taskControlPlatform,
+            foregroundInputCoordinator,
+            shutdown.Token,
+            loggerFactory.CreateLogger<
+                MacQuickSereniteaPotRuntimePlatform>()));
 BetterGenshinImpact.GameTask.QuickClaimReward
     .OneKeyClaimRewardRuntimePlatform.Configure(
         new MacOneKeyClaimRewardRuntimePlatform(
@@ -234,6 +243,15 @@ using var holdHotKeys = new HoldHotKeyCoordinator(
                 .OneKeyFightTask.Instance.RunHotKey,
     });
 server.AttachHoldHotKeyCoordinator(holdHotKeys);
+using var oneShotHotKeys = new OneShotHotKeyCoordinator(
+    shutdown.Token,
+    loggerFactory.CreateLogger<OneShotHotKeyCoordinator>(),
+    new Dictionary<string, Action<CancellationToken>>(StringComparer.Ordinal)
+    {
+        [OneShotHotKeyCoordinator.QuickSereniteaPotHotKey] =
+            taskControlPlatform.CreateQuickSereniteaPotAction(),
+    });
+server.AttachOneShotHotKeyCoordinator(oneShotHotKeys);
 var autoFightRuntimePlatform = new MacAutoFightRuntimePlatform(
     layout, () => gameTaskManagerPlatform.SystemInfo, imageRegionOcrService,
     loggerFactory, server.MacroSettings);

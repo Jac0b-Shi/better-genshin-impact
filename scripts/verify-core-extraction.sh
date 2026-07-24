@@ -101,6 +101,30 @@ rg -q 'Shared QuickBuyTask diverged from the upstream Serenitea Pot sequence' \
   && rg -q 'QuickBuyTask cancellation left the synthetic mouse button pressed' \
     Test/BetterGenshinImpact.Core.Host.Fast.Verification/RuntimeSettingsSuite.cs \
   || fail "quick-buy interaction and cancellation contracts are not verified"
+rg -q 'QuickSereniteaPotRuntimePlatform.Configure' \
+  BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -q 'new Core.Runtime.Windows.WindowsQuickSereniteaPotRuntimePlatform' \
+    BetterGenshinImpact/App.xaml.cs \
+  && rg -q 'CreateQuickSereniteaPotAction' \
+    BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -q 'AttachOneShotHotKeyCoordinator' \
+    BetterGenshinImpact.Core.Host/Program.cs \
+  && rg -qx 'QuickSereniteaPot' \
+    MacGI/Resources/game-task-assets.manifest \
+  || fail "shared quick-Serenitea-Pot task and one-shot hotkey are not composed end to end"
+if rg -n '\b(TaskContext|Simulation\.SendInput|SystemControl|Toast|VisionContext|Vanara|Wpf)\b' \
+  BetterGenshinImpact/GameTask/QuickSereniteaPot/QuickSereniteaPotTask.cs; then
+  fail "shared QuickSereniteaPotTask still owns Windows runtime dependencies"
+fi
+rg -q 'QuickSereniteaPotTask diverged from the upstream enter interaction sequence' \
+  Test/BetterGenshinImpact.Core.Host.Fast.Verification/RuntimeSettingsSuite.cs \
+  && rg -q 'One-shot Serenitea Pot hotkey did not deduplicate or cancel with runtime stop' \
+    Test/BetterGenshinImpact.Core.Host.Fast.Verification/RuntimeSettingsSuite.cs \
+  && rg -Uq 'RecognitionAssets\.Get\(\s*"QuickSereniteaPot",\s*"BagCloseButton"' \
+    BetterGenshinImpact/GameTask/QuickSereniteaPot/QuickSereniteaPotTask.cs \
+  && rg -q '"QuickSereniteaPotHotkey"' \
+    BetterGenshinImpact.Core.Host/Runtime/HotKeySettingsCatalog.cs \
+  || fail "quick-Serenitea-Pot interaction, hotkey and cancellation contracts are not verified"
 rg -q 'OneKeyClaimRewardRuntimePlatform.Configure' \
   BetterGenshinImpact.Core.Host/Program.cs \
   && rg -q 'new Core.Runtime.Windows.WindowsOneKeyClaimRewardRuntimePlatform' \

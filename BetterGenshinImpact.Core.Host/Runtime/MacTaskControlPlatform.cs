@@ -4,6 +4,7 @@ using BetterGenshinImpact.GameTask.Common;
 using BetterGenshinImpact.GameTask.Macro;
 using BetterGenshinImpact.GameTask.Model.Area;
 using BetterGenshinImpact.GameTask.QuickBuy;
+using BetterGenshinImpact.GameTask.QuickSereniteaPot;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using System.Runtime.Versioning;
@@ -96,6 +97,20 @@ public sealed class MacTaskControlPlatform(
                 QuickBuyTask.Done(cancellationToken);
                 return true;
             });
+
+    public Action<CancellationToken> CreateQuickSereniteaPotAction() =>
+        cancellationToken => WithCancellation(
+            cancellationToken,
+            () =>
+            {
+                QuickSereniteaPotTask.Done(cancellationToken);
+                return true;
+            });
+
+    public T WithOperationCancellation<T>(
+        CancellationToken operationCancellation,
+        Func<T> operation) =>
+        WithCancellation(operationCancellation, operation);
 
     private T WithCancellation<T>(
         CancellationToken operationCancellation,

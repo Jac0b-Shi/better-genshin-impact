@@ -9,6 +9,7 @@ using BetterGenshinImpact.GameTask.AutoFight;
 using BetterGenshinImpact.GameTask.Macro;
 using BetterGenshinImpact.GameTask.QuickBuy;
 using BetterGenshinImpact.GameTask.QuickClaimReward;
+using BetterGenshinImpact.GameTask.QuickSereniteaPot;
 using BetterGenshinImpact.Service.Notification;
 using BetterGenshinImpact.Verification.Framework;
 using Microsoft.Extensions.Logging;
@@ -326,6 +327,47 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     claimRewardPlatform.Settings) &&
                 claimRewardPlatform.Scrolls.SequenceEqual([-10, -10, -3]),
                 "OneKeyClaimRewardTask drifted from the upstream hold-mode scroll chunking.");
+            var quickSereniteaPotPlatform =
+                new RecordingQuickSereniteaPotRuntimePlatform
+                {
+                    IsInitialized = false,
+                    IsGameProcessActive = true,
+                };
+            QuickSereniteaPotRuntimePlatform.Configure(
+                quickSereniteaPotPlatform);
+            QuickSereniteaPotTask.Done(cancellationToken);
+            quickSereniteaPotPlatform.IsInitialized = true;
+            quickSereniteaPotPlatform.IsGameProcessActive = false;
+            QuickSereniteaPotTask.Done(cancellationToken);
+            context.Require(
+                quickSereniteaPotPlatform.NotStartedCount == 1 &&
+                quickSereniteaPotPlatform.Operations.Count == 0,
+                "QuickSereniteaPotTask bypassed its upstream runtime or focus guard.");
+            QuickSereniteaPotTask.CompleteInteraction(
+                quickSereniteaPotPlatform,
+                isEnter: true,
+                isLeave: false,
+                cancellationToken);
+            context.Require(
+                quickSereniteaPotPlatform.Operations.SequenceEqual(
+                [
+                    "info:快速进出尘歌壶:识别到 进入尘歌壶",
+                    "action:PickUpOrInteract",
+                    "info:快速进出尘歌壶:F进入尘歌壶",
+                    "wait:200",
+                    "click:1010,760",
+                ]),
+                "QuickSereniteaPotTask diverged from the upstream enter interaction sequence.");
+            quickSereniteaPotPlatform.Operations.Clear();
+            QuickSereniteaPotTask.CompleteInteraction(
+                quickSereniteaPotPlatform,
+                isEnter: false,
+                isLeave: false,
+                cancellationToken);
+            context.Require(
+                quickSereniteaPotPlatform.Operations.SequenceEqual(
+                ["info:快速进出尘歌壶:未识别到 进入或离开尘歌壶"]),
+                "QuickSereniteaPotTask sent input without recognizing the upstream interaction text.");
             claimRewardPlatform.IsInitialized = false;
             using (var dragCancellation =
                    CancellationTokenSource.CreateLinkedTokenSource(
@@ -396,6 +438,42 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     claimRewardPlatform.NotStartedCount == 1 &&
                     claimRewardPlatform.CaptureCount == 0,
                     "One-key claim reward bypassed the runtime-start guard.");
+            }
+            using (var oneShotStarted = new ManualResetEventSlim())
+            {
+                var invocationCount = 0;
+                using var oneShotHotKeys = new OneShotHotKeyCoordinator(
+                    cancellationToken,
+                    loggerFactory.CreateLogger<OneShotHotKeyCoordinator>(),
+                    new Dictionary<string, Action<CancellationToken>>(
+                        StringComparer.Ordinal)
+                    {
+                        [OneShotHotKeyCoordinator.QuickSereniteaPotHotKey] =
+                            token =>
+                            {
+                                Interlocked.Increment(ref invocationCount);
+                                oneShotStarted.Set();
+                                token.WaitHandle.WaitOne();
+                                token.ThrowIfCancellationRequested();
+                            },
+                    });
+                oneShotHotKeys.Start();
+                var started = JObject.FromObject(oneShotHotKeys.Invoke(
+                    OneShotHotKeyCoordinator.QuickSereniteaPotHotKey));
+                context.Require(
+                    oneShotStarted.Wait(TimeSpan.FromSeconds(1)),
+                    "One-shot Serenitea Pot hotkey did not start its Core action.");
+                var running = JObject.FromObject(oneShotHotKeys.Invoke(
+                    OneShotHotKeyCoordinator.QuickSereniteaPotHotKey));
+                await oneShotHotKeys.StopAsync();
+                var stopped = JObject.FromObject(oneShotHotKeys.Invoke(
+                    OneShotHotKeyCoordinator.QuickSereniteaPotHotKey));
+                context.Require(
+                    started.Value<string>("state") == "started" &&
+                    running.Value<string>("state") == "running" &&
+                    stopped.Value<string>("state") == "stopped" &&
+                    Volatile.Read(ref invocationCount) == 1,
+                    "One-shot Serenitea Pot hotkey did not deduplicate or cancel with runtime stop.");
             }
             var confirmCount = 0;
             var cancelCount = 0;
@@ -590,7 +668,7 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
             }));
             var hotKeys = JArray.FromObject(hotKeyCatalog.List());
             context.Require(
-                hotKeys.Count == 27 &&
+                hotKeys.Count == 28 &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "AutoPickEnabledHotkey")
                     .Value<string>("hotKey") == "F6" &&
@@ -629,6 +707,18 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
                     .Value<bool>("isHold") &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "QuickBuyHotkey")
+                    .Value<bool>("dispatchOnRelease") &&
+                !hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "QuickSereniteaPotHotkey")
+                    .Value<bool>("isHold") &&
+                hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "QuickSereniteaPotHotkey")
+                    .Value<bool>("dispatchOnPress") &&
+                !hotKeys.Single(item =>
+                    item.Value<string>("id") ==
+                        "QuickSereniteaPotHotkey")
                     .Value<bool>("dispatchOnRelease") &&
                 hotKeys.Single(item =>
                     item.Value<string>("id") == "OneKeyClaimRewardHotkey")
@@ -1291,6 +1381,56 @@ public sealed class RuntimeSettingsSuite : IVerificationSuite
         }
 
         public void ClearOverlay() => Operations.Add("clear");
+
+        public void LogWarning(Exception exception) =>
+            Operations.Add($"warning:{exception.GetType().Name}");
+    }
+
+    private sealed class RecordingQuickSereniteaPotRuntimePlatform
+        : IQuickSereniteaPotRuntimePlatform
+    {
+        public bool IsInitialized { get; set; }
+        public bool IsGameProcessActive { get; set; }
+        public int NotStartedCount { get; private set; }
+        public List<string> Operations { get; } = [];
+
+        public void NotifyNotStarted() => NotStartedCount++;
+
+        public BetterGenshinImpact.GameTask.Model.Area.ImageRegion Capture(
+            bool forceNew,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "Guard and interaction verification must not capture.");
+
+        public void SimulateAction(
+            BetterGenshinImpact.Core.Simulator.Extensions.GIActions action,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Operations.Add($"action:{action}");
+        }
+
+        public void ClickGame1080P(
+            double x,
+            double y,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Operations.Add($"click:{x:0},{y:0}");
+        }
+
+        public void Wait(
+            int milliseconds,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Operations.Add($"wait:{milliseconds}");
+        }
+
+        public void ClearOverlay() => Operations.Add("clear");
+
+        public void LogInformation(string message) =>
+            Operations.Add($"info:{message}");
 
         public void LogWarning(Exception exception) =>
             Operations.Add($"warning:{exception.GetType().Name}");
