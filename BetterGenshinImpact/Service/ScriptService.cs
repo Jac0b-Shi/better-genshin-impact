@@ -48,7 +48,7 @@ public partial class ScriptService : IScriptService
     public bool ShouldSkipTask(ScriptGroupProject project)
     {
 
-        if (project.GroupInfo is { Config.PathingConfig.Enabled: true } )
+        if (project.GroupInfo is { Config.PathingConfig.Enabled: true })
         {
             if (IsCurrentHourEqual(project.GroupInfo.Config.PathingConfig.SkipDuring))
             {
@@ -69,9 +69,9 @@ public partial class ScriptService : IScriptService
                     _logger.LogInformation($"{project.Name}任务已经不在执行周期（当前值${index}!=配置值${tcc.Index}），将跳过此任务！");
                     return true;
                 }
-               
+
             }
-            
+
         }
 
         if (ScriptServicePlatform.Current.FarmingPlanEnabled)
@@ -84,7 +84,7 @@ public partial class ScriptService : IScriptService
                     return true;
                 }
                 string message;
-                if (ScriptServicePlatform.Current.IsDailyFarmingLimitReached(task.FarmingInfo,out message))
+                if (ScriptServicePlatform.Current.IsDailyFarmingLimitReached(task.FarmingInfo, out message))
                 {
                     _logger.LogInformation($"{project.Name}:{message},跳过此任务！");
                     return true;
@@ -95,32 +95,39 @@ public partial class ScriptService : IScriptService
                 _logger.LogError("锄地规划统计异常：{Message}", e.Message);
             }
 
-            
+
         }
         string skipMessage;
-        if (ExecutionRecordStorage.IsSkipTask(project,out skipMessage))
+        if (ExecutionRecordStorage.IsSkipTask(project, out skipMessage))
         {
             _logger.LogInformation("{Project}:{Message},跳过此任务！", project.Name, skipMessage);
             return true;
         }
         return false; // 不跳过
     }
-    
-    
-    
-    
+
+
+
+
     //优先执行的配置组，统计每个project执行次数
     private readonly Dictionary<string, int> _projectExecutionCount = new();
-    
-    public async Task RunMulti(IEnumerable<ScriptGroupProject> projectList, string? groupName = null,TaskProgress? taskProgress = null)
+
+    public async Task RunMulti(
+        IEnumerable<ScriptGroupProject> projectList,
+        string? groupName = null,
+        TaskProgress? taskProgress = null,
+        bool preserveCancellationContext = false)
     {
         groupName ??= "默认";
 
         // 启动等待之前先进行取消操作的初始化，便于在任务开始前终止任务.
-        CancellationContext.Instance.Set();
+        if (!preserveCancellationContext)
+        {
+            CancellationContext.Instance.Set();
+        }
 
         var list = ReloadScriptProjects(projectList);
-        
+
         //恢复临时的跳过标志
         foreach (var scriptGroupProject in projectList)
         {
@@ -144,9 +151,9 @@ public partial class ScriptService : IScriptService
             _logger.LogInformation("配置组 {Name} 在启动阶段被取消", groupName);
             return;
         }
-        
-        
-        if (!string.IsNullOrEmpty(groupName)&&!RunnerContext.Instance.IsPreExecution)
+
+
+        if (!string.IsNullOrEmpty(groupName) && !RunnerContext.Instance.IsPreExecution)
         {
             // if (hasTimer)
             // {
@@ -158,10 +165,10 @@ public partial class ScriptService : IScriptService
 
         // var timerOperation = hasTimer ? DispatcherTimerOperationEnum.UseCacheImageWithTriggerEmpty : DispatcherTimerOperationEnum.UseSelfCaptureImage;
 
-        
+
         bool fisrt = true;
-        
-        
+
+
         //非优先执行配置下，清空执行计数
         if (!RunnerContext.Instance.IsPreExecution)
         {
@@ -236,7 +243,7 @@ public partial class ScriptService : IScriptService
                             // 存在优先执行的项目，则优先执行
                             if (preExecutionProjects.Count > 0)
                             {
-   
+
                                 _logger.LogInformation($"存在{preExecutionProjects.Count}个需优先执行的任务！");
                                 // 设置执行状态，进入优先执行任务
                                 RunnerContext.Instance.IsPreExecution = true;
@@ -250,7 +257,7 @@ public partial class ScriptService : IScriptService
                     {
                         projectIndex++;
                     }
-                    
+
 
                     for (int y = 0; y < exeProjects.Count; y++)
                     {
@@ -294,18 +301,19 @@ public partial class ScriptService : IScriptService
                             break;
                         }
 
-                        if (fisrt )
+                        if (fisrt)
                         {
                             fisrt = false;
                             ScriptServicePlatform.Current.NotifyGroupStart(groupName);
                         }
 
-                        if (!RunnerContext.Instance.IsPreExecution &&taskProgress != null)
+                        if (!RunnerContext.Instance.IsPreExecution && taskProgress != null)
                         {
                             taskProgress.CurrentScriptGroupProjectInfo = new TaskProgress.ScriptGroupProjectInfo
                             {
                                 Name = exeProject.Name,
-                                FolderName = exeProject.FolderName, Index = projectIndex,
+                                FolderName = exeProject.FolderName,
+                                Index = projectIndex,
                                 GroupName = taskProgress?.CurrentScriptGroupName ?? ""
                             };
                             TaskProgressManager.SaveTaskProgress(taskProgress!);
@@ -424,18 +432,20 @@ public partial class ScriptService : IScriptService
                         }
                     }
                 }
-            });
-        
+            },
+            resetCancellationContext: !preserveCancellationContext,
+            clearCancellationContextOnCompletion: !preserveCancellationContext);
+
 
         // 还原定时器
         // TaskTriggerDispatcher.Instance().SetTriggers(GameTaskManager.LoadInitialTriggers());
-        
-        if (!string.IsNullOrEmpty(groupName)&&!RunnerContext.Instance.IsPreExecution)
+
+        if (!string.IsNullOrEmpty(groupName) && !RunnerContext.Instance.IsPreExecution)
         {
             _logger.LogInformation("配置组 {Name} 执行结束", groupName);
         }
 
-        if (!fisrt&&!RunnerContext.Instance.IsPreExecution)
+        if (!fisrt && !RunnerContext.Instance.IsPreExecution)
         {
             if (CancellationContext.Instance.IsManualStop is false)
             {

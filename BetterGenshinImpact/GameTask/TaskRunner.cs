@@ -28,15 +28,20 @@ public class TaskRunner
     // {
     //     _timerOperation = timerOperation;
     // }
-    
+
     /// <summary>
     /// 加锁并独立运行任务
     /// </summary>
     /// <param name="action"></param>
     /// <param name="resetCancellationContext">任务开始时是否重建 CancellationContext。</param>
     /// <param name="clearCancellationContextOnLockFailure">获取信号量锁失败时是否清理 CancellationContext。</param>
+    /// <param name="clearCancellationContextOnCompletion">任务结束时是否清理 CancellationContext。</param>
     /// <returns></returns>
-    public async Task RunCurrentAsync(Func<Task> action, bool resetCancellationContext = true, bool clearCancellationContextOnLockFailure = false)
+    public async Task RunCurrentAsync(
+        Func<Task> action,
+        bool resetCancellationContext = true,
+        bool clearCancellationContextOnLockFailure = false,
+        bool clearCancellationContextOnCompletion = true)
     {
         // 加锁
         var taskSemaphore = TaskRunnerPlatform.Current.TaskSemaphore;
@@ -103,7 +108,10 @@ public class TaskRunner
             End();
             _logger.LogInformation("→ {Text}", _name + "任务结束");
 
-            CancellationContext.Instance.Clear();
+            if (clearCancellationContextOnCompletion)
+            {
+                CancellationContext.Instance.Clear();
+            }
             RunnerContext.Instance.Clear();
 
             // 释放锁
@@ -119,9 +127,17 @@ public class TaskRunner
         Task.Run(() => RunCurrentAsync(action));
     }
 
-    public async Task RunThreadAsync(Func<Task> action)
+    public async Task RunThreadAsync(
+        Func<Task> action,
+        bool resetCancellationContext = true,
+        bool clearCancellationContextOnLockFailure = false,
+        bool clearCancellationContextOnCompletion = true)
     {
-        await Task.Run(() => RunCurrentAsync(action));
+        await Task.Run(() => RunCurrentAsync(
+            action,
+            resetCancellationContext,
+            clearCancellationContextOnLockFailure,
+            clearCancellationContextOnCompletion));
     }
 
     public async Task RunSoloTaskAsync(ISoloTask soloTask)
@@ -139,7 +155,7 @@ public class TaskRunner
             CancellationContext.Instance.Clear();
             return;
         }
-        
+
         await Task.Run(() => RunCurrentAsync(
             async () => await soloTask.Start(CancellationContext.Instance.Cts.Token),
             resetCancellationContext: false,

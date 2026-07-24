@@ -48,10 +48,15 @@ surface and must not be represented as an independent task card. The shared
 `OneDragonPlan` now owns old/new configuration compatibility, explicit order,
 duplicate task names, enabled state and resume-marker fallback; the Windows
 ViewModel consumes that same plan for display and execution-window selection.
-Task construction, ScriptGroup mixing, notification sequencing and completion
-actions still remain in the WPF layer, so macOS does not expose a production
-OneDragon navigation entry yet. A static gate rejects reintroducing the removed
-hard-coded Swift page before that Core-owned workflow exists.
+The shared `OneDragonRunner` owns built-in versus ScriptGroup classification,
+ordered execution, task intervals, cancellation checks, DragonStart/DragonEnd
+timing, reward-check ordering and completion action selection. Windows reaches
+that runner through `WindowsOneDragonExecutionPlatform`; the WPF ViewModel no
+longer contains a second orchestration loop. macOS still needs its built-in
+task request executor, OneDragon configuration/RPC catalog and workflow UI
+before a production navigation entry can be exposed. A static gate rejects
+reintroducing the removed hard-coded Swift page before that platform
+composition exists.
 
 ## Runtime pathing actions
 

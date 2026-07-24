@@ -337,6 +337,7 @@
     <Compile Include="../BetterGenshinImpact/Core/Script/Group/ScriptGroupProject.cs" Link="Core/Script/Group/ScriptGroupProject.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/Group/ScriptGroupProject.Execution.cs" Link="Core/Script/Group/ScriptGroupProject.Execution.cs" />
     <Compile Include="../BetterGenshinImpact/Core/Script/OneDragon/OneDragonPlan.cs" Link="Core/Script/OneDragon/OneDragonPlan.cs" />
+    <Compile Include="../BetterGenshinImpact/Core/Script/OneDragon/OneDragonRunner.cs" Link="Core/Script/OneDragon/OneDragonRunner.cs" />
   </ItemGroup>
 
   <!-- Shared scheduler lifecycle state; combat recognition remains in RunnerContext.Combat.cs and is linked with that task slice. -->

@@ -25,6 +25,17 @@ if rg -n 'OneDragonPage|sidebarButton\(\.oneDragon\)|case \.oneDragon|oneDragonI
   MacGI/Sources/MacGI --glob '*.swift'; then
   fail "unextracted OneDragon workflow must not expose a production placeholder"
 fi
+rg -q 'Core/Script/OneDragon/OneDragonRunner.cs' \
+  BetterGenshinImpact.Core/BetterGenshinImpact.Core.csproj \
+  && rg -q 'new OneDragonRunner\(' \
+    BetterGenshinImpact/ViewModel/Pages/OneDragonFlowViewModel.cs \
+  && rg -q 'preserveCancellationContext: true' \
+    BetterGenshinImpact/Core/Runtime/Windows/WindowsOneDragonExecutionPlatform.cs \
+  || fail "OneDragon orchestration is not routed through the shared Core runner"
+if rg -n 'Notify\.Event\(NotificationEvent\.Dragon(Start|End)\)|foreach \(var task in taskListCopy\)' \
+  BetterGenshinImpact/ViewModel/Pages/OneDragonFlowViewModel.cs; then
+  fail "WPF ViewModel must not own a second OneDragon orchestration loop"
+fi
 if rg -n '\.constant\(|BGIUnavailable(Action|Toggle)|var action: \(\) -> Void = \{\}' \
   MacGI/Sources/MacGI/Views MacGI/Sources/MacGI/Components --glob '*.swift'; then
   fail "production views must not expose constant-bound controls or empty actions"
