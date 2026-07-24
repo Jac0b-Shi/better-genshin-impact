@@ -49,15 +49,6 @@ struct BetterGIListPage: View {
 }
 
 extension BetterGIListPage {
-    static let oneDragonItems = [
-        BetterGIListItem(icon: .fgi("\u{f073}"), title: "每日委托", subtitle: "自动完成日常委托并领取奖励"),
-        BetterGIListItem(icon: .fgi("\u{f14e}"), title: "领取每日奖励", subtitle: "领取纪行、探索派遣、参量质变仪等常用奖励"),
-        BetterGIListItem(icon: .symbol("envelope"), title: "邮件", subtitle: "自动领取游戏内邮件附件"),
-        BetterGIListItem(icon: .fgi("\u{f784}"), title: "合成/锻造", subtitle: "按配置执行合成、锻造和材料处理"),
-        BetterGIListItem(icon: .fgi("\u{f07a}"), title: "尘歌壶", subtitle: "领取洞天宝钱、信任等奖励"),
-        BetterGIListItem(icon: .fgi("\u{f438}"), title: "地脉/秘境", subtitle: "按流程执行消耗体力的日常任务")
-    ]
-
     static let schedulerItems = [
         BetterGIListItem(icon: .fgi("\u{f7a5}"), title: "调度器", subtitle: "按脚本组顺序执行全自动任务"),
         BetterGIListItem(icon: .symbol("folder"), title: "脚本组配置", subtitle: "管理本地脚本组、任务顺序与运行参数"),

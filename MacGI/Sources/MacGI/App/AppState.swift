@@ -116,7 +116,6 @@ enum NavigationPage: String, CaseIterable, Identifiable {
     case launch
     case realtime
     case soloTask
-    case oneDragon
     case scheduler
     case jsScript
     case mapTracking
@@ -133,7 +132,6 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .launch: "启动"
         case .realtime: "实时触发"
         case .soloTask: "独立任务"
-        case .oneDragon: "一条龙"
         case .scheduler: "调度器"
         case .jsScript: "JS 脚本"
         case .mapTracking: "地图追踪"
@@ -150,7 +148,6 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .launch: "截图器与启动"
         case .realtime: "自动化任务"
         case .soloTask: "独立运行"
-        case .oneDragon: "日常流程"
         case .scheduler: "全自动"
         case .jsScript: "脚本仓库"
         case .mapTracking: "路径追踪"
@@ -167,7 +164,6 @@ enum NavigationPage: String, CaseIterable, Identifiable {
         case .launch: "play"
         case .realtime: "timer"
         case .soloTask: "checklist"
-        case .oneDragon: "car"
         case .scheduler: "cpu"
         case .jsScript: "doc.text"
         case .mapTracking: "map"

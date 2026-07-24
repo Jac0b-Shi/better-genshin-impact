@@ -21,6 +21,11 @@ if rg -n 'Assets[\\/]+GameTask' BetterGenshinImpact.Core.Host MacGI/Sources/MacG
   exit 1
 fi
 
+if rg -n 'OneDragonPage|sidebarButton\(\.oneDragon\)|case \.oneDragon|oneDragonItems' \
+  MacGI/Sources/MacGI --glob '*.swift'; then
+  fail "unextracted OneDragon workflow must not expose a production placeholder"
+fi
+
 rg -q 'synchronizeBundledGameTaskResources\(\)' \
   MacGI/Sources/MacGI/Runtime/BetterGICoreProcessSupervisor.swift || {
   echo "Core supervisor must synchronize bundled GameTask resources before launch." >&2
