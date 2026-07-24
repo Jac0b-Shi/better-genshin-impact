@@ -36,6 +36,24 @@ if rg -n 'Notify\.Event\(NotificationEvent\.Dragon(Start|End)\)|foreach \(var ta
   BetterGenshinImpact/ViewModel/Pages/OneDragonFlowViewModel.cs; then
   fail "WPF ViewModel must not own a second OneDragon orchestration loop"
 fi
+one_dragon_shared_tasks=(
+  BetterGenshinImpact/GameTask/Common/Job/CheckRewardsTask.cs
+  BetterGenshinImpact/GameTask/Common/Job/ClaimMailRewardsTask.cs
+  BetterGenshinImpact/GameTask/Common/Job/GoToSereniteaPotTask.cs
+)
+if rg -n '\b(TaskContext|Simulation\.|App\.GetService|Vanara|User32)\b' \
+  "${one_dragon_shared_tasks[@]}"; then
+  fail "shared OneDragon reward tasks still own Windows runtime or global configuration dependencies"
+fi
+rg -q 'GoToSereniteaPotTask\(OneDragonFlowConfig config\)' \
+  BetterGenshinImpact/GameTask/Common/Job/GoToSereniteaPotTask.cs \
+  && rg -Uq 'new GoToSereniteaPotTask\(config\)[[:space:]]*\.Start' \
+    BetterGenshinImpact/Model/OneDragonTaskItem.cs \
+  && rg -q 'TaskParameterPlatform\.Current\.GetStringLocalizer<CheckRewardsTask>' \
+    BetterGenshinImpact/GameTask/Common/Job/CheckRewardsTask.cs \
+  && rg -q 'TaskControlPlatform\.Current\.PressEscape\(\)' \
+    BetterGenshinImpact/GameTask/Common/Job/ClaimMailRewardsTask.cs \
+  || fail "OneDragon reward tasks are not bound to the shared input, localization, and explicit configuration contracts"
 if rg -n '\.constant\(|BGIUnavailable(Action|Toggle)|var action: \(\) -> Void = \{\}' \
   MacGI/Sources/MacGI/Views MacGI/Sources/MacGI/Components --glob '*.swift'; then
   fail "production views must not expose constant-bound controls or empty actions"
