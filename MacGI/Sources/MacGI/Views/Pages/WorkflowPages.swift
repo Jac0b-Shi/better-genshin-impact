@@ -620,7 +620,7 @@ struct MacroPage: View {
                 title: "那维莱特 - 转圈圈",
                 subtitle: "按住已绑定快捷键时持续水平平移鼠标。"
             ) {
-                EmptyView()
+                hotKeyBindingButton
             } content: {
                 VStack(spacing: 0) {
                     BGISettingLine(
@@ -673,7 +673,7 @@ struct MacroPage: View {
                 title: "快速强化圣遗物",
                 subtitle: "快速跳过强化结果展示，需要配置快捷键进行触发。"
             ) {
-                EmptyView()
+                hotKeyBindingButton
             } content: {
                 BGISettingLine(
                     title: "强化的额外等待时间",
@@ -701,7 +701,7 @@ struct MacroPage: View {
                 title: "快速购买",
                 subtitle: "在物品购买或兑换页使用，从选中物品处开始，按住快捷键持续购买。"
             ) {
-                EmptyView()
+                hotKeyBindingButton
             } content: {
                 Text("请在快捷键设置中绑定“按下快速购买商店物品”。")
                     .font(BGIFonts.body)
@@ -714,9 +714,22 @@ struct MacroPage: View {
                 title: "一键进出尘歌壶",
                 subtitle: "一键自动打开背包，放置尘歌壶并进入。"
             ) {
-                EmptyView()
+                hotKeyBindingButton
             } content: {
                 Text("请在快捷键设置中绑定“按下快速进出尘歌壶”。")
+                    .font(BGIFonts.body)
+                    .foregroundStyle(BGIColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            BGIOriginalCard(
+                icon: .symbol("checkmark.circle"),
+                title: "一键确认/取消",
+                subtitle: "绑定快捷键到原神的确认或取消按钮。"
+            ) {
+                hotKeyBindingButton
+            } content: {
+                Text("分别绑定“快捷点击原神内确认按钮”和“快捷点击原神内取消按钮”。")
                     .font(BGIFonts.body)
                     .foregroundStyle(BGIColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -727,7 +740,7 @@ struct MacroPage: View {
                 title: "一键领取奖励",
                 subtitle: "识别当前页面的领取按钮或礼物图标并点击，需要配置快捷键进行触发"
             ) {
-                EmptyView()
+                hotKeyBindingButton
             } content: {
                 VStack(spacing: 0) {
                     BGISettingLine(
@@ -818,6 +831,15 @@ struct MacroPage: View {
                 }
             }
         }
+    }
+
+    private var hotKeyBindingButton: some View {
+        Button {
+            appState.selectedPage = .hotkey
+        } label: {
+            Label("绑定", systemImage: "keyboard")
+        }
+        .buttonStyle(.bordered)
     }
 }
 
@@ -1120,8 +1142,16 @@ struct NotificationPage: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("需要通知的事件")
-                                    .font(BGIFonts.body)
+                                HStack(spacing: 6) {
+                                    Text("需要通知的事件")
+                                        .font(BGIFonts.body)
+                                    Link(
+                                        "打开文档",
+                                        destination: URL(
+                                            string: "https://www.bettergi.com/dev/webhook.html#%E4%BA%8B%E4%BB%B6%E5%88%97%E8%A1%A8"
+                                        )!)
+                                        .font(BGIFonts.caption)
+                                }
                                 Text(eventSelectionSummary)
                                     .font(BGIFonts.caption)
                                     .foregroundStyle(BGIColors.secondaryText)
